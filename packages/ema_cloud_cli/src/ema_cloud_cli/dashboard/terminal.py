@@ -11,17 +11,20 @@ Features:
 - Auto-refresh display
 """
 
+import json
 import logging
 from datetime import datetime
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.screen import ModalScreen
 from textual.reactive import reactive
 from textual.css.query import NoMatches
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.widgets import Button, DataTable, Footer, Header, Static, TextArea
 
 from ema_cloud_lib import api_call_tracker
+from ema_cloud_lib.config.settings import ScannerConfig
 from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
 
 logger = logging.getLogger(__name__)
@@ -44,6 +47,52 @@ class StatusBar(Static):
             f"Signals: {self.signals_count} | "
             f"API: {self.api_calls} ({self.api_calls_per_min:.0f}/min)"
         )
+
+
+class SettingsScreen(ModalScreen[ScannerConfig]):
+    """Settings editor using a JSON panel."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, config: ScannerConfig, on_apply):
+        super().__init__()
+        self._config = config
+        self._on_apply = on_apply
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="settings-panel"):
+            yield Static("Settings (JSON)", id="settings-title")
+            yield TextArea(
+                id="settings-json",
+                language="json",
+                show_line_numbers=True,
+                tab_behavior="indent",
+            )
+            with Horizontal(id="settings-actions"):
+                yield Button("Apply", id="settings-apply", variant="success")
+                yield Button("Cancel", id="settings-cancel", variant="error")
+
+    def on_mount(self) -> None:
+        editor = self.query_one("#settings-json", TextArea)
+        editor.text = json.dumps(self._config.to_full_dict(), indent=2, sort_keys=True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(self._config)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "settings-cancel":
+            self.dismiss(self._config)
+            return
+        if event.button.id == "settings-apply":
+            editor = self.query_one("#settings-json", TextArea)
+            try:
+                data = json.loads(editor.text)
+                new_config = ScannerConfig.from_full_dict(data)
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                self.notify(f"Settings error: {exc}", severity="error")
+                return
+            self._on_apply(new_config)
+            self.dismiss(new_config)
 
 
 class TerminalDashboard(App):
@@ -134,6 +183,39 @@ class TerminalDashboard(App):
     .neutral {
         color: $text-muted;
     }
+
+    SettingsScreen {
+        align: center middle;
+    }
+
+    #settings-panel {
+        width: 90%;
+        height: 90%;
+        border: tall $primary;
+        background: $panel;
+    }
+
+    #settings-title {
+        text-align: center;
+        text-style: bold;
+        padding: 1 0;
+        color: $text;
+        background: $surface;
+    }
+
+    #settings-json {
+        height: 1fr;
+    }
+
+    #settings-actions {
+        height: auto;
+        padding: 1 0;
+        align: center middle;
+    }
+
+    #settings-actions Button {
+        margin: 0 1;
+    }
     """
 
     TITLE = "EMA Cloud Sector Scanner"
@@ -141,9 +223,16 @@ class TerminalDashboard(App):
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("d", "toggle_dark", "Toggle Dark Mode"),
+        Binding("s", "settings", "Settings"),
     ]
 
-    def __init__(self, refresh_rate: int = 2, on_quit=None):
+    def __init__(
+        self,
+        refresh_rate: int = 2,
+        config: ScannerConfig | None = None,
+        on_quit=None,
+        on_config_update=None,
+    ):
         super().__init__()
         self.refresh_rate = refresh_rate
         self._etf_data: dict[str, ETFDisplayData] = {}
@@ -152,6 +241,8 @@ class TerminalDashboard(App):
         self._update_timer = None
         self._is_mounted = False
         self._on_quit = on_quit
+        self._config = config or ScannerConfig()
+        self._on_config_update = on_config_update
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -339,6 +430,10 @@ class TerminalDashboard(App):
         self._refresh_display()
         self.notify("Display refreshed")
 
+    def action_settings(self) -> None:
+        """Open settings panel."""
+        self.push_screen(SettingsScreen(self._config, self.apply_config))
+
     def action_quit(self) -> None:
         """Quit the dashboard and signal shutdown."""
         if self._on_quit:
@@ -351,6 +446,17 @@ class TerminalDashboard(App):
             self._update_timer.stop()
         self._is_mounted = False
         self.exit()
+
+    def apply_config(self, config: ScannerConfig) -> None:
+        """Apply settings to the dashboard and propagate to scanner."""
+        self._config = config
+        if self._on_config_update:
+            self._on_config_update(config)
+        if self._update_timer:
+            self._update_timer.stop()
+        self.refresh_rate = config.dashboard_refresh_rate
+        if self._is_mounted:
+            self._update_timer = self.set_interval(self.refresh_rate, self._refresh_display)
 
     async def run_async(self) -> None:
         """Run the dashboard within an existing async context.

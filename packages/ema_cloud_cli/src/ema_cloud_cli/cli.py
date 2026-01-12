@@ -96,6 +96,7 @@ async def main():
 
     if args.subset:
         config.etf_subset = args.subset
+    config.scan_interval = args.interval
 
     # Create scanner
     scanner = EMACloudScanner(config)
@@ -115,7 +116,12 @@ async def main():
 
     if not args.no_dashboard:
         try:
-            dashboard = TerminalDashboard(on_quit=request_shutdown)
+            dashboard = TerminalDashboard(
+                refresh_rate=config.dashboard_refresh_rate,
+                config=config,
+                on_quit=request_shutdown,
+                on_config_update=scanner.apply_config,
+            )
         except Exception:
             dashboard = SimpleDashboard()
 
@@ -139,7 +145,7 @@ async def main():
         else:
             scanner_task = asyncio.create_task(
                 scanner.run(
-                    scan_interval_seconds=args.interval,
+                    scan_interval_seconds=None,
                     market_hours_only=not args.all_hours,
                 )
             )

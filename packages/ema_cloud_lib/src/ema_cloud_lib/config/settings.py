@@ -6,7 +6,7 @@ All settings are configurable and support presets for different trading styles.
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -380,6 +380,65 @@ class ScannerConfig:
     dashboard_refresh_rate: int = 5  # Seconds
     show_all_etfs: bool = True
 
+    def to_full_dict(self) -> dict[str, Any]:
+        """Serialize full configuration to a dict for UI editing."""
+        return {
+            "trading_style": self.trading_style.value,
+            "active_sectors": list(self.active_sectors),
+            "custom_symbols": list(self.custom_symbols),
+            "ema_clouds": {name: asdict(cfg) for name, cfg in self.ema_clouds.items()},
+            "filters": asdict(self.filters),
+            "alerts": asdict(self.alerts),
+            "data_provider": asdict(self.data_provider),
+            "backtest": asdict(self.backtest),
+            "scan_interval": self.scan_interval,
+            "fetch_holdings": self.fetch_holdings,
+            "top_holdings_count": self.top_holdings_count,
+            "dashboard_refresh_rate": self.dashboard_refresh_rate,
+            "show_all_etfs": self.show_all_etfs,
+        }
+
+    @classmethod
+    def from_full_dict(cls, config_dict: dict[str, Any]) -> "ScannerConfig":
+        """Create a config instance from a full dict (typically edited in UI)."""
+        config = cls()
+
+        if "trading_style" in config_dict:
+            config.trading_style = TradingStyle(config_dict["trading_style"])
+        if "active_sectors" in config_dict:
+            config.active_sectors = config_dict["active_sectors"]
+        if "custom_symbols" in config_dict:
+            config.custom_symbols = config_dict["custom_symbols"]
+        if "scan_interval" in config_dict:
+            config.scan_interval = int(config_dict["scan_interval"])
+        if "fetch_holdings" in config_dict:
+            config.fetch_holdings = bool(config_dict["fetch_holdings"])
+        if "top_holdings_count" in config_dict:
+            config.top_holdings_count = int(config_dict["top_holdings_count"])
+        if "dashboard_refresh_rate" in config_dict:
+            config.dashboard_refresh_rate = int(config_dict["dashboard_refresh_rate"])
+        if "show_all_etfs" in config_dict:
+            config.show_all_etfs = bool(config_dict["show_all_etfs"])
+
+        if "ema_clouds" in config_dict:
+            config.ema_clouds = {
+                name: EMACloudConfig(**cloud_dict)
+                for name, cloud_dict in config_dict["ema_clouds"].items()
+            }
+
+        if "filters" in config_dict:
+            config.filters = FilterConfig(**config_dict["filters"])
+
+        if "alerts" in config_dict:
+            config.alerts = AlertConfig(**config_dict["alerts"])
+
+        if "data_provider" in config_dict:
+            config.data_provider = DataProviderConfig(**config_dict["data_provider"])
+
+        if "backtest" in config_dict:
+            config.backtest = BacktestConfig(**config_dict["backtest"])
+
+        return config
     def get_preset(self) -> dict[str, Any]:
         """Get the current trading style preset configuration"""
         return TRADING_PRESETS[self.trading_style]

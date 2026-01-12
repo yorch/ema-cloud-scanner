@@ -103,23 +103,12 @@ class EMACloudScanner:
         self.config = config or ScannerConfig()
 
         # Initialize components
-        self.data_manager = DataProviderManager()
-        self.data_manager.add_provider("yahoo", YahooFinanceProvider())
+        self.data_manager = DataProviderManager(self._data_provider_config_dict())
 
-        # Convert EMACloudConfig objects to tuples for the indicator
-        clouds_config = {
-            name: (cfg.fast_period, cfg.slow_period) for name, cfg in self.config.ema_clouds.items()
-        }
-        self.cloud_indicator = EMACloudIndicator(clouds_config=clouds_config)
-
-        self.signal_generator = SignalGenerator(
-            clouds_config=clouds_config,
-            filter_config=self.config.filters,
-            trading_style=self.config.trading_style,
-        )
+        self.cloud_indicator, self.signal_generator = self._build_indicators()
 
         self.holdings_manager = HoldingsManager()
-        self.alert_manager = AlertManager.create_default()
+        self.alert_manager = AlertManager.create_default(self._alert_config_dict())
 
         # Dashboard (optional, set via set_dashboard())
         self._dashboard: DashboardProtocol | None = None
@@ -146,6 +135,61 @@ class EMACloudScanner:
             dashboard: A dashboard implementing DashboardProtocol, or None to disable
         """
         self._dashboard = dashboard
+
+    def _alert_config_dict(self) -> dict[str, dict]:
+        return {
+            "console": {
+                "enabled": self.config.alerts.console_enabled,
+                "colors": self.config.alerts.console_colors,
+            },
+            "desktop": {
+                "enabled": self.config.alerts.desktop_enabled,
+                "sound": self.config.alerts.desktop_sound,
+            },
+            "telegram": {
+                "enabled": self.config.alerts.telegram_enabled,
+                "bot_token": self.config.alerts.telegram_bot_token,
+                "chat_id": self.config.alerts.telegram_chat_id,
+            },
+            "discord": {
+                "enabled": self.config.alerts.discord_enabled,
+                "webhook_url": self.config.alerts.discord_webhook_url,
+            },
+        }
+
+    def _data_provider_config_dict(self) -> dict[str, dict]:
+        return {
+            "yahoo": {"enabled": self.config.data_provider.yahoo_enabled},
+            "alpaca": {
+                "enabled": self.config.data_provider.alpaca_enabled,
+                "api_key": self.config.data_provider.alpaca_api_key,
+                "secret_key": self.config.data_provider.alpaca_secret_key,
+                "paper": self.config.data_provider.alpaca_paper,
+            },
+            "polygon": {
+                "enabled": self.config.data_provider.polygon_enabled,
+                "api_key": self.config.data_provider.polygon_api_key,
+            },
+        }
+
+    def _build_indicators(self) -> tuple[EMACloudIndicator, SignalGenerator]:
+        clouds_config = {
+            name: (cfg.fast_period, cfg.slow_period) for name, cfg in self.config.ema_clouds.items()
+        }
+        indicator = EMACloudIndicator(clouds_config=clouds_config)
+        generator = SignalGenerator(
+            clouds_config=clouds_config,
+            filter_config=self.config.filters,
+            trading_style=self.config.trading_style,
+        )
+        return indicator, generator
+
+    def apply_config(self, config: ScannerConfig) -> None:
+        """Apply a new configuration and rebuild dependent components."""
+        self.config = config
+        self.data_manager = DataProviderManager(self._data_provider_config_dict())
+        self.cloud_indicator, self.signal_generator = self._build_indicators()
+        self.alert_manager = AlertManager.create_default(self._alert_config_dict())
 
     def _get_etf_list(self) -> list[str]:
         """Get list of ETFs to scan based on config"""
@@ -310,7 +354,7 @@ class EMACloudScanner:
 
     async def run(
         self,
-        scan_interval_seconds: int = 60,
+        scan_interval_seconds: int | None = None,
         market_hours_only: bool = True,
     ):
         """
@@ -339,7 +383,12 @@ class EMACloudScanner:
                 await self.run_scan_cycle()
 
                 # Wait for next interval
-                await asyncio.sleep(scan_interval_seconds)
+                interval = (
+                    self.config.scan_interval
+                    if scan_interval_seconds is None
+                    else scan_interval_seconds
+                )
+                await asyncio.sleep(interval)
 
         except asyncio.CancelledError:
             logger.info("Scanner cancelled")
