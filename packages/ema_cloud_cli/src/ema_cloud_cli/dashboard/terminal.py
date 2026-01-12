@@ -332,7 +332,7 @@ class TerminalDashboard(App):
 
     def action_toggle_dark(self) -> None:
         """Toggle dark mode."""
-        self.dark = not self.dark
+        super().action_toggle_dark()
 
     def action_refresh(self) -> None:
         """Manual refresh."""
