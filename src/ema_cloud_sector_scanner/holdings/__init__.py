@@ -1,19 +1,20 @@
 """Holdings module"""
 
 from .manager import (
-    Holding,
     ETFHoldings,
+    Holding,
+    HoldingsManager,
     HoldingsProvider,
-    YahooHoldingsProvider,
     StaticHoldingsProvider,
-    HoldingsManager
+    YahooHoldingsProvider,
 )
 
+
 __all__ = [
-    'Holding',
-    'ETFHoldings',
-    'HoldingsProvider',
-    'YahooHoldingsProvider',
-    'StaticHoldingsProvider',
-    'HoldingsManager'
+    "ETFHoldings",
+    "Holding",
+    "HoldingsManager",
+    "HoldingsProvider",
+    "StaticHoldingsProvider",
+    "YahooHoldingsProvider",
 ]

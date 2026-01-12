@@ -37,9 +37,9 @@ all = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
-    "black",
-    "flake8",
-    "ruff",
+    "ruff>=0.4.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
 ]
 
 [project.scripts]
@@ -58,11 +58,62 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+src = ["src"]
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W"]
-ignore = ["E501"]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented out code)
+    "PL",     # pylint
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "PLR0913", # too many arguments
+    "PLR2004", # magic value comparison
+    "PLR0911", # too many return statements
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "PLC0415", # import not at top level (intentional lazy imports)
+    "SIM102",  # nested if statements (readability preference)
+    "SIM117",  # nested with statements (readability preference)
+    "RUF003",  # ambiguous unicode (intentional math symbols)
+    "RUF012",  # mutable class attributes (dataclass pattern)
+    "B904",    # exception chaining (minor in data providers)
+    "PLW1510", # subprocess.run check (intentional for notifications)
+]
 
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311", "py312"]
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__ files
+"tests/*" = ["ARG", "PLR2004"]  # test files can have unused args and magic values
+"*/dashboard.py" = ["F401"]  # optional rich imports for feature detection
+"*/scanner.py" = ["ARG001", "ERA001"]  # signal handler args, commented code
+
+[tool.ruff.lint.isort]
+known-first-party = ["ema_cloud_sector_scanner"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -5,24 +5,26 @@ Based on Ripster's EMA Cloud Strategy
 All settings are configurable and support presets for different trading styles.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from enum import Enum
 import json
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
+from typing import Any
 
 
 class TradingStyle(Enum):
     """Trading style presets based on Ripster's recommendations"""
-    SCALPING = "scalping"           # 1-5 minute charts
-    INTRADAY = "intraday"           # 10-minute charts (Ripster's primary)
-    SWING = "swing"                 # 1-hour/4-hour charts
-    POSITION = "position"           # Daily charts
-    LONG_TERM = "long_term"         # Weekly charts
+
+    SCALPING = "scalping"  # 1-5 minute charts
+    INTRADAY = "intraday"  # 10-minute charts (Ripster's primary)
+    SWING = "swing"  # 1-hour/4-hour charts
+    POSITION = "position"  # Daily charts
+    LONG_TERM = "long_term"  # Weekly charts
 
 
 class TrendState(Enum):
     """Possible trend states for the EMA cloud"""
+
     STRONG_BULLISH = "strong_bullish"
     BULLISH = "bullish"
     WEAK_BULLISH = "weak_bullish"
@@ -34,19 +36,21 @@ class TrendState(Enum):
 
 class SignalType(Enum):
     """Types of signals generated"""
-    CLOUD_FLIP_BULLISH = "cloud_flip_bullish"     # EMA cloud turns green
-    CLOUD_FLIP_BEARISH = "cloud_flip_bearish"     # EMA cloud turns red
-    PRICE_CROSS_ABOVE = "price_cross_above"       # Price crosses above cloud
-    PRICE_CROSS_BELOW = "price_cross_below"       # Price crosses below cloud
-    CLOUD_BOUNCE_LONG = "cloud_bounce_long"       # Price bounces off cloud support
-    CLOUD_BOUNCE_SHORT = "cloud_bounce_short"     # Price bounces off cloud resistance
-    TREND_CONFIRMATION = "trend_confirmation"      # Multiple timeframe confirmation
-    PULLBACK_ENTRY = "pullback_entry"             # Pullback to 8-9 EMA cloud
+
+    CLOUD_FLIP_BULLISH = "cloud_flip_bullish"  # EMA cloud turns green
+    CLOUD_FLIP_BEARISH = "cloud_flip_bearish"  # EMA cloud turns red
+    PRICE_CROSS_ABOVE = "price_cross_above"  # Price crosses above cloud
+    PRICE_CROSS_BELOW = "price_cross_below"  # Price crosses below cloud
+    CLOUD_BOUNCE_LONG = "cloud_bounce_long"  # Price bounces off cloud support
+    CLOUD_BOUNCE_SHORT = "cloud_bounce_short"  # Price bounces off cloud resistance
+    TREND_CONFIRMATION = "trend_confirmation"  # Multiple timeframe confirmation
+    PULLBACK_ENTRY = "pullback_entry"  # Pullback to 8-9 EMA cloud
 
 
 @dataclass
 class EMACloudConfig:
     """Configuration for a single EMA cloud"""
+
     fast_period: int
     slow_period: int
     name: str
@@ -59,9 +63,10 @@ class EMACloudConfig:
 @dataclass
 class TimeframeConfig:
     """Configuration for a specific timeframe"""
-    interval: str              # e.g., "1m", "5m", "10m", "1h", "1d"
+
+    interval: str  # e.g., "1m", "5m", "10m", "1h", "1d"
     display_name: str
-    bars_to_fetch: int = 500   # Number of historical bars to load
+    bars_to_fetch: int = 500  # Number of historical bars to load
 
 
 # Ripster's EMA Cloud Configurations
@@ -70,37 +75,37 @@ DEFAULT_EMA_CLOUDS = {
         fast_period=5,
         slow_period=12,
         name="Trend Line Cloud",
-        description="5-12 EMA: Fluid trendline for day trades"
+        description="5-12 EMA: Fluid trendline for day trades",
     ),
     "pullback": EMACloudConfig(
         fast_period=8,
         slow_period=9,
         name="Pullback Cloud",
-        description="8-9 EMA: Pullback levels (optional)"
+        description="8-9 EMA: Pullback levels (optional)",
     ),
     "momentum": EMACloudConfig(
         fast_period=20,
         slow_period=21,
         name="Momentum Cloud",
-        description="20-21 EMA: Short-term momentum"
+        description="20-21 EMA: Short-term momentum",
     ),
     "trend_confirmation": EMACloudConfig(
         fast_period=34,
         slow_period=50,
         name="Trend Confirmation Cloud",
-        description="34-50 EMA: Bullish/bearish bias confirmation (KEY CLOUD)"
+        description="34-50 EMA: Bullish/bearish bias confirmation (KEY CLOUD)",
     ),
     "long_term": EMACloudConfig(
         fast_period=72,
         slow_period=89,
         name="Long Term Cloud",
-        description="72-89 EMA: Long-term trend direction"
+        description="72-89 EMA: Long-term trend direction",
     ),
     "major_trend": EMACloudConfig(
         fast_period=200,
         slow_period=233,
         name="Major Trend Cloud",
-        description="200-233 EMA: Major trend/institutional levels"
+        description="200-233 EMA: Major trend/institutional levels",
     ),
 }
 
@@ -231,44 +236,45 @@ ETF_SUBSETS = {
 @dataclass
 class FilterConfig:
     """Configuration for signal filters"""
+
     # Volume filter
     volume_enabled: bool = True
     volume_multiplier: float = 1.5  # Volume must be 1.5x average
-    volume_lookback: int = 20       # 20-bar average volume
-    
+    volume_lookback: int = 20  # 20-bar average volume
+
     # RSI filter
     rsi_enabled: bool = True
     rsi_period: int = 14
     rsi_overbought: float = 70.0
     rsi_oversold: float = 30.0
     rsi_neutral_zone: tuple = (45.0, 55.0)
-    
+
     # ADX filter (trend strength)
     adx_enabled: bool = True
     adx_period: int = 14
     adx_min_strength: float = 20.0  # Minimum ADX for valid trend
     adx_strong_trend: float = 30.0
-    
+
     # VWAP filter
     vwap_enabled: bool = True
     vwap_confirmation: bool = True  # Require price on correct side of VWAP
-    
+
     # ATR filter (volatility)
     atr_enabled: bool = True
     atr_period: int = 14
-    atr_min_threshold: float = 0.5   # Minimum ATR as % of price
-    atr_max_threshold: float = 5.0   # Maximum ATR (avoid extreme volatility)
-    
+    atr_min_threshold: float = 0.5  # Minimum ATR as % of price
+    atr_max_threshold: float = 5.0  # Maximum ATR (avoid extreme volatility)
+
     # MACD confirmation
     macd_enabled: bool = False
     macd_fast: int = 12
     macd_slow: int = 26
     macd_signal: int = 9
-    
+
     # Time of day filter
     time_filter_enabled: bool = True
-    avoid_first_minutes: int = 15     # Avoid first 15 minutes
-    avoid_last_minutes: int = 15      # Avoid last 15 minutes
+    avoid_first_minutes: int = 15  # Avoid first 15 minutes
+    avoid_last_minutes: int = 15  # Avoid last 15 minutes
     trading_start_time: str = "09:30"
     trading_end_time: str = "16:00"
 
@@ -276,56 +282,59 @@ class FilterConfig:
 @dataclass
 class AlertConfig:
     """Configuration for alerts"""
+
     # Console alerts
     console_enabled: bool = True
     console_colors: bool = True
-    
+
     # Desktop notifications
     desktop_enabled: bool = True
     desktop_sound: bool = True
-    
+
     # Future extensions (placeholders)
     telegram_enabled: bool = False
-    telegram_bot_token: Optional[str] = None
-    telegram_chat_id: Optional[str] = None
-    
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+
     discord_enabled: bool = False
-    discord_webhook_url: Optional[str] = None
-    
+    discord_webhook_url: str | None = None
+
     email_enabled: bool = False
-    email_smtp_server: Optional[str] = None
-    email_recipients: List[str] = field(default_factory=list)
+    email_smtp_server: str | None = None
+    email_recipients: list[str] = field(default_factory=list)
 
 
 @dataclass
 class DataProviderConfig:
     """Configuration for data providers"""
+
     # Yahoo Finance (default, free)
     yahoo_enabled: bool = True
-    
+
     # Alpaca
     alpaca_enabled: bool = False
-    alpaca_api_key: Optional[str] = None
-    alpaca_secret_key: Optional[str] = None
+    alpaca_api_key: str | None = None
+    alpaca_secret_key: str | None = None
     alpaca_paper: bool = True  # Use paper trading endpoint
-    
+
     # Polygon.io
     polygon_enabled: bool = False
-    polygon_api_key: Optional[str] = None
-    
+    polygon_api_key: str | None = None
+
     # Rate limiting
     request_delay_ms: int = 100
     max_concurrent_requests: int = 5
 
 
-@dataclass 
+@dataclass
 class BacktestConfig:
     """Configuration for backtesting"""
+
     enabled: bool = True
-    start_date: Optional[str] = None  # YYYY-MM-DD
-    end_date: Optional[str] = None
+    start_date: str | None = None  # YYYY-MM-DD
+    end_date: str | None = None
     initial_capital: float = 100000.0
-    position_size_pct: float = 10.0   # % of capital per trade
+    position_size_pct: float = 10.0  # % of capital per trade
     commission_per_trade: float = 0.0
     slippage_pct: float = 0.05
 
@@ -333,56 +342,60 @@ class BacktestConfig:
 @dataclass
 class ScannerConfig:
     """Main scanner configuration"""
+
     # Trading style preset
     trading_style: TradingStyle = TradingStyle.INTRADAY
-    
+
     # Sector configuration
-    active_sectors: List[str] = field(default_factory=lambda: ETF_SUBSETS["all_sectors"])
-    custom_symbols: List[str] = field(default_factory=list)  # Additional symbols to scan
-    
+    active_sectors: list[str] = field(default_factory=lambda: ETF_SUBSETS["all_sectors"])
+    custom_symbols: list[str] = field(default_factory=list)  # Additional symbols to scan
+
     # EMA Cloud settings
-    ema_clouds: Dict[str, EMACloudConfig] = field(default_factory=lambda: DEFAULT_EMA_CLOUDS.copy())
-    
+    ema_clouds: dict[str, EMACloudConfig] = field(default_factory=lambda: DEFAULT_EMA_CLOUDS.copy())
+
     # Filter settings
     filters: FilterConfig = field(default_factory=FilterConfig)
-    
+
     # Alert settings
     alerts: AlertConfig = field(default_factory=AlertConfig)
-    
+
     # Data provider settings
     data_provider: DataProviderConfig = field(default_factory=DataProviderConfig)
-    
+
     # Backtest settings
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
-    
+
     # Scan interval (seconds)
     scan_interval: int = 60
-    
+
     # Holdings settings
     fetch_holdings: bool = True
     top_holdings_count: int = 10  # Number of top holdings to track per ETF
-    
+
     # Dashboard settings
     dashboard_refresh_rate: int = 5  # Seconds
     show_all_etfs: bool = True
-    
-    def get_preset(self) -> Dict[str, Any]:
+
+    def get_preset(self) -> dict[str, Any]:
         """Get the current trading style preset configuration"""
         return TRADING_PRESETS[self.trading_style]
-    
-    def get_active_etf_symbols(self) -> List[str]:
+
+    def get_active_etf_symbols(self) -> list[str]:
         """Get list of active ETF symbols"""
         symbols = [SECTOR_ETFS[sector]["symbol"] for sector in self.active_sectors]
         symbols.extend(self.custom_symbols)
         return symbols
-    
-    def get_enabled_clouds(self) -> Dict[str, EMACloudConfig]:
+
+    def get_enabled_clouds(self) -> dict[str, EMACloudConfig]:
         """Get enabled EMA clouds based on trading style"""
         preset = self.get_preset()
         enabled_names = preset.get("enabled_clouds", list(self.ema_clouds.keys()))
-        return {name: cloud for name, cloud in self.ema_clouds.items() 
-                if name in enabled_names and cloud.enabled}
-    
+        return {
+            name: cloud
+            for name, cloud in self.ema_clouds.items()
+            if name in enabled_names and cloud.enabled
+        }
+
     def save(self, filepath: str):
         """Save configuration to JSON file"""
         config_dict = {
@@ -409,16 +422,16 @@ class ScannerConfig:
                 "yahoo_enabled": self.data_provider.yahoo_enabled,
                 "alpaca_enabled": self.data_provider.alpaca_enabled,
                 "polygon_enabled": self.data_provider.polygon_enabled,
-            }
+            },
         }
         Path(filepath).write_text(json.dumps(config_dict, indent=2))
-    
+
     @classmethod
-    def load(cls, filepath: str) -> 'ScannerConfig':
+    def load(cls, filepath: str) -> "ScannerConfig":
         """Load configuration from JSON file"""
         config_dict = json.loads(Path(filepath).read_text())
         config = cls()
-        
+
         if "trading_style" in config_dict:
             config.trading_style = TradingStyle(config_dict["trading_style"])
         if "active_sectors" in config_dict:
@@ -427,7 +440,7 @@ class ScannerConfig:
             config.custom_symbols = config_dict["custom_symbols"]
         if "scan_interval" in config_dict:
             config.scan_interval = config_dict["scan_interval"]
-            
+
         return config
 
 

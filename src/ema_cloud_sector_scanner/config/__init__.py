@@ -1,29 +1,30 @@
 """Config module"""
 
 from .settings import (
-    TradingStyle,
+    DEFAULT_EMA_CLOUDS,
+    ETF_SUBSETS,
+    SECTOR_ETFS,
+    TRADING_PRESETS,
+    AlertConfig,
+    BacktestConfig,
+    DataProviderConfig,
     EMACloudConfig,
     FilterConfig,
-    AlertConfig,
-    DataProviderConfig,
-    BacktestConfig,
     ScannerConfig,
-    SECTOR_ETFS,
-    ETF_SUBSETS,
-    DEFAULT_EMA_CLOUDS,
-    TRADING_PRESETS
+    TradingStyle,
 )
 
+
 __all__ = [
-    'TradingStyle',
-    'EMACloudConfig',
-    'FilterConfig',
-    'AlertConfig',
-    'DataProviderConfig',
-    'BacktestConfig',
-    'ScannerConfig',
-    'SECTOR_ETFS',
-    'ETF_SUBSETS',
-    'DEFAULT_EMA_CLOUDS',
-    'TRADING_PRESETS'
+    "DEFAULT_EMA_CLOUDS",
+    "ETF_SUBSETS",
+    "SECTOR_ETFS",
+    "TRADING_PRESETS",
+    "AlertConfig",
+    "BacktestConfig",
+    "DataProviderConfig",
+    "EMACloudConfig",
+    "FilterConfig",
+    "ScannerConfig",
+    "TradingStyle",
 ]

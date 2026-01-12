@@ -1,19 +1,20 @@
 """Signals module"""
 
 from .generator import (
-    SignalType,
-    SignalStrength,
+    SectorTrendState,
     Signal,
     SignalFilter,
     SignalGenerator,
-    SectorTrendState
+    SignalStrength,
+    SignalType,
 )
 
+
 __all__ = [
-    'SignalType',
-    'SignalStrength',
-    'Signal',
-    'SignalFilter',
-    'SignalGenerator',
-    'SectorTrendState'
+    "SectorTrendState",
+    "Signal",
+    "SignalFilter",
+    "SignalGenerator",
+    "SignalStrength",
+    "SignalType",
 ]
