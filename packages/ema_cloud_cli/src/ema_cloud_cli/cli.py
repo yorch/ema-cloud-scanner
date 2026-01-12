@@ -10,7 +10,7 @@ import logging
 import signal
 import sys
 
-from ema_cloud_cli.dashboard.terminal import SimpleDashboard, TerminalDashboard
+from ema_cloud_cli.dashboard import SimpleDashboard, TerminalDashboard
 from ema_cloud_lib import EMACloudScanner, ScannerConfig, TradingStyle
 from ema_cloud_lib.config.settings import ETF_SUBSETS
 
