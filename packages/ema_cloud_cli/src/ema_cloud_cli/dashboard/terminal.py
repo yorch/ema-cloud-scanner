@@ -55,7 +55,16 @@ class TerminalDashboard(App):
     Screen {
         layout: grid;
         grid-size: 1;
-        grid-rows: auto 1fr auto;
+        grid-rows: auto 1fr auto auto;
+    }
+
+    Header {
+        dock: none;
+    }
+
+    Footer {
+        dock: none;
+        height: 1;
     }
 
     #content {
@@ -99,7 +108,6 @@ class TerminalDashboard(App):
     }
 
     #status-bar {
-        dock: bottom;
         height: 1;
         padding: 0 1;
         background: $surface;
