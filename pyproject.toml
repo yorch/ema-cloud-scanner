@@ -17,11 +17,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-# This is a workspace meta-package - actual dependencies are in sub-packages
+# Workspace packages as dependencies
 dependencies = [
-    "ema-cloud-lib>=0.1.0",
-    "ema-cloud-cli>=0.1.0",
+    "ema-cloud-lib",
+    "ema-cloud-cli",
 ]
+
+[tool.uv.sources]
+ema-cloud-lib = { path = "packages/ema_cloud_lib", editable = true }
+ema-cloud-cli = { path = "packages/ema_cloud_cli", editable = true }
 
 [project.optional-dependencies]
 alpaca = ["alpaca-py>=0.13.0"]

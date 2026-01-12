@@ -30,12 +30,12 @@ This project is split into two packages:
 git clone <repo-url>
 cd ema_cloud_sector_scanner
 
-# Install both packages with uv (recommended)
+# Quick start - run directly without installing (recommended for development)
+uv run python run.py --once
+
+# Or install packages for persistent use
 uv pip install -e packages/ema_cloud_lib
 uv pip install -e packages/ema_cloud_cli
-
-# Or install library only (for programmatic use)
-uv pip install -e packages/ema_cloud_lib
 
 # Install with optional dependencies
 uv pip install -e "packages/ema_cloud_lib[all]"      # All optional providers
@@ -338,14 +338,34 @@ uv pip install -e "packages/ema_cloud_lib[polygon]"
 
 ## Development
 
+### Quick Start (No Installation Required)
+
+Use `run.py` to run directly from source:
+
 ```bash
-# Install with dev dependencies
+# Run scanner (uv handles dependencies automatically)
+uv run python run.py --help
+uv run python run.py --once
+uv run python run.py --style swing --etfs XLK XLF
+```
+
+### Installing Packages
+
+For a full installation:
+
+```bash
+# Install packages in editable mode
+uv pip install -e packages/ema_cloud_lib
+uv pip install -e packages/ema_cloud_cli
+
+# Or with dev dependencies
 uv pip install -e "packages/ema_cloud_lib[dev]"
 uv pip install -e "packages/ema_cloud_cli[dev]"
+```
 
-# Run tests
-pytest
+### Code Quality
 
+```bash
 # Lint
 ruff check packages/
 
@@ -354,6 +374,9 @@ ruff format packages/
 
 # Type check
 mypy packages/
+
+# Run tests
+pytest
 ```
 
 ## License

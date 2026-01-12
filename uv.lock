@@ -444,16 +444,63 @@ wheels = [
 ]
 
 [[package]]
-name = "ema-cloud-sector-scanner"
+name = "ema-cloud-cli"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "packages/ema_cloud_cli" }
+dependencies = [
+    { name = "ema-cloud-lib" },
+    { name = "rich" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ema-cloud-lib", specifier = ">=0.1.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
+    { name = "rich", specifier = ">=13.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "ema-cloud-lib"
+version = "0.1.0"
+source = { editable = "packages/ema_cloud_lib" }
 dependencies = [
     { name = "aiohttp" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas" },
-    { name = "rich" },
     { name = "yfinance" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9.0" },
+    { name = "alpaca-py", marker = "extra == 'all'", specifier = ">=0.13.0" },
+    { name = "alpaca-py", marker = "extra == 'alpaca'", specifier = ">=0.13.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "numpy", specifier = ">=1.24.0" },
+    { name = "pandas", specifier = ">=2.0.0" },
+    { name = "plyer", marker = "extra == 'all'", specifier = ">=2.1.0" },
+    { name = "plyer", marker = "extra == 'notifications'", specifier = ">=2.1.0" },
+    { name = "polygon-api-client", marker = "extra == 'all'", specifier = ">=1.12.0" },
+    { name = "polygon-api-client", marker = "extra == 'polygon'", specifier = ">=1.12.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
+    { name = "yfinance", specifier = ">=0.2.30" },
+]
+provides-extras = ["alpaca", "polygon", "notifications", "all", "dev"]
+
+[[package]]
+name = "ema-cloud-sector-scanner"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "ema-cloud-cli" },
+    { name = "ema-cloud-lib" },
 ]
 
 [package.optional-dependencies]
@@ -481,12 +528,11 @@ polygon = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "alpaca-py", marker = "extra == 'all'", specifier = ">=0.13.0" },
     { name = "alpaca-py", marker = "extra == 'alpaca'", specifier = ">=0.13.0" },
+    { name = "ema-cloud-cli", editable = "packages/ema_cloud_cli" },
+    { name = "ema-cloud-lib", editable = "packages/ema_cloud_lib" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "numpy", specifier = ">=1.24.0" },
-    { name = "pandas", specifier = ">=2.0.0" },
     { name = "plyer", marker = "extra == 'all'", specifier = ">=2.1.0" },
     { name = "plyer", marker = "extra == 'notifications'", specifier = ">=2.1.0" },
     { name = "polygon-api-client", marker = "extra == 'all'", specifier = ">=1.12.0" },
@@ -494,9 +540,7 @@ requires-dist = [
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
-    { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
-    { name = "yfinance", specifier = ">=0.2.30" },
 ]
 provides-extras = ["alpaca", "polygon", "notifications", "all", "dev"]
 
