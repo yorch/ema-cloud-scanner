@@ -86,6 +86,13 @@ class TrendAnalysis:
     macd_signal: float | None = None
     macd_histogram: float | None = None
 
+    @property
+    def primary_cloud_state(self) -> CloudState | None:
+        """Get the state of the primary trend confirmation cloud (34-50 EMA)"""
+        if "trend_confirmation" in self.clouds:
+            return self.clouds["trend_confirmation"].state
+        return None
+
 
 def calculate_ema(series: pd.Series, period: int) -> pd.Series:
     """Calculate Exponential Moving Average"""
