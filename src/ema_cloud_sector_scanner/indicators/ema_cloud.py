@@ -117,6 +117,14 @@ def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return rsi
 
 
+def calculate_true_range(high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
+    """Calculate True Range - maximum of (H-L), |H-PrevC|, |L-PrevC|"""
+    tr1 = high - low
+    tr2 = abs(high - close.shift(1))
+    tr3 = abs(low - close.shift(1))
+    return pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+
 def calculate_adx(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
 ) -> pd.DataFrame:
@@ -125,11 +133,7 @@ def calculate_adx(
 
     Returns DataFrame with columns: +DI, -DI, ADX
     """
-    # True Range
-    tr1 = high - low
-    tr2 = abs(high - close.shift(1))
-    tr3 = abs(low - close.shift(1))
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    tr = calculate_true_range(high, low, close)
 
     # Directional Movement
     plus_dm = high.diff()
@@ -152,11 +156,7 @@ def calculate_adx(
 
 def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Average True Range"""
-    tr1 = high - low
-    tr2 = abs(high - close.shift(1))
-    tr3 = abs(low - close.shift(1))
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-
+    tr = calculate_true_range(high, low, close)
     return tr.ewm(alpha=1 / period, adjust=False).mean()
 
 
@@ -385,8 +385,6 @@ class EMACloudIndicator:
         """
         signals = []
         clouds = self.analyze_single(df, idx)
-        row = df.iloc[idx]
-        row["close"]
 
         # Key cloud for trend confirmation (34-50)
         if "trend_confirmation" in clouds:

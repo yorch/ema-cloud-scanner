@@ -1,6 +1,7 @@
 """Data providers module"""
 
 from .base import (
+    INTERVAL_MINUTES,
     OHLCV,
     AlpacaProvider,
     BaseDataProvider,
@@ -15,6 +16,7 @@ from .base import (
 
 
 __all__ = [
+    "INTERVAL_MINUTES",
     "OHLCV",
     "AlpacaProvider",
     "BaseDataProvider",

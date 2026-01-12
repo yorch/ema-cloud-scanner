@@ -17,7 +17,7 @@ import pandas as pd
 from .alerts.handlers import AlertManager, create_alert_from_signal
 from .config.settings import (
     ETF_SUBSETS,
-    SECTOR_ETFS,
+    SYMBOL_TO_SECTOR,
     TRADING_PRESETS,
     ScannerConfig,
     TradingStyle,
@@ -183,7 +183,7 @@ class EMACloudScanner:
         signals = self.signal_generator.generate_signals(prepared_df, symbol)
 
         # Update sector state
-        sector_name = SECTOR_ETFS.get(symbol, symbol)
+        sector_name = SYMBOL_TO_SECTOR.get(symbol, symbol)
         self._sector_states[symbol] = self.signal_generator.get_sector_trend_state(
             prepared_df, symbol, sector_name
         )
@@ -226,7 +226,7 @@ class EMACloudScanner:
 
     def _should_alert_signal(self, signal: Signal) -> bool:
         """Check if we should alert for this signal (cooldown check)"""
-        key = f"{signal.symbol}_{signal.direction}_{signal.signal_type.value}"
+        key = f"{signal.symbol}|{signal.direction}|{signal.signal_type.value}"
 
         last_alert = self._signal_cooldown.get(key)
         if last_alert:

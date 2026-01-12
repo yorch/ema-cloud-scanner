@@ -222,6 +222,10 @@ SECTOR_ETFS = {
 }
 
 
+# Reverse lookup: symbol -> sector name
+SYMBOL_TO_SECTOR = {info["symbol"]: sector for sector, info in SECTOR_ETFS.items()}
+
+
 # ETF Subsets for quick selection
 ETF_SUBSETS = {
     "all_sectors": list(SECTOR_ETFS.keys()),
@@ -385,6 +389,47 @@ class ScannerConfig:
         symbols = [SECTOR_ETFS[sector]["symbol"] for sector in self.active_sectors]
         symbols.extend(self.custom_symbols)
         return symbols
+
+    def validate(self) -> list[str]:
+        """
+        Validate configuration and return list of warnings/errors.
+        Returns empty list if configuration is valid.
+        """
+        issues = []
+
+        # Validate active sectors
+        for sector in self.active_sectors:
+            if sector not in SECTOR_ETFS:
+                issues.append(f"Unknown sector: {sector}")
+
+        # Validate scan interval
+        if self.scan_interval < 10:
+            issues.append(f"Scan interval {self.scan_interval}s is very low, may hit rate limits")
+        if self.scan_interval > 3600:
+            issues.append(f"Scan interval {self.scan_interval}s is very high, may miss signals")
+
+        # Validate filter settings
+        if self.filters.rsi_overbought <= self.filters.rsi_oversold:
+            issues.append("RSI overbought must be greater than oversold")
+        if not (0 < self.filters.rsi_overbought <= 100):
+            issues.append(f"RSI overbought {self.filters.rsi_overbought} must be between 0 and 100")
+        if not (0 <= self.filters.rsi_oversold < 100):
+            issues.append(f"RSI oversold {self.filters.rsi_oversold} must be between 0 and 100")
+
+        # Validate EMA cloud settings
+        for name, cloud in self.ema_clouds.items():
+            if cloud.fast_period >= cloud.slow_period:
+                issues.append(f"EMA cloud '{name}': fast_period must be < slow_period")
+            if cloud.fast_period < 1:
+                issues.append(f"EMA cloud '{name}': fast_period must be >= 1")
+
+        # Validate backtest settings
+        if self.backtest.position_size_pct <= 0 or self.backtest.position_size_pct > 100:
+            issues.append("Backtest position_size_pct must be between 0 and 100")
+        if self.backtest.initial_capital <= 0:
+            issues.append("Backtest initial_capital must be positive")
+
+        return issues
 
     def get_enabled_clouds(self) -> dict[str, EMACloudConfig]:
         """Get enabled EMA clouds based on trading style"""

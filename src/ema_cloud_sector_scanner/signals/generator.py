@@ -15,7 +15,7 @@ Signal Generation Rules:
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from enum import Enum
 from typing import Any
 
@@ -33,6 +33,23 @@ from ..indicators.ema_cloud import (
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FilterResult:
+    """Result of applying a single filter"""
+
+    passed: bool
+    reason: str
+    filter_name: str = ""
+
+    def __bool__(self) -> bool:
+        return self.passed
+
+
+def count_bullish_clouds(clouds: dict[str, CloudData]) -> int:
+    """Count clouds in bullish state (BULLISH or CROSSING_UP)"""
+    return sum(1 for c in clouds.values() if c.state in [CloudState.BULLISH, CloudState.CROSSING_UP])
 
 
 class SignalStrength(Enum):
@@ -84,6 +101,51 @@ class Signal:
     def is_valid(self) -> bool:
         """Check if signal passed all required filters"""
         return len(self.filters_failed) == 0
+
+    def validate(self) -> list[str]:
+        """
+        Comprehensive signal validation returning list of issues.
+        Returns empty list if signal is fully valid.
+        """
+        issues = []
+
+        # Price validation
+        if self.price <= 0:
+            issues.append(f"Invalid price: {self.price}")
+
+        # Direction validation
+        if self.direction not in ("long", "short"):
+            issues.append(f"Invalid direction: {self.direction}")
+
+        # Risk/reward validation
+        if self.suggested_stop is not None and self.price > 0:
+            if self.direction == "long" and self.suggested_stop >= self.price:
+                issues.append(f"Stop loss {self.suggested_stop} above entry {self.price} for long")
+            elif self.direction == "short" and self.suggested_stop <= self.price:
+                issues.append(f"Stop loss {self.suggested_stop} below entry {self.price} for short")
+
+        if self.risk_reward_ratio is not None and self.risk_reward_ratio < 1.0:
+            issues.append(f"Poor risk/reward ratio: {self.risk_reward_ratio:.2f}")
+
+        # RSI extreme values
+        if self.rsi is not None:
+            if self.direction == "long" and self.rsi > 80:
+                issues.append(f"RSI extremely overbought ({self.rsi:.1f}) for long entry")
+            elif self.direction == "short" and self.rsi < 20:
+                issues.append(f"RSI extremely oversold ({self.rsi:.1f}) for short entry")
+
+        # Add filter failures
+        issues.extend(self.filters_failed)
+
+        return issues
+
+    def is_actionable(self) -> bool:
+        """Check if signal is actionable (valid and strong enough)"""
+        return (
+            self.is_valid()
+            and self.strength.value >= SignalStrength.MODERATE.value
+            and (self.risk_reward_ratio is None or self.risk_reward_ratio >= 1.5)
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -140,127 +202,126 @@ class SectorTrendState:
 class SignalFilter:
     """
     Filter class for validating signals.
-    Each filter returns (passed: bool, reason: str)
+    Each filter returns a FilterResult with passed status and reason.
     """
 
     def __init__(self, config: FilterConfig):
         self.config = config
 
-    def filter_volume(self, row: pd.Series) -> tuple[bool, str]:
+    def filter_volume(self, row: pd.Series) -> FilterResult:
         """Check if volume meets minimum threshold"""
         if not self.config.volume_enabled:
-            return True, "Volume filter disabled"
+            return FilterResult(True, "Volume filter disabled", "volume")
 
         volume_ratio = row.get("volume_ratio", 1.0)
         if pd.isna(volume_ratio):
-            return True, "Volume ratio not available"
+            return FilterResult(True, "Volume ratio not available", "volume")
         if volume_ratio >= self.config.volume_multiplier:
-            return True, f"Volume ratio {volume_ratio:.2f}x meets threshold"
-        else:
-            return (
-                False,
-                f"Volume ratio {volume_ratio:.2f}x below {self.config.volume_multiplier}x threshold",
-            )
+            return FilterResult(True, f"Volume ratio {volume_ratio:.2f}x meets threshold", "volume")
+        return FilterResult(
+            False,
+            f"Volume ratio {volume_ratio:.2f}x below {self.config.volume_multiplier}x threshold",
+            "volume",
+        )
 
-    def filter_rsi(self, row: pd.Series, direction: str) -> tuple[bool, str]:
+    def filter_rsi(self, row: pd.Series, direction: str) -> FilterResult:
         """Check RSI for overbought/oversold conditions"""
         if not self.config.rsi_enabled:
-            return True, "RSI filter disabled"
+            return FilterResult(True, "RSI filter disabled", "rsi")
 
         rsi = row.get("rsi")
         if rsi is None or pd.isna(rsi):
-            return True, "RSI not available"
+            return FilterResult(True, "RSI not available", "rsi")
 
         if direction == "long":
             if rsi > self.config.rsi_overbought:
-                return False, f"RSI {rsi:.1f} overbought for long entry"
+                return FilterResult(False, f"RSI {rsi:.1f} overbought for long entry", "rsi")
             elif rsi < self.config.rsi_neutral_zone[0]:
-                return True, f"RSI {rsi:.1f} showing potential upward momentum"
-            else:
-                return True, f"RSI {rsi:.1f} in neutral zone"
-        elif rsi < self.config.rsi_oversold:
-            return False, f"RSI {rsi:.1f} oversold for short entry"
+                return FilterResult(True, f"RSI {rsi:.1f} showing potential upward momentum", "rsi")
+            return FilterResult(True, f"RSI {rsi:.1f} in neutral zone", "rsi")
+        # Short direction
+        if rsi < self.config.rsi_oversold:
+            return FilterResult(False, f"RSI {rsi:.1f} oversold for short entry", "rsi")
         elif rsi > self.config.rsi_neutral_zone[1]:
-            return True, f"RSI {rsi:.1f} showing potential downward momentum"
-        else:
-            return True, f"RSI {rsi:.1f} in neutral zone"
+            return FilterResult(True, f"RSI {rsi:.1f} showing potential downward momentum", "rsi")
+        return FilterResult(True, f"RSI {rsi:.1f} in neutral zone", "rsi")
 
-    def filter_adx(self, row: pd.Series) -> tuple[bool, str]:
+    def filter_adx(self, row: pd.Series) -> FilterResult:
         """Check ADX for trend strength"""
         if not self.config.adx_enabled:
-            return True, "ADX filter disabled"
+            return FilterResult(True, "ADX filter disabled", "adx")
 
         adx = row.get("adx")
         if adx is None or pd.isna(adx):
-            return True, "ADX not available"
+            return FilterResult(True, "ADX not available", "adx")
 
         if adx >= self.config.adx_strong_trend:
-            return True, f"ADX {adx:.1f} shows strong trend"
+            return FilterResult(True, f"ADX {adx:.1f} shows strong trend", "adx")
         elif adx >= self.config.adx_min_strength:
-            return True, f"ADX {adx:.1f} shows moderate trend"
-        else:
-            return False, f"ADX {adx:.1f} too weak (min {self.config.adx_min_strength})"
+            return FilterResult(True, f"ADX {adx:.1f} shows moderate trend", "adx")
+        return FilterResult(False, f"ADX {adx:.1f} too weak (min {self.config.adx_min_strength})", "adx")
 
-    def filter_vwap(self, row: pd.Series, direction: str) -> tuple[bool, str]:
+    def filter_vwap(self, row: pd.Series, direction: str) -> FilterResult:
         """Check price position relative to VWAP"""
         if not self.config.vwap_enabled:
-            return True, "VWAP filter disabled"
+            return FilterResult(True, "VWAP filter disabled", "vwap")
 
         vwap = row.get("vwap")
         price = row.get("close")
 
         if vwap is None or price is None or pd.isna(vwap) or pd.isna(price):
-            return True, "VWAP not available"
+            return FilterResult(True, "VWAP not available", "vwap")
 
         if direction == "long":
             if price > vwap:
-                return True, f"Price ${price:.2f} above VWAP ${vwap:.2f}"
-            else:
-                return False, f"Price ${price:.2f} below VWAP ${vwap:.2f} for long"
-        elif price < vwap:
-            return True, f"Price ${price:.2f} below VWAP ${vwap:.2f}"
-        else:
-            return False, f"Price ${price:.2f} above VWAP ${vwap:.2f} for short"
+                return FilterResult(True, f"Price ${price:.2f} above VWAP ${vwap:.2f}", "vwap")
+            return FilterResult(False, f"Price ${price:.2f} below VWAP ${vwap:.2f} for long", "vwap")
+        # Short direction
+        if price < vwap:
+            return FilterResult(True, f"Price ${price:.2f} below VWAP ${vwap:.2f}", "vwap")
+        return FilterResult(False, f"Price ${price:.2f} above VWAP ${vwap:.2f} for short", "vwap")
 
-    def filter_atr(self, row: pd.Series) -> tuple[bool, str]:
+    def filter_atr(self, row: pd.Series) -> FilterResult:
         """Check ATR for volatility conditions"""
         if not self.config.atr_enabled:
-            return True, "ATR filter disabled"
+            return FilterResult(True, "ATR filter disabled", "atr")
 
         atr_pct = row.get("atr_pct")
         if atr_pct is None or pd.isna(atr_pct):
-            return True, "ATR not available"
+            return FilterResult(True, "ATR not available", "atr")
 
         if atr_pct < self.config.atr_min_threshold:
-            return False, f"ATR {atr_pct:.2f}% too low (min {self.config.atr_min_threshold}%)"
+            return FilterResult(
+                False, f"ATR {atr_pct:.2f}% too low (min {self.config.atr_min_threshold}%)", "atr"
+            )
         elif atr_pct > self.config.atr_max_threshold:
-            return False, f"ATR {atr_pct:.2f}% too high (max {self.config.atr_max_threshold}%)"
-        else:
-            return True, f"ATR {atr_pct:.2f}% within acceptable range"
+            return FilterResult(
+                False, f"ATR {atr_pct:.2f}% too high (max {self.config.atr_max_threshold}%)", "atr"
+            )
+        return FilterResult(True, f"ATR {atr_pct:.2f}% within acceptable range", "atr")
 
-    def filter_macd(self, row: pd.Series, direction: str) -> tuple[bool, str]:
+    def filter_macd(self, row: pd.Series, direction: str) -> FilterResult:
         """Check MACD for momentum confirmation"""
         if not self.config.macd_enabled:
-            return True, "MACD filter disabled"
+            return FilterResult(True, "MACD filter disabled", "macd")
 
         macd_hist = row.get("macd_histogram")
         if macd_hist is None or pd.isna(macd_hist):
-            return True, "MACD not available"
+            return FilterResult(True, "MACD not available", "macd")
 
         if direction == "long":
             if macd_hist > 0:
-                return True, f"MACD histogram {macd_hist:.4f} positive"
-            else:
-                return False, f"MACD histogram {macd_hist:.4f} negative for long"
-        elif macd_hist < 0:
-            return True, f"MACD histogram {macd_hist:.4f} negative"
-        else:
-            return False, f"MACD histogram {macd_hist:.4f} positive for short"
+                return FilterResult(True, f"MACD histogram {macd_hist:.4f} positive", "macd")
+            return FilterResult(False, f"MACD histogram {macd_hist:.4f} negative for long", "macd")
+        # Short direction
+        if macd_hist < 0:
+            return FilterResult(True, f"MACD histogram {macd_hist:.4f} negative", "macd")
+        return FilterResult(False, f"MACD histogram {macd_hist:.4f} positive for short", "macd")
 
-    def filter_time_of_day(self, timestamp: datetime) -> tuple[bool, str]:
+    def filter_time_of_day(self, timestamp: datetime) -> FilterResult:
         """Check if within valid trading hours"""
         if not self.config.time_filter_enabled:
-            return True, "Time filter disabled"
+            return FilterResult(True, "Time filter disabled", "time")
 
         current_time = timestamp.time()
 
@@ -272,8 +333,6 @@ class SignalFilter:
         trading_end = time(int(end_parts[0]), int(end_parts[1]))
 
         # Add buffer for first/last minutes
-        from datetime import timedelta
-
         buffer_start = (
             datetime.combine(datetime.today(), trading_start)
             + timedelta(minutes=self.config.avoid_first_minutes)
@@ -284,11 +343,14 @@ class SignalFilter:
         ).time()
 
         if current_time < buffer_start:
-            return False, f"Too early - avoiding first {self.config.avoid_first_minutes} minutes"
+            return FilterResult(
+                False, f"Too early - avoiding first {self.config.avoid_first_minutes} minutes", "time"
+            )
         elif current_time > buffer_end:
-            return False, f"Too late - avoiding last {self.config.avoid_last_minutes} minutes"
-        else:
-            return True, "Within valid trading hours"
+            return FilterResult(
+                False, f"Too late - avoiding last {self.config.avoid_last_minutes} minutes", "time"
+            )
+        return FilterResult(True, "Within valid trading hours", "time")
 
     def apply_all_filters(
         self, row: pd.Series, direction: str, timestamp: datetime
@@ -299,21 +361,22 @@ class SignalFilter:
         passed = []
         failed = []
 
-        filters = [
-            ("volume", self.filter_volume(row)),
-            ("rsi", self.filter_rsi(row, direction)),
-            ("adx", self.filter_adx(row)),
-            ("vwap", self.filter_vwap(row, direction)),
-            ("atr", self.filter_atr(row)),
-            ("macd", self.filter_macd(row, direction)),
-            ("time", self.filter_time_of_day(timestamp)),
+        results = [
+            self.filter_volume(row),
+            self.filter_rsi(row, direction),
+            self.filter_adx(row),
+            self.filter_vwap(row, direction),
+            self.filter_atr(row),
+            self.filter_macd(row, direction),
+            self.filter_time_of_day(timestamp),
         ]
 
-        for name, (is_passed, reason) in filters:
-            if is_passed:
-                passed.append(f"{name}: {reason}")
+        for result in results:
+            formatted = f"{result.filter_name}: {result.reason}"
+            if result.passed:
+                passed.append(formatted)
             else:
-                failed.append(f"{name}: {reason}")
+                failed.append(formatted)
 
         return passed, failed
 
@@ -377,9 +440,7 @@ class SignalGenerator:
         signals = self.cloud_indicator.detect_signals(df, idx)
 
         # Determine overall trend
-        bullish_clouds = sum(
-            1 for c in clouds.values() if c.state in [CloudState.BULLISH, CloudState.CROSSING_UP]
-        )
+        bullish_clouds = count_bullish_clouds(clouds)
         total_clouds = len(clouds)
 
         if bullish_clouds >= total_clouds * 0.7:
@@ -603,9 +664,7 @@ class SignalGenerator:
         score = 50
 
         # Cloud alignment bonus (up to +20)
-        bullish_count = sum(
-            1 for c in clouds.values() if c.state in [CloudState.BULLISH, CloudState.CROSSING_UP]
-        )
+        bullish_count = count_bullish_clouds(clouds)
         alignment_ratio = bullish_count / len(clouds) if clouds else 0.5
         # Adjust for bearish signals
         if alignment_ratio < 0.5:
@@ -655,29 +714,45 @@ class SignalGenerator:
         else:
             return SignalStrength.VERY_WEAK
 
+    def _get_trend_from_clouds(self, df: pd.DataFrame, idx: int) -> str:
+        """Get trend direction from cloud states at a specific index (efficient version)."""
+        clouds = self.cloud_indicator.analyze_single(df, idx)
+        bullish_clouds = count_bullish_clouds(clouds)
+        total_clouds = len(clouds)
+
+        if bullish_clouds >= total_clouds * 0.7:
+            return "bullish"
+        elif bullish_clouds <= total_clouds * 0.3:
+            return "bearish"
+        return "neutral"
+
     def get_sector_trend_state(
         self, df: pd.DataFrame, symbol: str, sector_name: str
     ) -> SectorTrendState:
         """
         Get current trend state for a sector ETF.
         Used to filter individual stock signals.
-        """
-        prepared_df = self.prepare_data(df)
-        analysis = self.analyze_trend(prepared_df, symbol)
 
-        # Count trend duration
-        trend_duration = 0
+        Note: Expects df to be already prepared via prepare_data().
+        """
+        analysis = self.analyze_trend(df, symbol)
         current_trend = analysis.overall_trend
 
-        for i in range(len(prepared_df) - 1, 0, -1):
-            prev_analysis = self.analyze_trend(prepared_df, symbol, i)
-            if prev_analysis.overall_trend == current_trend:
+        # Count trend duration efficiently (without full analyze_trend)
+        trend_duration = 0
+        max_lookback = min(len(df) - 1, 100)  # Limit lookback for performance
+
+        for i in range(len(df) - 2, len(df) - 2 - max_lookback, -1):
+            if i < 0:
+                break
+            prev_trend = self._get_trend_from_clouds(df, i)
+            if prev_trend == current_trend:
                 trend_duration += 1
             else:
                 break
 
         # Get cloud states
-        clouds = self.cloud_indicator.analyze_single(prepared_df, -1)
+        clouds = self.cloud_indicator.analyze_single(df, -1)
         cloud_states = {name: cloud.state for name, cloud in clouds.items()}
 
         # Calculate support/resistance from clouds

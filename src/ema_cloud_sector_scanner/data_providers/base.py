@@ -22,6 +22,21 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+# Interval to minutes mapping for time range calculations
+INTERVAL_MINUTES = {
+    "1m": 1,
+    "5m": 5,
+    "10m": 10,
+    "15m": 15,
+    "30m": 30,
+    "1h": 60,
+    "4h": 240,
+    "1d": 1440,
+    "1wk": 10080,
+    "1mo": 43200,
+}
+
+
 @dataclass
 class OHLCV:
     """Standard OHLCV data structure"""
@@ -311,14 +326,16 @@ class YahooFinanceProvider(BaseDataProvider):
             raise DataProviderError(f"Failed to get quote for {symbol}: {e}")
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
-        """Get quotes for multiple symbols"""
-        quotes = {}
-        for symbol in symbols:
+        """Get quotes for multiple symbols (parallel fetching)"""
+        async def fetch_quote(symbol: str) -> tuple[str, Quote | None]:
             try:
-                quotes[symbol] = await self.get_quote(symbol)
+                return symbol, await self.get_quote(symbol)
             except Exception as e:
                 logger.warning(f"Failed to get quote for {symbol}: {e}")
-        return quotes
+                return symbol, None
+
+        results = await asyncio.gather(*[fetch_quote(s) for s in symbols])
+        return {symbol: quote for symbol, quote in results if quote is not None}
 
 
 class AlpacaProvider(BaseDataProvider):
@@ -395,19 +412,7 @@ class AlpacaProvider(BaseDataProvider):
                 end = datetime.now()
             if start is None:
                 # Estimate start based on bars and interval
-                interval_minutes = {
-                    "1m": 1,
-                    "5m": 5,
-                    "10m": 10,
-                    "15m": 15,
-                    "30m": 30,
-                    "1h": 60,
-                    "4h": 240,
-                    "1d": 1440,
-                    "1wk": 10080,
-                    "1mo": 43200,
-                }
-                minutes = interval_minutes.get(interval, 1440)
+                minutes = INTERVAL_MINUTES.get(interval, 1440)
                 start = end - timedelta(minutes=minutes * bars * 1.5)
 
             request = StockBarsRequest(
@@ -550,20 +555,8 @@ class PolygonProvider(BaseDataProvider):
             if end is None:
                 end = datetime.now()
             if start is None:
-                # Estimate start
-                interval_minutes = {
-                    "1m": 1,
-                    "5m": 5,
-                    "10m": 10,
-                    "15m": 15,
-                    "30m": 30,
-                    "1h": 60,
-                    "4h": 240,
-                    "1d": 1440,
-                    "1wk": 10080,
-                    "1mo": 43200,
-                }
-                minutes = interval_minutes.get(interval, 1440)
+                # Estimate start based on bars and interval
+                minutes = INTERVAL_MINUTES.get(interval, 1440)
                 start = end - timedelta(minutes=minutes * bars * 1.5)
 
             aggs = client.get_aggs(
@@ -624,14 +617,16 @@ class PolygonProvider(BaseDataProvider):
             raise DataProviderError(f"Failed to get quote for {symbol}: {e}")
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
-        """Get quotes for multiple symbols"""
-        quotes = {}
-        for symbol in symbols:
+        """Get quotes for multiple symbols (parallel fetching)"""
+        async def fetch_quote(symbol: str) -> tuple[str, Quote | None]:
             try:
-                quotes[symbol] = await self.get_quote(symbol)
+                return symbol, await self.get_quote(symbol)
             except Exception as e:
                 logger.warning(f"Failed to get quote for {symbol}: {e}")
-        return quotes
+                return symbol, None
+
+        results = await asyncio.gather(*[fetch_quote(s) for s in symbols])
+        return {symbol: quote for symbol, quote in results if quote is not None}
 
 
 class DataProviderManager:

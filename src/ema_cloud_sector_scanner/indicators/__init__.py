@@ -12,6 +12,7 @@ from .ema_cloud import (
     calculate_ema,
     calculate_macd,
     calculate_rsi,
+    calculate_true_range,
     calculate_vwap,
 )
 
@@ -28,5 +29,6 @@ __all__ = [
     "calculate_ema",
     "calculate_macd",
     "calculate_rsi",
+    "calculate_true_range",
     "calculate_vwap",
 ]

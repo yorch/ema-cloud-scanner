@@ -88,6 +88,7 @@ class TerminalDashboard:
             logger.warning("Rich library not installed. Using simple text output.")
             logger.warning("Install with: pip install rich")
             self._rich_available = False
+            self._console = None
 
     def update_etf_data(self, data: ETFDisplayData):
         """Update ETF display data"""
@@ -101,22 +102,33 @@ class TerminalDashboard:
 
     def _create_header(self) -> Any:
         """Create header panel"""
-        from rich.panel import Panel
-        from rich.text import Text
+        if not self._rich_available:
+            return None
+        try:
+            from rich.panel import Panel
+            from rich.text import Text
 
-        title = Text()
-        title.append("📊 ", style="bold")
-        title.append("EMA Cloud Sector Scanner", style="bold blue")
-        title.append(" | ", style="dim")
-        title.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), style="cyan")
+            title = Text()
+            title.append("📊 ", style="bold")
+            title.append("EMA Cloud Sector Scanner", style="bold blue")
+            title.append(" | ", style="dim")
+            title.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), style="cyan")
 
-        return Panel(title, style="white on blue", height=3)
+            return Panel(title, style="white on blue", height=3)
+        except Exception as e:
+            logger.debug(f"Error creating header: {e}")
+            return None
 
     def _create_etf_table(self) -> Any:
         """Create sector ETF overview table"""
-        from rich import box
-        from rich.table import Table
-        from rich.text import Text
+        if not self._rich_available:
+            return None
+        try:
+            from rich import box
+            from rich.table import Table
+            from rich.text import Text
+        except ImportError:
+            return None
 
         table = Table(
             title="Sector ETF Overview",
@@ -199,9 +211,14 @@ class TerminalDashboard:
 
     def _create_signals_table(self) -> Any:
         """Create recent signals table"""
-        from rich import box
-        from rich.table import Table
-        from rich.text import Text
+        if not self._rich_available:
+            return None
+        try:
+            from rich import box
+            from rich.table import Table
+            from rich.text import Text
+        except ImportError:
+            return None
 
         table = Table(
             title="Recent Signals",
@@ -253,8 +270,13 @@ class TerminalDashboard:
 
     def _create_status_bar(self) -> Any:
         """Create status bar"""
-        from rich.panel import Panel
-        from rich.text import Text
+        if not self._rich_available:
+            return None
+        try:
+            from rich.panel import Panel
+            from rich.text import Text
+        except ImportError:
+            return None
 
         status = Text()
 
@@ -275,7 +297,12 @@ class TerminalDashboard:
 
     def _create_layout(self) -> Any:
         """Create the dashboard layout"""
-        from rich.layout import Layout
+        if not self._rich_available:
+            return None
+        try:
+            from rich.layout import Layout
+        except ImportError:
+            return None
 
         layout = Layout()
 
