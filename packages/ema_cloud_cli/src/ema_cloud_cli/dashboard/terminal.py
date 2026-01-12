@@ -11,21 +11,20 @@ Features:
 - Auto-refresh display
 """
 
-import json
 import logging
 from datetime import datetime
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.screen import ModalScreen
 from textual.reactive import reactive
 from textual.css.query import NoMatches
-from textual.widgets import Button, DataTable, Footer, Header, Static, TextArea
+from textual.widgets import DataTable, Footer, Header, Static
 
 from ema_cloud_lib import api_call_tracker
 from ema_cloud_lib.config.settings import ScannerConfig
 from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
+from ema_cloud_cli.dashboard.settings import SettingsScreen
 
 logger = logging.getLogger(__name__)
 
@@ -47,52 +46,6 @@ class StatusBar(Static):
             f"Signals: {self.signals_count} | "
             f"API: {self.api_calls} ({self.api_calls_per_min:.0f}/min)"
         )
-
-
-class SettingsScreen(ModalScreen[ScannerConfig]):
-    """Settings editor using a JSON panel."""
-
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
-
-    def __init__(self, config: ScannerConfig, on_apply):
-        super().__init__()
-        self._config = config
-        self._on_apply = on_apply
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="settings-panel"):
-            yield Static("Settings (JSON)", id="settings-title")
-            yield TextArea(
-                id="settings-json",
-                language="json",
-                show_line_numbers=True,
-                tab_behavior="indent",
-            )
-            with Horizontal(id="settings-actions"):
-                yield Button("Apply", id="settings-apply", variant="success")
-                yield Button("Cancel", id="settings-cancel", variant="error")
-
-    def on_mount(self) -> None:
-        editor = self.query_one("#settings-json", TextArea)
-        editor.text = json.dumps(self._config.to_full_dict(), indent=2, sort_keys=True)
-
-    def action_cancel(self) -> None:
-        self.dismiss(self._config)
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "settings-cancel":
-            self.dismiss(self._config)
-            return
-        if event.button.id == "settings-apply":
-            editor = self.query_one("#settings-json", TextArea)
-            try:
-                data = json.loads(editor.text)
-                new_config = ScannerConfig.from_full_dict(data)
-            except (json.JSONDecodeError, TypeError, ValueError) as exc:
-                self.notify(f"Settings error: {exc}", severity="error")
-                return
-            self._on_apply(new_config)
-            self.dismiss(new_config)
 
 
 class TerminalDashboard(App):
@@ -203,8 +156,38 @@ class TerminalDashboard(App):
         background: $surface;
     }
 
-    #settings-json {
+    #settings-tabs {
         height: 1fr;
+    }
+
+    .settings-tab {
+        padding: 1;
+    }
+
+    .section-title {
+        text-style: bold;
+        padding: 1 0 0 0;
+        color: $text;
+    }
+
+    .form-row {
+        layout: horizontal;
+        height: auto;
+        padding: 0 0 1 0;
+    }
+
+    .form-label {
+        width: 30;
+        color: $text;
+    }
+
+    .form-control {
+        width: 1fr;
+    }
+
+    #active_sectors {
+        height: 14;
+        border: tall $border;
     }
 
     #settings-actions {
