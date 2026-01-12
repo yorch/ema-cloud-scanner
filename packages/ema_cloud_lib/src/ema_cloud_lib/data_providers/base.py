@@ -21,6 +21,52 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+class APICallTracker:
+    """Track API calls and calculate call rate per minute."""
+
+    def __init__(self):
+        self._total_calls: int = 0
+        self._call_timestamps: list[float] = []
+        self._window_seconds: int = 60  # Track calls within last minute
+
+    def record_call(self) -> None:
+        """Record an API call."""
+        import time
+
+        current_time = time.time()
+        self._total_calls += 1
+        self._call_timestamps.append(current_time)
+        # Clean old timestamps outside the window
+        cutoff = current_time - self._window_seconds
+        self._call_timestamps = [t for t in self._call_timestamps if t > cutoff]
+
+    @property
+    def total_calls(self) -> int:
+        """Total number of API calls made."""
+        return self._total_calls
+
+    @property
+    def calls_per_minute(self) -> float:
+        """Calculate calls per minute based on recent activity."""
+        import time
+
+        if not self._call_timestamps:
+            return 0.0
+        current_time = time.time()
+        cutoff = current_time - self._window_seconds
+        recent_calls = [t for t in self._call_timestamps if t > cutoff]
+        return len(recent_calls)
+
+    def reset(self) -> None:
+        """Reset the tracker."""
+        self._total_calls = 0
+        self._call_timestamps = []
+
+
+# Global API call tracker instance
+api_call_tracker = APICallTracker()
+
+
 # Interval to minutes mapping for time range calculations
 INTERVAL_MINUTES = {
     "1m": 1,
@@ -146,12 +192,14 @@ class BaseDataProvider(ABC):
         pass
 
     async def _rate_limit(self):
-        """Apply rate limiting between requests"""
+        """Apply rate limiting between requests and track API calls."""
         current_time = asyncio.get_event_loop().time()
         elapsed = current_time - self._last_request_time
         if elapsed < self._rate_limit_delay:
             await asyncio.sleep(self._rate_limit_delay - elapsed)
         self._last_request_time = asyncio.get_event_loop().time()
+        # Track the API call
+        api_call_tracker.record_call()
 
     def _validate_interval(self, interval: str) -> str:
         """Validate and normalize interval string"""

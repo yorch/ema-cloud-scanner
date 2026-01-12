@@ -3,6 +3,7 @@
 from .base import (
     OHLCV,
     AlpacaProvider,
+    APICallTracker,
     BaseDataProvider,
     DataProviderError,
     DataProviderManager,
@@ -11,10 +12,12 @@ from .base import (
     Quote,
     RateLimitError,
     YahooFinanceProvider,
+    api_call_tracker,
 )
 
 __all__ = [
     "AlpacaProvider",
+    "APICallTracker",
     "BaseDataProvider",
     "DataProviderError",
     "DataProviderManager",
@@ -24,4 +27,5 @@ __all__ = [
     "Quote",
     "RateLimitError",
     "YahooFinanceProvider",
+    "api_call_tracker",
 ]

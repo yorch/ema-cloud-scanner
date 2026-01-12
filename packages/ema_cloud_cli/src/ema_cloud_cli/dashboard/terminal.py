@@ -20,6 +20,7 @@ from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Header, Static
 
+from ema_cloud_lib import api_call_tracker
 from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
 
 logger = logging.getLogger(__name__)
@@ -32,12 +33,15 @@ class StatusBar(Static):
     bearish_count = reactive(0)
     neutral_count = reactive(0)
     signals_count = reactive(0)
+    api_calls = reactive(0)
+    api_calls_per_min = reactive(0.0)
 
     def render(self) -> str:
         return (
             f"ETFs: {self.bullish_count + self.bearish_count + self.neutral_count} | "
             f"🟢 {self.bullish_count} 🔴 {self.bearish_count} ⚪ {self.neutral_count} | "
-            f"Signals: {self.signals_count}"
+            f"Signals: {self.signals_count} | "
+            f"API: {self.api_calls} ({self.api_calls_per_min:.0f}/min)"
         )
 
 
@@ -288,6 +292,8 @@ class TerminalDashboard(App):
         status_bar.bearish_count = bearish
         status_bar.neutral_count = neutral
         status_bar.signals_count = len(self._signals)
+        status_bar.api_calls = api_call_tracker.total_calls
+        status_bar.api_calls_per_min = api_call_tracker.calls_per_minute
 
     def _refresh_display(self) -> None:
         """Periodic refresh of the display."""

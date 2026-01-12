@@ -46,9 +46,11 @@ from ema_cloud_lib.config.settings import (
 
 # Data providers
 from ema_cloud_lib.data_providers.base import (
+    APICallTracker,
     BaseDataProvider,
     DataProviderManager,
     YahooFinanceProvider,
+    api_call_tracker,
 )
 
 # Holdings
@@ -130,6 +132,8 @@ __all__ = [
     "DataProviderManager",
     "BaseDataProvider",
     "YahooFinanceProvider",
+    "APICallTracker",
+    "api_call_tracker",
     # Holdings
     "HoldingsManager",
     "ETFHoldings",
