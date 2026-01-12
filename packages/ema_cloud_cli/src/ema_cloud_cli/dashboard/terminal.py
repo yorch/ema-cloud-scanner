@@ -2,163 +2,244 @@
 Terminal-Based Visualization Dashboard
 
 Provides a real-time terminal UI for monitoring sector ETF trends
-and signals using the Rich library.
+and signals using the Textual TUI framework.
 
 Features:
 - Sector ETF overview with trend status
 - Live signal feed
-- Detailed view for selected ETF
 - Keyboard navigation
+- Auto-refresh display
 """
 
-import asyncio
 import logging
 from datetime import datetime
-from typing import Any
+
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical
+from textual.reactive import reactive
+from textual.widgets import DataTable, Footer, Header, Static
 
 from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
 
 logger = logging.getLogger(__name__)
 
 
-class TerminalDashboard:
+class StatusBar(Static):
+    """Status bar widget showing summary statistics."""
+
+    bullish_count = reactive(0)
+    bearish_count = reactive(0)
+    neutral_count = reactive(0)
+    signals_count = reactive(0)
+
+    def render(self) -> str:
+        return (
+            f"ETFs: {self.bullish_count + self.bearish_count + self.neutral_count} | "
+            f"🟢 {self.bullish_count} 🔴 {self.bearish_count} ⚪ {self.neutral_count} | "
+            f"Signals: {self.signals_count}"
+        )
+
+
+class TerminalDashboard(App):
     """
-    Terminal-based dashboard using Rich library.
+    Terminal-based dashboard using Textual TUI framework.
     """
 
+    CSS = """
+    Screen {
+        layout: grid;
+        grid-size: 1;
+        grid-rows: auto 1fr auto;
+    }
+
+    #content {
+        layout: horizontal;
+    }
+
+    #etf-container {
+        width: 2fr;
+        border: solid $primary;
+        padding: 0 1;
+    }
+
+    #signals-container {
+        width: 1fr;
+        border: solid $secondary;
+        padding: 0 1;
+    }
+
+    #etf-table {
+        height: 100%;
+    }
+
+    #signals-table {
+        height: 100%;
+    }
+
+    .table-title {
+        text-align: center;
+        text-style: bold;
+        padding: 1 0;
+        color: $text;
+        background: $surface;
+    }
+
+    #etf-title {
+        color: cyan;
+    }
+
+    #signals-title {
+        color: magenta;
+    }
+
+    #status-bar {
+        dock: bottom;
+        height: 1;
+        padding: 0 1;
+        background: $surface;
+        color: $text;
+    }
+
+    DataTable {
+        height: 1fr;
+    }
+
+    DataTable > .datatable--cursor {
+        background: $accent;
+    }
+
+    /* Row styling for trends */
+    .bullish {
+        color: $success;
+    }
+
+    .bearish {
+        color: $error;
+    }
+
+    .neutral {
+        color: $text-muted;
+    }
+    """
+
+    TITLE = "EMA Cloud Sector Scanner"
+    BINDINGS = [
+        Binding("q", "quit", "Quit"),
+        Binding("r", "refresh", "Refresh"),
+        Binding("d", "toggle_dark", "Toggle Dark Mode"),
+    ]
+
     def __init__(self, refresh_rate: int = 2):
+        super().__init__()
         self.refresh_rate = refresh_rate
-        self._running = False
         self._etf_data: dict[str, ETFDisplayData] = {}
         self._signals: list[SignalDisplayData] = []
         self._max_signals = 50
-        self._selected_etf: str | None = None
-        self._console = None
-        self._layout = None
-        self._rich_available = False
+        self._update_timer = None
+        self._is_mounted = False
 
-    def _init_rich(self):
-        """Initialize Rich components"""
-        try:
-            from rich.console import Console
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Horizontal(id="content"):
+            with Vertical(id="etf-container"):
+                yield Static("Sector ETF Overview", id="etf-title", classes="table-title")
+                yield DataTable(id="etf-table", cursor_type="row", zebra_stripes=True)
+            with Vertical(id="signals-container"):
+                yield Static("Recent Signals", id="signals-title", classes="table-title")
+                yield DataTable(id="signals-table", cursor_type="row", zebra_stripes=True)
+        yield StatusBar(id="status-bar")
+        yield Footer()
 
-            self._console = Console()
-            self._rich_available = True
+    def on_mount(self) -> None:
+        """Initialize tables and start refresh timer."""
+        self._setup_etf_table()
+        self._setup_signals_table()
+        self._is_mounted = True
+        # Update tables with any data received before mount
+        self._update_etf_table()
+        self._update_signals_table()
+        self._update_status_bar()
+        self._update_timer = self.set_interval(self.refresh_rate, self._refresh_display)
 
-        except ImportError:
-            logger.warning("Rich library not installed. Using simple text output.")
-            logger.warning("Install with: pip install rich")
-            self._rich_available = False
-            self._console = None
+    def _setup_etf_table(self) -> None:
+        """Setup ETF overview table columns."""
+        table = self.query_one("#etf-table", DataTable)
+        table.add_column("Symbol", key="symbol", width=8)
+        table.add_column("Sector", key="sector", width=18)
+        table.add_column("Price", key="price", width=10)
+        table.add_column("Change", key="change", width=9)
+        table.add_column("Trend", key="trend", width=10)
+        table.add_column("Strength", key="strength", width=9)
+        table.add_column("RSI", key="rsi", width=7)
+        table.add_column("ADX", key="adx", width=7)
+        table.add_column("Sigs", key="signals", width=5)
 
-    def update_etf_data(self, data: ETFDisplayData):
-        """Update ETF display data"""
+    def _setup_signals_table(self) -> None:
+        """Setup signals table columns."""
+        table = self.query_one("#signals-table", DataTable)
+        table.add_column("Time", key="time", width=9)
+        table.add_column("Sym", key="symbol", width=6)
+        table.add_column("Dir", key="direction", width=5)
+        table.add_column("Signal", key="signal", width=22)
+        table.add_column("Price", key="price", width=9)
+        table.add_column("Str", key="strength", width=8)
+
+    def update_etf_data(self, data: ETFDisplayData) -> None:
+        """Update ETF display data."""
         self._etf_data[data.symbol] = data
+        if self._is_mounted:
+            self._update_etf_table()
+            self._update_status_bar()
 
-    def add_signal(self, signal: SignalDisplayData):
-        """Add a new signal to the display"""
+    def add_signal(self, signal: SignalDisplayData) -> None:
+        """Add a new signal to the display."""
         self._signals.insert(0, signal)
         if len(self._signals) > self._max_signals:
             self._signals = self._signals[: self._max_signals]
+        if self._is_mounted:
+            self._update_signals_table()
+            self._update_status_bar()
 
-    def _create_header(self) -> Any:
-        """Create header panel"""
-        if not self._rich_available:
-            return None
-        try:
-            from rich.panel import Panel
-            from rich.text import Text
-
-            title = Text()
-            title.append("📊 ", style="bold")
-            title.append("EMA Cloud Sector Scanner", style="bold blue")
-            title.append(" | ", style="dim")
-            title.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), style="cyan")
-
-            return Panel(title, style="white on blue", height=3)
-        except Exception as e:
-            logger.debug(f"Error creating header: {e}")
-            return None
-
-    def _create_etf_table(self) -> Any:
-        """Create sector ETF overview table"""
-        if not self._rich_available:
-            return None
-        try:
-            from rich import box
-            from rich.table import Table
-            from rich.text import Text
-        except ImportError:
-            return None
-
-        table = Table(
-            title="Sector ETF Overview",
-            box=box.ROUNDED,
-            show_header=True,
-            header_style="bold cyan",
-            expand=True,
-        )
-
-        table.add_column("Symbol", style="bold", width=8)
-        table.add_column("Sector", width=20)
-        table.add_column("Price", justify="right", width=10)
-        table.add_column("Change", justify="right", width=10)
-        table.add_column("Trend", justify="center", width=12)
-        table.add_column("Strength", justify="center", width=10)
-        table.add_column("RSI", justify="right", width=8)
-        table.add_column("ADX", justify="right", width=8)
-        table.add_column("Signals", justify="center", width=8)
+    def _update_etf_table(self) -> None:
+        """Refresh the ETF table with current data."""
+        if not self._is_mounted:
+            return
+        table = self.query_one("#etf-table", DataTable)
+        table.clear()
 
         # Sort by trend strength
-        sorted_etfs = sorted(self._etf_data.values(), key=lambda x: x.trend_strength, reverse=True)
+        sorted_etfs = sorted(
+            self._etf_data.values(), key=lambda x: x.trend_strength, reverse=True
+        )
 
         for etf in sorted_etfs:
             # Format trend
             if etf.trend == "bullish":
-                trend_text = Text("🟢 BULL", style="bold green")
+                trend_text = "🟢 BULL"
             elif etf.trend == "bearish":
-                trend_text = Text("🔴 BEAR", style="bold red")
+                trend_text = "🔴 BEAR"
             else:
-                trend_text = Text("⚪ FLAT", style="dim")
+                trend_text = "⚪ FLAT"
 
             # Format change
-            change_style = "green" if etf.change_pct >= 0 else "red"
-            change_text = Text(f"{etf.change_pct:+.2f}%", style=change_style)
+            change_text = f"{etf.change_pct:+.2f}%"
 
             # Format strength
-            if etf.trend_strength >= 70:
-                strength_style = "bold green"
-            elif etf.trend_strength >= 50:
-                strength_style = "yellow"
-            else:
-                strength_style = "dim"
-            strength_text = Text(f"{etf.trend_strength:.0f}%", style=strength_style)
+            strength_text = f"{etf.trend_strength:.0f}%"
 
             # Format RSI
-            rsi_text = ""
-            if etf.rsi is not None:
-                if etf.rsi > 70:
-                    rsi_text = Text(f"{etf.rsi:.1f}", style="red")
-                elif etf.rsi < 30:
-                    rsi_text = Text(f"{etf.rsi:.1f}", style="green")
-                else:
-                    rsi_text = Text(f"{etf.rsi:.1f}", style="dim")
+            rsi_text = f"{etf.rsi:.1f}" if etf.rsi is not None else "-"
 
             # Format ADX
-            adx_text = ""
-            if etf.adx is not None:
-                if etf.adx > 30:
-                    adx_text = Text(f"{etf.adx:.1f}", style="bold")
-                else:
-                    adx_text = Text(f"{etf.adx:.1f}", style="dim")
+            adx_text = f"{etf.adx:.1f}" if etf.adx is not None else "-"
 
             # Signals count
-            signals_style = "bold yellow" if etf.signals_count > 0 else "dim"
-            signals_text = Text(str(etf.signals_count), style=signals_style)
+            signals_text = str(etf.signals_count)
 
             table.add_row(
                 etf.symbol,
-                etf.sector[:18],
+                etf.sector[:16],
                 f"${etf.price:.2f}",
                 change_text,
                 trend_text,
@@ -166,189 +247,80 @@ class TerminalDashboard:
                 rsi_text,
                 adx_text,
                 signals_text,
+                key=etf.symbol,
             )
 
-        return table
+    def _update_signals_table(self) -> None:
+        """Refresh the signals table with current data."""
+        if not self._is_mounted:
+            return
+        table = self.query_one("#signals-table", DataTable)
+        table.clear()
 
-    def _create_signals_table(self) -> Any:
-        """Create recent signals table"""
-        if not self._rich_available:
-            return None
-        try:
-            from rich import box
-            from rich.table import Table
-            from rich.text import Text
-        except ImportError:
-            return None
-
-        table = Table(
-            title="Recent Signals",
-            box=box.ROUNDED,
-            show_header=True,
-            header_style="bold magenta",
-            expand=True,
-        )
-
-        table.add_column("Time", width=10)
-        table.add_column("Symbol", style="bold", width=8)
-        table.add_column("Dir", justify="center", width=6)
-        table.add_column("Signal", width=25)
-        table.add_column("Price", justify="right", width=10)
-        table.add_column("Strength", justify="center", width=12)
-        table.add_column("Valid", justify="center", width=6)
-
-        for signal in self._signals[:15]:  # Show last 15
+        for i, signal in enumerate(self._signals[:15]):  # Show last 15
             # Direction
-            if signal.direction == "long":
-                dir_text = Text("🟢 ↑", style="bold green")
-            else:
-                dir_text = Text("🔴 ↓", style="bold red")
+            dir_text = "🟢 ↑" if signal.direction == "long" else "🔴 ↓"
 
-            # Strength
-            strength_colors = {
-                "VERY_STRONG": "bold green",
-                "STRONG": "green",
-                "MODERATE": "yellow",
-                "WEAK": "dim",
-                "VERY_WEAK": "dim red",
-            }
-            strength_text = Text(signal.strength, style=strength_colors.get(signal.strength, "dim"))
-
-            # Valid
-            valid_text = Text("✓", style="green") if signal.is_valid else Text("✗", style="red")
+            # Truncate signal type
+            signal_type = signal.signal_type[:20]
 
             table.add_row(
                 signal.timestamp.strftime("%H:%M:%S"),
                 signal.symbol,
                 dir_text,
-                signal.signal_type[:23],
+                signal_type,
                 f"${signal.price:.2f}",
-                strength_text,
-                valid_text,
+                signal.strength[:6],
+                key=f"sig-{i}",
             )
 
-        return table
+    def _update_status_bar(self) -> None:
+        """Update the status bar with current statistics."""
+        if not self._is_mounted:
+            return
+        status_bar = self.query_one("#status-bar", StatusBar)
 
-    def _create_status_bar(self) -> Any:
-        """Create status bar"""
-        if not self._rich_available:
-            return None
-        try:
-            from rich.panel import Panel
-            from rich.text import Text
-        except ImportError:
-            return None
-
-        status = Text()
-
-        # Count trends
         bullish = sum(1 for e in self._etf_data.values() if e.trend == "bullish")
         bearish = sum(1 for e in self._etf_data.values() if e.trend == "bearish")
         neutral = len(self._etf_data) - bullish - bearish
 
-        status.append(f"ETFs: {len(self._etf_data)} | ", style="dim")
-        status.append(f"🟢 {bullish} ", style="green")
-        status.append(f"🔴 {bearish} ", style="red")
-        status.append(f"⚪ {neutral} ", style="dim")
-        status.append("| ", style="dim")
-        status.append(f"Signals: {len(self._signals)}", style="yellow")
-        status.append(" | Press Ctrl+C to exit", style="dim")
+        status_bar.bullish_count = bullish
+        status_bar.bearish_count = bearish
+        status_bar.neutral_count = neutral
+        status_bar.signals_count = len(self._signals)
 
-        return Panel(status, height=3)
+    def _refresh_display(self) -> None:
+        """Periodic refresh of the display."""
+        self._update_etf_table()
+        self._update_signals_table()
+        self._update_status_bar()
 
-    def _create_layout(self) -> Any:
-        """Create the dashboard layout"""
-        if not self._rich_available:
-            return None
-        try:
-            from rich.layout import Layout
-        except ImportError:
-            return None
+    def action_toggle_dark(self) -> None:
+        """Toggle dark mode."""
+        self.dark = not self.dark
 
-        layout = Layout()
+    def action_refresh(self) -> None:
+        """Manual refresh."""
+        self._refresh_display()
+        self.notify("Display refreshed")
 
-        layout.split_column(
-            Layout(name="header", size=3), Layout(name="body"), Layout(name="footer", size=3)
-        )
+    def stop(self) -> None:
+        """Stop the dashboard."""
+        if self._update_timer:
+            self._update_timer.stop()
+        self.exit()
 
-        layout["body"].split_row(Layout(name="left", ratio=2), Layout(name="right", ratio=1))
+    async def run_async(self) -> None:
+        """Run the dashboard within an existing async context.
 
-        return layout
-
-    def _render(self) -> Any:
-        """Render the complete dashboard"""
-        if not self._rich_available:
-            return self._render_simple()
-
-        layout = self._create_layout()
-
-        layout["header"].update(self._create_header())
-        layout["left"].update(self._create_etf_table())
-        layout["right"].update(self._create_signals_table())
-        layout["footer"].update(self._create_status_bar())
-
-        return layout
-
-    def _render_simple(self) -> str:
-        """Simple text rendering when Rich is not available"""
-        lines = [
-            "=" * 80,
-            f"EMA Cloud Sector Scanner - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "=" * 80,
-            "",
-            "SECTOR ETF OVERVIEW",
-            "-" * 80,
-        ]
-
-        for etf in sorted(self._etf_data.values(), key=lambda x: x.trend_strength, reverse=True):
-            trend_icon = "↑" if etf.trend == "bullish" else ("↓" if etf.trend == "bearish" else "-")
-            lines.append(
-                f"{etf.symbol:6} | {etf.sector:20} | ${etf.price:8.2f} | "
-                f"{etf.change_pct:+6.2f}% | {trend_icon} {etf.trend:8} | "
-                f"Str: {etf.trend_strength:5.1f}%"
-            )
-
-        lines.extend(["", "RECENT SIGNALS", "-" * 80])
-
-        for signal in self._signals[:10]:
-            arrow = "↑" if signal.direction == "long" else "↓"
-            lines.append(
-                f"{signal.timestamp.strftime('%H:%M:%S')} | {arrow} {signal.symbol:6} | "
-                f"{signal.signal_type:25} | ${signal.price:.2f} | {signal.strength}"
-            )
-
-        lines.append("=" * 80)
-        return "\n".join(lines)
-
-    async def run(self):
-        """Run the dashboard with live updates"""
-        self._init_rich()
-        self._running = True
-
-        if not self._rich_available:
-            # Simple mode - just print periodically
-            while self._running:
-                print("\033[2J\033[H")  # Clear screen
-                print(self._render_simple())
-                await asyncio.sleep(self.refresh_rate)
-        else:
-            from rich.live import Live
-
-            with Live(
-                self._render(), console=self._console, refresh_per_second=1, screen=True
-            ) as live:
-                while self._running:
-                    live.update(self._render())
-                    await asyncio.sleep(self.refresh_rate)
-
-    def stop(self):
-        """Stop the dashboard"""
-        self._running = False
+        Use this method when calling from an already running event loop.
+        """
+        await super().run_async()
 
 
 class SimpleDashboard:
     """
-    Simpler dashboard that doesn't require Rich.
+    Simpler dashboard that doesn't require Textual.
     Prints updates to console in a formatted way.
     """
 
@@ -357,18 +329,18 @@ class SimpleDashboard:
         self._signals: list[SignalDisplayData] = []
         self._running = False
 
-    def update_etf_data(self, data: ETFDisplayData):
-        """Update ETF display data"""
+    def update_etf_data(self, data: ETFDisplayData) -> None:
+        """Update ETF display data."""
         self._etf_data[data.symbol] = data
 
-    def add_signal(self, signal: SignalDisplayData):
-        """Add a new signal"""
+    def add_signal(self, signal: SignalDisplayData) -> None:
+        """Add a new signal."""
         self._signals.insert(0, signal)
         self._signals = self._signals[:50]
         self._print_signal(signal)
 
-    def _print_signal(self, signal: SignalDisplayData):
-        """Print a signal to console"""
+    def _print_signal(self, signal: SignalDisplayData) -> None:
+        """Print a signal to console."""
         arrow = "🟢 ↑" if signal.direction == "long" else "🔴 ↓"
         valid = "✓" if signal.is_valid else "✗"
 
@@ -381,15 +353,19 @@ class SimpleDashboard:
             print(f"   Note: {signal.notes}")
         print(f"{'-' * 60}")
 
-    def print_summary(self):
-        """Print current summary"""
+    def print_summary(self) -> None:
+        """Print current summary."""
         print(f"\n{'=' * 60}")
         print(f"SECTOR ETF SUMMARY - {datetime.now().strftime('%H:%M:%S')}")
         print(f"{'=' * 60}")
 
-        for etf in sorted(self._etf_data.values(), key=lambda x: x.trend_strength, reverse=True):
+        for etf in sorted(
+            self._etf_data.values(), key=lambda x: x.trend_strength, reverse=True
+        ):
             trend_icon = (
-                "🟢" if etf.trend == "bullish" else ("🔴" if etf.trend == "bearish" else "⚪")
+                "🟢"
+                if etf.trend == "bullish"
+                else ("🔴" if etf.trend == "bearish" else "⚪")
             )
             print(
                 f"{trend_icon} {etf.symbol:6} | {etf.sector:20} | "
@@ -398,19 +374,38 @@ class SimpleDashboard:
 
         print(f"{'=' * 60}\n")
 
-    def stop(self):
-        """Stop the dashboard"""
+    def run(self) -> None:
+        """Run in simple mode (just prints, no interactive TUI)."""
+        self._running = True
+        self.print_summary()
+
+    async def run_async(self) -> None:
+        """Async version of run for compatibility."""
+        self.run()
+
+    def stop(self) -> None:
+        """Stop the dashboard."""
         self._running = False
 
 
-def create_dashboard(use_rich: bool = True) -> TerminalDashboard | SimpleDashboard:
-    """Factory function to create appropriate dashboard"""
-    if use_rich:
+def create_dashboard(use_textual: bool = True) -> TerminalDashboard | SimpleDashboard:
+    """Factory function to create appropriate dashboard.
+
+    Args:
+        use_textual: If True, create a full Textual TUI dashboard.
+                    If False, create a simple console output dashboard.
+
+    Returns:
+        Either a TerminalDashboard (Textual) or SimpleDashboard instance.
+    """
+    if use_textual:
         try:
-            import rich  # noqa: F401
+            # Verify textual is available
+            from textual.app import App  # noqa: F401
 
             return TerminalDashboard()
         except ImportError:
-            pass
+            logger.warning("Textual library not installed. Using simple text output.")
+            logger.warning("Install with: pip install textual")
 
     return SimpleDashboard()

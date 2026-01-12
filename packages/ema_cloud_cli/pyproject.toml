@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "ema-cloud-lib>=0.1.0",
-    "rich>=13.0.0",
+    "textual>=0.89.0",
 ]
 
 [project.optional-dependencies]
@@ -62,7 +62,6 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"*/terminal.py" = ["F401"]  # optional rich imports for feature detection
 
 [tool.ruff.lint.isort]
 known-first-party = ["ema_cloud_cli", "ema_cloud_lib"]

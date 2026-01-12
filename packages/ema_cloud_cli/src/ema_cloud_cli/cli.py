@@ -124,8 +124,8 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     # Start dashboard in background if available
-    if dashboard and hasattr(dashboard, "run"):
-        dashboard_task = asyncio.create_task(dashboard.run())
+    if dashboard and hasattr(dashboard, "run_async"):
+        dashboard_task = asyncio.create_task(dashboard.run_async())
 
     try:
         # Run scanner
