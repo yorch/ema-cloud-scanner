@@ -103,10 +103,19 @@ async def main():
     # Initialize dashboard if requested
     dashboard = None
     dashboard_task = None
+    scanner_task = None
+    shutdown_event = asyncio.Event()
+
+    def request_shutdown():
+        logger.info("Shutting down...")
+        scanner.stop()
+        shutdown_event.set()
+        if dashboard:
+            dashboard.stop()
 
     if not args.no_dashboard:
         try:
-            dashboard = TerminalDashboard()
+            dashboard = TerminalDashboard(on_quit=request_shutdown)
         except Exception:
             dashboard = SimpleDashboard()
 
@@ -114,11 +123,7 @@ async def main():
 
     # Handle shutdown signals
     def signal_handler(sig, frame):
-        logger.info("Shutting down...")
-        scanner.stop()
-        if dashboard:
-            dashboard.stop()
-        sys.exit(0)
+        request_shutdown()
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -132,11 +137,20 @@ async def main():
         if args.once:
             await scanner.run_scan_cycle()
         else:
-            await scanner.run(
-                scan_interval_seconds=args.interval,
-                market_hours_only=not args.all_hours,
+            scanner_task = asyncio.create_task(
+                scanner.run(
+                    scan_interval_seconds=args.interval,
+                    market_hours_only=not args.all_hours,
+                )
             )
+            await shutdown_event.wait()
     finally:
+        if scanner_task:
+            scanner_task.cancel()
+            try:
+                await scanner_task
+            except asyncio.CancelledError:
+                pass
         if dashboard:
             dashboard.stop()
         if dashboard_task:

@@ -18,6 +18,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
+from textual.css.query import NoMatches
 from textual.widgets import DataTable, Footer, Header, Static
 
 from ema_cloud_lib import api_call_tracker
@@ -134,7 +135,7 @@ class TerminalDashboard(App):
         Binding("d", "toggle_dark", "Toggle Dark Mode"),
     ]
 
-    def __init__(self, refresh_rate: int = 2):
+    def __init__(self, refresh_rate: int = 2, on_quit=None):
         super().__init__()
         self.refresh_rate = refresh_rate
         self._etf_data: dict[str, ETFDisplayData] = {}
@@ -142,6 +143,7 @@ class TerminalDashboard(App):
         self._max_signals = 50
         self._update_timer = None
         self._is_mounted = False
+        self._on_quit = on_quit
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -166,9 +168,16 @@ class TerminalDashboard(App):
         self._update_status_bar()
         self._update_timer = self.set_interval(self.refresh_rate, self._refresh_display)
 
+    def on_unmount(self) -> None:
+        """Mark dashboard as unmounted to prevent late updates."""
+        self._is_mounted = False
+
     def _setup_etf_table(self) -> None:
         """Setup ETF overview table columns."""
-        table = self.query_one("#etf-table", DataTable)
+        try:
+            table = self.query_one("#etf-table", DataTable)
+        except NoMatches:
+            return
         table.add_column("Symbol", key="symbol", width=8)
         table.add_column("Sector", key="sector", width=18)
         table.add_column("Price", key="price", width=10)
@@ -181,7 +190,10 @@ class TerminalDashboard(App):
 
     def _setup_signals_table(self) -> None:
         """Setup signals table columns."""
-        table = self.query_one("#signals-table", DataTable)
+        try:
+            table = self.query_one("#signals-table", DataTable)
+        except NoMatches:
+            return
         table.add_column("Time", key="time", width=9)
         table.add_column("Sym", key="symbol", width=6)
         table.add_column("Dir", key="direction", width=5)
@@ -209,7 +221,10 @@ class TerminalDashboard(App):
         """Refresh the ETF table with current data."""
         if not self._is_mounted:
             return
-        table = self.query_one("#etf-table", DataTable)
+        try:
+            table = self.query_one("#etf-table", DataTable)
+        except NoMatches:
+            return
         table.clear()
 
         # Sort by trend strength
@@ -258,7 +273,10 @@ class TerminalDashboard(App):
         """Refresh the signals table with current data."""
         if not self._is_mounted:
             return
-        table = self.query_one("#signals-table", DataTable)
+        try:
+            table = self.query_one("#signals-table", DataTable)
+        except NoMatches:
+            return
         table.clear()
 
         for i, signal in enumerate(self._signals[:15]):  # Show last 15
@@ -282,7 +300,10 @@ class TerminalDashboard(App):
         """Update the status bar with current statistics."""
         if not self._is_mounted:
             return
-        status_bar = self.query_one("#status-bar", StatusBar)
+        try:
+            status_bar = self.query_one("#status-bar", StatusBar)
+        except NoMatches:
+            return
 
         bullish = sum(1 for e in self._etf_data.values() if e.trend == "bullish")
         bearish = sum(1 for e in self._etf_data.values() if e.trend == "bearish")
@@ -310,10 +331,17 @@ class TerminalDashboard(App):
         self._refresh_display()
         self.notify("Display refreshed")
 
+    def action_quit(self) -> None:
+        """Quit the dashboard and signal shutdown."""
+        if self._on_quit:
+            self._on_quit()
+        self.stop()
+
     def stop(self) -> None:
         """Stop the dashboard."""
         if self._update_timer:
             self._update_timer.stop()
+        self._is_mounted = False
         self.exit()
 
     async def run_async(self) -> None:
