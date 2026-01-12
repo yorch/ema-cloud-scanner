@@ -1,0 +1,68 @@
+[project]
+name = "ema-cloud-sector-scanner"
+version = "0.1.0"
+description = "Real-time sector ETF scanner based on Ripster's EMA Cloud methodology"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "EMA Cloud Scanner" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "yfinance>=0.2.30",
+    "rich>=13.0.0",
+    "aiohttp>=3.9.0",
+]
+
+[project.optional-dependencies]
+alpaca = ["alpaca-py>=0.13.0"]
+polygon = ["polygon-api-client>=1.12.0"]
+notifications = ["plyer>=2.1.0"]
+all = [
+    "alpaca-py>=0.13.0",
+    "polygon-api-client>=1.12.0",
+    "plyer>=2.1.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black",
+    "flake8",
+    "ruff",
+]
+
+[project.scripts]
+ema-scanner = "ema_cloud_sector_scanner.scanner:run"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.yaml", "*.yml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
