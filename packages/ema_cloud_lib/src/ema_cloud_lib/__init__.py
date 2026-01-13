@@ -14,7 +14,7 @@ Example usage:
 
 # Core scanner
 # Alerts
-from ema_cloud_lib.alerts.handlers import (
+from ema_cloud_lib.alerts import (
     AlertManager,
     AlertMessage,
     BaseAlertHandler,

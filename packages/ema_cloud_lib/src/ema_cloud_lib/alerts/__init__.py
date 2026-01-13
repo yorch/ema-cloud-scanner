@@ -1,23 +1,28 @@
-"""Alerts module for EMA Cloud Library."""
+"""
+Alert System
 
-from .handlers import (
-    AlertManager,
-    AlertMessage,
-    BaseAlertHandler,
-    ConsoleAlertHandler,
-    DesktopAlertHandler,
-    DiscordAlertHandler,
-    TelegramAlertHandler,
-    create_alert_from_signal,
-)
+Modular alert notification system with multiple handler types.
+"""
+
+from .base import AlertMessage, BaseAlertHandler, rate_limit
+from .console_desktop import ConsoleAlertHandler, DesktopAlertHandler
+from .email import EmailAlertHandler
+from .manager import AlertManager, create_alert_from_signal
+from .web_services import DiscordAlertHandler, TelegramAlertHandler
 
 __all__ = [
-    "AlertManager",
+    # Base classes and utilities
     "AlertMessage",
     "BaseAlertHandler",
+    "rate_limit",
+    # Local handlers
     "ConsoleAlertHandler",
-    "create_alert_from_signal",
     "DesktopAlertHandler",
-    "DiscordAlertHandler",
+    # Network handlers
     "TelegramAlertHandler",
+    "DiscordAlertHandler",
+    "EmailAlertHandler",
+    # Manager and utilities
+    "AlertManager",
+    "create_alert_from_signal",
 ]

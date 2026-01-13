@@ -11,7 +11,7 @@ from datetime import datetime, time, timedelta
 
 import pandas as pd
 
-from ema_cloud_lib.alerts.handlers import AlertManager, create_alert_from_signal
+from ema_cloud_lib.alerts import AlertManager, create_alert_from_signal
 from ema_cloud_lib.config.settings import (
     SYMBOL_TO_SECTOR,
     TRADING_PRESETS,
