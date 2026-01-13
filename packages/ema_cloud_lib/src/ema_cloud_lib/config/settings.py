@@ -349,17 +349,102 @@ class AlertConfig(BaseModel):
     desktop_enabled: bool = Field(default=True, description="Enable desktop notifications")
     desktop_sound: bool = Field(default=True, description="Play sound with desktop notifications")
 
-    # Future extensions (placeholders)
+    # Telegram notifications
     telegram_enabled: bool = Field(default=False, description="Enable Telegram notifications")
-    telegram_bot_token: str | None = Field(default=None, description="Telegram bot token")
-    telegram_chat_id: str | None = Field(default=None, description="Telegram chat ID")
+    telegram_bot_token: str | None = Field(
+        default=None, 
+        description="Telegram bot token (from @BotFather)"
+    )
+    telegram_chat_id: str | None = Field(
+        default=None, 
+        description="Telegram chat ID (user or group)"
+    )
 
+    # Discord notifications
     discord_enabled: bool = Field(default=False, description="Enable Discord notifications")
-    discord_webhook_url: str | None = Field(default=None, description="Discord webhook URL")
+    discord_webhook_url: str | None = Field(
+        default=None, 
+        description="Discord webhook URL"
+    )
 
+    # Email notifications
     email_enabled: bool = Field(default=False, description="Enable email notifications")
-    email_smtp_server: str | None = Field(default=None, description="SMTP server address")
-    email_recipients: list[str] = Field(default_factory=list, description="Email recipients list")
+    email_smtp_server: str | None = Field(
+        default=None, 
+        description="SMTP server address (e.g., smtp.gmail.com)"
+    )
+    email_smtp_port: int = Field(
+        default=587, 
+        description="SMTP server port (587 for TLS, 465 for SSL)"
+    )
+    email_use_tls: bool = Field(
+        default=True, 
+        description="Use TLS encryption"
+    )
+    email_use_ssl: bool = Field(
+        default=False, 
+        description="Use SSL encryption (alternative to TLS)"
+    )
+    email_username: str | None = Field(
+        default=None, 
+        description="SMTP username (usually email address)"
+    )
+    email_password: str | None = Field(
+        default=None, 
+        description="SMTP password or app-specific password"
+    )
+    email_from_address: str | None = Field(
+        default=None, 
+        description="From email address"
+    )
+    email_from_name: str = Field(
+        default="EMA Cloud Scanner", 
+        description="From name"
+    )
+    email_recipients: list[str] = Field(
+        default_factory=list, 
+        description="Email recipients list"
+    )
+    email_subject_prefix: str = Field(
+        default="[EMA Signal]", 
+        description="Email subject prefix"
+    )
+
+    @property
+    def to_dict(self) -> dict:
+        """Convert to dictionary for AlertManager"""
+        return {
+            "console": {
+                "enabled": self.console_enabled,
+                "colors": self.console_colors,
+            },
+            "desktop": {
+                "enabled": self.desktop_enabled,
+                "sound": self.desktop_sound,
+            },
+            "telegram": {
+                "enabled": self.telegram_enabled,
+                "bot_token": self.telegram_bot_token,
+                "chat_id": self.telegram_chat_id,
+            },
+            "discord": {
+                "enabled": self.discord_enabled,
+                "webhook_url": self.discord_webhook_url,
+            },
+            "email": {
+                "enabled": self.email_enabled,
+                "smtp_server": self.email_smtp_server,
+                "smtp_port": self.email_smtp_port,
+                "use_tls": self.email_use_tls,
+                "use_ssl": self.email_use_ssl,
+                "username": self.email_username,
+                "password": self.email_password,
+                "from_address": self.email_from_address,
+                "from_name": self.email_from_name,
+                "recipients": self.email_recipients,
+                "subject_prefix": self.email_subject_prefix,
+            },
+        }
 
 
 class DataProviderConfig(BaseModel):

@@ -227,7 +227,7 @@ class DesktopAlertHandler(BaseAlertHandler):
 
 
 class TelegramAlertHandler(BaseAlertHandler):
-    """Telegram bot alert handler (placeholder for future implementation)"""
+    """Telegram bot alert handler"""
 
     def __init__(
         self, enabled: bool = False, bot_token: str | None = None, chat_id: str | None = None
@@ -235,6 +235,19 @@ class TelegramAlertHandler(BaseAlertHandler):
         super().__init__(enabled)
         self.bot_token = bot_token
         self.chat_id = chat_id
+        self._validate_config()
+
+    def _validate_config(self):
+        """Validate Telegram configuration"""
+        if self.enabled:
+            if not self.bot_token:
+                logger.warning("Telegram enabled but bot_token not provided. Disabling Telegram alerts.")
+                self.enabled = False
+            elif not self.chat_id:
+                logger.warning("Telegram enabled but chat_id not provided. Disabling Telegram alerts.")
+                self.enabled = False
+            else:
+                logger.info("Telegram alerts configured and enabled")
 
     @property
     def name(self) -> str:
@@ -250,33 +263,79 @@ class TelegramAlertHandler(BaseAlertHandler):
 
             url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 
+            # Format message with Markdown
+            arrow = "🟢 ↗️" if message.direction == "long" else "🔴 ↘️"
             text = (
-                f"{'🟢' if message.direction == 'long' else '🔴'} *{message.symbol}* Signal\n"
-                f"Type: {message.signal_type}\n"
-                f"Price: ${message.price:.2f}\n"
-                f"Strength: {message.strength}\n"
-                f"Time: {message.timestamp.strftime('%H:%M:%S')}"
+                f"{arrow} *{message.symbol}* Signal\\n"
+                f"\\n"
+                f"*Type:* {message.signal_type.replace('_', ' ').title()}\\n"
+                f"*Direction:* {message.direction.upper()}\\n"
+                f"*Price:* ${message.price:.2f}\\n"
+                f"*Strength:* {message.strength}\\n"
+                f"*Time:* {message.timestamp.strftime('%H:%M:%S')}"
             )
 
-            async with (
-                aiohttp.ClientSession() as session,
-                session.post(
-                    url, json={"chat_id": self.chat_id, "text": text, "parse_mode": "Markdown"}
-                ) as response,
-            ):
-                return response.status == 200
+            # Add extra data if available
+            if message.extra_data:
+                text += "\\n\\n*Details:*\\n"
+                if message.extra_data.get("RSI"):
+                    text += f"RSI: {message.extra_data['RSI']:.1f}\\n"
+                if message.extra_data.get("ADX"):
+                    text += f"ADX: {message.extra_data['ADX']:.1f}\\n"
+                if message.extra_data.get("Volume Ratio"):
+                    text += f"Volume: {message.extra_data['Volume Ratio']:.2f}x\\n"
+                if message.extra_data.get("Stop Loss"):
+                    text += f"Stop: ${message.extra_data['Stop Loss']:.2f}\\n"
+                if message.extra_data.get("Target"):
+                    text += f"Target: ${message.extra_data['Target']:.2f}\\n"
+                if message.extra_data.get("R/R Ratio"):
+                    text += f"R/R: {message.extra_data['R/R Ratio']:.2f}\\n"
 
+            payload = {
+                "chat_id": self.chat_id,
+                "text": text,
+                "parse_mode": "Markdown",
+                "disable_web_page_preview": True
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        logger.debug(f"Telegram alert sent successfully for {message.symbol}")
+                        return True
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Telegram API error {response.status}: {error_text}")
+                        return False
+
+        except ImportError:
+            logger.error("aiohttp not installed. Install with: pip install aiohttp")
+            self.enabled = False
+            return False
         except Exception as e:
             logger.error(f"Telegram alert error: {e}")
             return False
 
 
 class DiscordAlertHandler(BaseAlertHandler):
-    """Discord webhook alert handler (placeholder for future implementation)"""
+    """Discord webhook alert handler"""
 
     def __init__(self, enabled: bool = False, webhook_url: str | None = None):
         super().__init__(enabled)
         self.webhook_url = webhook_url
+        self._validate_config()
+
+    def _validate_config(self):
+        """Validate Discord configuration"""
+        if self.enabled:
+            if not self.webhook_url:
+                logger.warning("Discord enabled but webhook_url not provided. Disabling Discord alerts.")
+                self.enabled = False
+            elif not self.webhook_url.startswith("https://discord.com/api/webhooks/"):
+                logger.warning("Discord webhook URL appears invalid. Disabling Discord alerts.")
+                self.enabled = False
+            else:
+                logger.info("Discord alerts configured and enabled")
 
     @property
     def name(self) -> str:
@@ -290,23 +349,304 @@ class DiscordAlertHandler(BaseAlertHandler):
         try:
             import aiohttp
 
+            # Build embed fields
+            fields = [
+                {"name": "Type", "value": message.signal_type.replace('_', ' ').title(), "inline": True},
+                {"name": "Direction", "value": message.direction.upper(), "inline": True},
+                {"name": "Price", "value": f"${message.price:.2f}", "inline": True},
+                {"name": "Strength", "value": message.strength, "inline": True},
+            ]
+
+            # Add extra data fields
+            if message.extra_data:
+                if message.extra_data.get("RSI"):
+                    fields.append({"name": "RSI", "value": f"{message.extra_data['RSI']:.1f}", "inline": True})
+                if message.extra_data.get("ADX"):
+                    fields.append({"name": "ADX", "value": f"{message.extra_data['ADX']:.1f}", "inline": True})
+                if message.extra_data.get("Volume Ratio"):
+                    fields.append({"name": "Volume", "value": f"{message.extra_data['Volume Ratio']:.2f}x", "inline": True})
+                if message.extra_data.get("Stop Loss") and message.extra_data.get("Target"):
+                    fields.append({"name": "Stop", "value": f"${message.extra_data['Stop Loss']:.2f}", "inline": True})
+                    fields.append({"name": "Target", "value": f"${message.extra_data['Target']:.2f}", "inline": True})
+                if message.extra_data.get("R/R Ratio"):
+                    fields.append({"name": "R/R", "value": f"{message.extra_data['R/R Ratio']:.2f}", "inline": True})
+
+            # Create embed
+            arrow = "🟢 ↗️" if message.direction == "long" else "🔴 ↘️"
             embed = {
-                "title": f"{'🟢' if message.direction == 'long' else '🔴'} {message.symbol} Signal",
+                "title": f"{arrow} {message.symbol} Signal",
+                "description": message.signal_type.replace('_', ' ').title(),
                 "color": 0x00FF00 if message.direction == "long" else 0xFF0000,
-                "fields": [
-                    {"name": "Type", "value": message.signal_type, "inline": True},
-                    {"name": "Price", "value": f"${message.price:.2f}", "inline": True},
-                    {"name": "Strength", "value": message.strength, "inline": True},
-                ],
+                "fields": fields,
                 "timestamp": message.timestamp.isoformat(),
+                "footer": {
+                    "text": "EMA Cloud Scanner"
+                }
+            }
+
+            payload = {
+                "embeds": [embed],
+                "username": "EMA Cloud Scanner"
             }
 
             async with aiohttp.ClientSession() as session:
-                async with session.post(self.webhook_url, json={"embeds": [embed]}) as response:
-                    return response.status == 204
+                async with session.post(
+                    self.webhook_url, 
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    if response.status == 204:
+                        logger.debug(f"Discord alert sent successfully for {message.symbol}")
+                        return True
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Discord webhook error {response.status}: {error_text}")
+                        return False
 
+        except ImportError:
+            logger.error("aiohttp not installed. Install with: pip install aiohttp")
+            self.enabled = False
+            return False
         except Exception as e:
             logger.error(f"Discord alert error: {e}")
+            return False
+
+
+class EmailAlertHandler(BaseAlertHandler):
+    """Email alert handler via SMTP"""
+
+    def __init__(
+        self,
+        enabled: bool = False,
+        smtp_server: str | None = None,
+        smtp_port: int = 587,
+        use_tls: bool = True,
+        use_ssl: bool = False,
+        username: str | None = None,
+        password: str | None = None,
+        from_address: str | None = None,
+        from_name: str = "EMA Cloud Scanner",
+        recipients: list[str] | None = None,
+        subject_prefix: str = "[EMA Signal]",
+    ):
+        super().__init__(enabled)
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
+        self.use_tls = use_tls
+        self.use_ssl = use_ssl
+        self.username = username
+        self.password = password
+        self.from_address = from_address or username
+        self.from_name = from_name
+        self.recipients = recipients or []
+        self.subject_prefix = subject_prefix
+        self._validate_config()
+
+    def _validate_config(self):
+        """Validate email configuration"""
+        if self.enabled:
+            if not self.smtp_server:
+                logger.warning("Email enabled but smtp_server not provided. Disabling email alerts.")
+                self.enabled = False
+            elif not self.username:
+                logger.warning("Email enabled but username not provided. Disabling email alerts.")
+                self.enabled = False
+            elif not self.password:
+                logger.warning("Email enabled but password not provided. Disabling email alerts.")
+                self.enabled = False
+            elif not self.recipients:
+                logger.warning("Email enabled but no recipients provided. Disabling email alerts.")
+                self.enabled = False
+            elif not self.from_address:
+                logger.warning("Email enabled but from_address not provided. Disabling email alerts.")
+                self.enabled = False
+            else:
+                logger.info(f"Email alerts configured for {len(self.recipients)} recipient(s)")
+
+    @property
+    def name(self) -> str:
+        return "Email"
+
+    def _create_html_message(self, message: AlertMessage) -> str:
+        """Create HTML email body"""
+        arrow = "🟢 ↗️" if message.direction == "long" else "🔴 ↘️"
+        color = "#00AA00" if message.direction == "long" else "#AA0000"
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background-color: {color}; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }}
+                .content {{ background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }}
+                .signal-info {{ margin: 20px 0; }}
+                .info-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #ddd; }}
+                .info-label {{ font-weight: bold; color: #666; }}
+                .info-value {{ color: #333; }}
+                .details {{ margin-top: 20px; background-color: white; padding: 15px; border-radius: 5px; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #999; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>{arrow} {message.symbol} Signal</h1>
+                    <p>{message.signal_type.replace('_', ' ').title()}</p>
+                </div>
+                <div class="content">
+                    <div class="signal-info">
+                        <div class="info-row">
+                            <span class="info-label">Symbol:</span>
+                            <span class="info-value">{message.symbol}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Type:</span>
+                            <span class="info-value">{message.signal_type.replace('_', ' ').title()}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Direction:</span>
+                            <span class="info-value" style="color: {color}; font-weight: bold;">{message.direction.upper()}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Price:</span>
+                            <span class="info-value">${message.price:.2f}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Strength:</span>
+                            <span class="info-value">{message.strength}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Time:</span>
+                            <span class="info-value">{message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}</span>
+                        </div>
+                    </div>
+        """
+        
+        # Add extra data if available
+        if message.extra_data:
+            html += '<div class="details"><h3>Additional Details</h3>'
+            if message.extra_data.get("RSI"):
+                html += f'<div class="info-row"><span class="info-label">RSI:</span><span class="info-value">{message.extra_data["RSI"]:.1f}</span></div>'
+            if message.extra_data.get("ADX"):
+                html += f'<div class="info-row"><span class="info-label">ADX:</span><span class="info-value">{message.extra_data["ADX"]:.1f}</span></div>'
+            if message.extra_data.get("Volume Ratio"):
+                html += f'<div class="info-row"><span class="info-label">Volume Ratio:</span><span class="info-value">{message.extra_data["Volume Ratio"]:.2f}x</span></div>'
+            if message.extra_data.get("Stop Loss"):
+                html += f'<div class="info-row"><span class="info-label">Stop Loss:</span><span class="info-value">${message.extra_data["Stop Loss"]:.2f}</span></div>'
+            if message.extra_data.get("Target"):
+                html += f'<div class="info-row"><span class="info-label">Target:</span><span class="info-value">${message.extra_data["Target"]:.2f}</span></div>'
+            if message.extra_data.get("R/R Ratio"):
+                html += f'<div class="info-row"><span class="info-label">Risk/Reward:</span><span class="info-value">{message.extra_data["R/R Ratio"]:.2f}</span></div>'
+            if message.extra_data.get("Sector"):
+                html += f'<div class="info-row"><span class="info-label">Sector:</span><span class="info-value">{message.extra_data["Sector"]}</span></div>'
+            html += '</div>'
+        
+        html += """
+                </div>
+                <div class="footer">
+                    <p>EMA Cloud Scanner - Automated Trading Signal Notification</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html
+
+    def _create_text_message(self, message: AlertMessage) -> str:
+        """Create plain text email body"""
+        arrow = "↑" if message.direction == "long" else "↓"
+        
+        text = f"""
+{arrow} {message.symbol} Signal
+{'=' * 50}
+
+Signal Type: {message.signal_type.replace('_', ' ').title()}
+Direction: {message.direction.upper()}
+Price: ${message.price:.2f}
+Strength: {message.strength}
+Time: {message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
+
+"""
+        
+        # Add extra data if available
+        if message.extra_data:
+            text += "Additional Details:\n"
+            text += "-" * 50 + "\n"
+            if message.extra_data.get("RSI"):
+                text += f"RSI: {message.extra_data['RSI']:.1f}\n"
+            if message.extra_data.get("ADX"):
+                text += f"ADX: {message.extra_data['ADX']:.1f}\n"
+            if message.extra_data.get("Volume Ratio"):
+                text += f"Volume Ratio: {message.extra_data['Volume Ratio']:.2f}x\n"
+            if message.extra_data.get("Stop Loss"):
+                text += f"Stop Loss: ${message.extra_data['Stop Loss']:.2f}\n"
+            if message.extra_data.get("Target"):
+                text += f"Target: ${message.extra_data['Target']:.2f}\n"
+            if message.extra_data.get("R/R Ratio"):
+                text += f"Risk/Reward: {message.extra_data['R/R Ratio']:.2f}\n"
+            if message.extra_data.get("Sector"):
+                text += f"Sector: {message.extra_data['Sector']}\n"
+        
+        text += "\n" + "=" * 50 + "\n"
+        text += "EMA Cloud Scanner - Automated Trading Signal Notification\n"
+        
+        return text
+
+    async def send_alert(self, message: AlertMessage) -> bool:
+        """Send email alert"""
+        if not self.enabled:
+            return False
+
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"{self.subject_prefix} {message.symbol} - {message.signal_type.replace('_', ' ').title()}"
+            msg['From'] = f"{self.from_name} <{self.from_address}>"
+            msg['To'] = ", ".join(self.recipients)
+
+            # Create both plain text and HTML versions
+            text_body = self._create_text_message(message)
+            html_body = self._create_html_message(message)
+
+            # Attach both versions
+            part1 = MIMEText(text_body, 'plain')
+            part2 = MIMEText(html_body, 'html')
+            msg.attach(part1)
+            msg.attach(part2)
+
+            # Send email
+            if self.use_ssl:
+                # SSL connection
+                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port)
+            else:
+                # Regular connection with optional TLS
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+                server.ehlo()
+                if self.use_tls:
+                    server.starttls()
+                    server.ehlo()
+
+            # Login and send
+            server.login(self.username, self.password)
+            server.sendmail(self.from_address, self.recipients, msg.as_string())
+            server.quit()
+
+            logger.debug(f"Email alert sent successfully for {message.symbol} to {len(self.recipients)} recipient(s)")
+            return True
+
+        except ImportError:
+            logger.error("smtplib not available. Email alerts require Python standard library.")
+            self.enabled = False
+            return False
+        except Exception as e:
+            logger.error(f"Email alert error: {e}")
             return False
 
 
@@ -435,6 +775,25 @@ class AlertManager:
         if discord_config.get("enabled"):
             manager.add_handler(
                 DiscordAlertHandler(enabled=True, webhook_url=discord_config.get("webhook_url"))
+            )
+
+        # Email (if configured)
+        email_config = config.get("email", {})
+        if email_config.get("enabled"):
+            manager.add_handler(
+                EmailAlertHandler(
+                    enabled=True,
+                    smtp_server=email_config.get("smtp_server"),
+                    smtp_port=email_config.get("smtp_port", 587),
+                    use_tls=email_config.get("use_tls", True),
+                    use_ssl=email_config.get("use_ssl", False),
+                    username=email_config.get("username"),
+                    password=email_config.get("password"),
+                    from_address=email_config.get("from_address"),
+                    from_name=email_config.get("from_name", "EMA Cloud Scanner"),
+                    recipients=email_config.get("recipients", []),
+                    subject_prefix=email_config.get("subject_prefix", "[EMA Signal]"),
+                )
             )
 
         return manager
