@@ -8,15 +8,48 @@ Supports multiple output channels:
 - Future: Telegram, Discord, Email, SMS
 """
 
+import asyncio
 import logging
+import os
 import sys
+import time
 from abc import ABC, abstractmethod
+from collections import deque
 from datetime import datetime
+from functools import wraps
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+def rate_limit(max_per_minute: int):
+    """
+    Rate limiting decorator for async methods.
+
+    Args:
+        max_per_minute: Maximum number of calls allowed per minute
+    """
+    def decorator(func):
+        last_called = deque(maxlen=max_per_minute)
+
+        @wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            now = time.time()
+            # Remove timestamps older than 60 seconds
+            while last_called and now - last_called[0] >= 60:
+                last_called.popleft()
+
+            if len(last_called) >= max_per_minute:
+                logger.warning(f"{self.name} handler rate limit reached ({max_per_minute}/min)")
+                return False
+
+            last_called.append(now)
+            return await func(self, *args, **kwargs)
+
+        return wrapper
+    return decorator
 
 
 class AlertMessage(BaseModel):
@@ -101,6 +134,33 @@ class BaseAlertHandler(ABC):
             if await self.send_alert(message):
                 success_count += 1
         return success_count
+
+    @staticmethod
+    def _format_extra_data_fields(extra_data: dict[str, Any]) -> list[tuple[str, Any]]:
+        """
+        Extract and format extra_data fields consistently across handlers.
+
+        Returns:
+            List of (label, value) tuples for present fields
+        """
+        fields = []
+
+        if extra_data.get("RSI") is not None:
+            fields.append(("RSI", extra_data["RSI"]))
+        if extra_data.get("ADX") is not None:
+            fields.append(("ADX", extra_data["ADX"]))
+        if extra_data.get("Volume Ratio") is not None:
+            fields.append(("Volume Ratio", extra_data["Volume Ratio"]))
+        if extra_data.get("Stop Loss") is not None:
+            fields.append(("Stop Loss", extra_data["Stop Loss"]))
+        if extra_data.get("Target") is not None:
+            fields.append(("Target", extra_data["Target"]))
+        if extra_data.get("R/R Ratio") is not None:
+            fields.append(("R/R Ratio", extra_data["R/R Ratio"]))
+        if extra_data.get("Sector") is not None:
+            fields.append(("Sector", extra_data["Sector"]))
+
+        return fields
 
 
 class ConsoleAlertHandler(BaseAlertHandler):
@@ -230,16 +290,30 @@ class TelegramAlertHandler(BaseAlertHandler):
     """Telegram bot alert handler"""
 
     def __init__(
-        self, enabled: bool = False, bot_token: str | None = None, chat_id: str | None = None
+        self,
+        enabled: bool = False,
+        bot_token: str | None = None,
+        chat_id: str | None = None,
+        timeout: int = 10,
     ):
         super().__init__(enabled)
-        self.bot_token = bot_token
-        self.chat_id = chat_id
+        # Support environment variables for credentials
+        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
+        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID")
+        self.timeout = timeout
         self._validate_config()
 
     def _validate_config(self):
-        """Validate Telegram configuration"""
+        """Validate Telegram configuration and dependencies"""
         if self.enabled:
+            # Check for aiohttp dependency
+            try:
+                import aiohttp  # noqa: F401
+            except ImportError:
+                logger.error("aiohttp not installed. Install with: pip install aiohttp")
+                self.enabled = False
+                return
+
             if not self.bot_token:
                 logger.warning("Telegram enabled but bot_token not provided. Disabling Telegram alerts.")
                 self.enabled = False
@@ -253,6 +327,7 @@ class TelegramAlertHandler(BaseAlertHandler):
     def name(self) -> str:
         return "Telegram"
 
+    @rate_limit(max_per_minute=20)  # Telegram allows 30 msgs/sec, we use conservative limit
     async def send_alert(self, message: AlertMessage) -> bool:
         """Send Telegram message"""
         if not self.enabled or not self.bot_token or not self.chat_id:
@@ -263,43 +338,50 @@ class TelegramAlertHandler(BaseAlertHandler):
 
             url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 
-            # Format message with Markdown
+            # Format message with proper Markdown (fixed escaping)
             arrow = "🟢 ↗️" if message.direction == "long" else "🔴 ↘️"
             text = (
-                f"{arrow} *{message.symbol}* Signal\\n"
-                f"\\n"
-                f"*Type:* {message.signal_type.replace('_', ' ').title()}\\n"
-                f"*Direction:* {message.direction.upper()}\\n"
-                f"*Price:* ${message.price:.2f}\\n"
-                f"*Strength:* {message.strength}\\n"
+                f"{arrow} *{message.symbol}* Signal\n"
+                f"\n"
+                f"*Type:* {message.signal_type.replace('_', ' ').title()}\n"
+                f"*Direction:* {message.direction.upper()}\n"
+                f"*Price:* ${message.price:.2f}\n"
+                f"*Strength:* {message.strength}\n"
                 f"*Time:* {message.timestamp.strftime('%H:%M:%S')}"
             )
 
-            # Add extra data if available
+            # Add extra data if available using shared formatter
             if message.extra_data:
-                text += "\\n\\n*Details:*\\n"
-                if message.extra_data.get("RSI"):
-                    text += f"RSI: {message.extra_data['RSI']:.1f}\\n"
-                if message.extra_data.get("ADX"):
-                    text += f"ADX: {message.extra_data['ADX']:.1f}\\n"
-                if message.extra_data.get("Volume Ratio"):
-                    text += f"Volume: {message.extra_data['Volume Ratio']:.2f}x\\n"
-                if message.extra_data.get("Stop Loss"):
-                    text += f"Stop: ${message.extra_data['Stop Loss']:.2f}\\n"
-                if message.extra_data.get("Target"):
-                    text += f"Target: ${message.extra_data['Target']:.2f}\\n"
-                if message.extra_data.get("R/R Ratio"):
-                    text += f"R/R: {message.extra_data['R/R Ratio']:.2f}\\n"
+                fields = self._format_extra_data_fields(message.extra_data)
+                if fields:
+                    text += "\n\n*Details:*\n"
+                    for label, value in fields:
+                        if label == "RSI":
+                            text += f"RSI: {value:.1f}\n"
+                        elif label == "ADX":
+                            text += f"ADX: {value:.1f}\n"
+                        elif label == "Volume Ratio":
+                            text += f"Volume: {value:.2f}x\n"
+                        elif label == "Stop Loss":
+                            text += f"Stop: ${value:.2f}\n"
+                        elif label == "Target":
+                            text += f"Target: ${value:.2f}\n"
+                        elif label == "R/R Ratio":
+                            text += f"R/R: {value:.2f}\n"
+                        elif label == "Sector":
+                            text += f"Sector: {value}\n"
 
             payload = {
                 "chat_id": self.chat_id,
                 "text": text,
                 "parse_mode": "Markdown",
-                "disable_web_page_preview": True
+                "disable_web_page_preview": True,
             }
 
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                async with session.post(
+                    url, json=payload, timeout=aiohttp.ClientTimeout(total=self.timeout)
+                ) as response:
                     if response.status == 200:
                         logger.debug(f"Telegram alert sent successfully for {message.symbol}")
                         return True
@@ -308,10 +390,6 @@ class TelegramAlertHandler(BaseAlertHandler):
                         logger.error(f"Telegram API error {response.status}: {error_text}")
                         return False
 
-        except ImportError:
-            logger.error("aiohttp not installed. Install with: pip install aiohttp")
-            self.enabled = False
-            return False
         except Exception as e:
             logger.error(f"Telegram alert error: {e}")
             return False
@@ -320,14 +398,29 @@ class TelegramAlertHandler(BaseAlertHandler):
 class DiscordAlertHandler(BaseAlertHandler):
     """Discord webhook alert handler"""
 
-    def __init__(self, enabled: bool = False, webhook_url: str | None = None):
+    def __init__(
+        self,
+        enabled: bool = False,
+        webhook_url: str | None = None,
+        timeout: int = 10,
+    ):
         super().__init__(enabled)
-        self.webhook_url = webhook_url
+        # Support environment variables for credentials
+        self.webhook_url = webhook_url or os.getenv("DISCORD_WEBHOOK_URL")
+        self.timeout = timeout
         self._validate_config()
 
     def _validate_config(self):
-        """Validate Discord configuration"""
+        """Validate Discord configuration and dependencies"""
         if self.enabled:
+            # Check for aiohttp dependency
+            try:
+                import aiohttp  # noqa: F401
+            except ImportError:
+                logger.error("aiohttp not installed. Install with: pip install aiohttp")
+                self.enabled = False
+                return
+
             if not self.webhook_url:
                 logger.warning("Discord enabled but webhook_url not provided. Disabling Discord alerts.")
                 self.enabled = False
@@ -341,6 +434,7 @@ class DiscordAlertHandler(BaseAlertHandler):
     def name(self) -> str:
         return "Discord"
 
+    @rate_limit(max_per_minute=30)  # Discord rate limit is 30 per minute per webhook
     async def send_alert(self, message: AlertMessage) -> bool:
         """Send Discord message via webhook"""
         if not self.enabled or not self.webhook_url:
@@ -351,49 +445,49 @@ class DiscordAlertHandler(BaseAlertHandler):
 
             # Build embed fields
             fields = [
-                {"name": "Type", "value": message.signal_type.replace('_', ' ').title(), "inline": True},
+                {"name": "Type", "value": message.signal_type.replace("_", " ").title(), "inline": True},
                 {"name": "Direction", "value": message.direction.upper(), "inline": True},
                 {"name": "Price", "value": f"${message.price:.2f}", "inline": True},
                 {"name": "Strength", "value": message.strength, "inline": True},
             ]
 
-            # Add extra data fields
+            # Add extra data fields using shared formatter
             if message.extra_data:
-                if message.extra_data.get("RSI"):
-                    fields.append({"name": "RSI", "value": f"{message.extra_data['RSI']:.1f}", "inline": True})
-                if message.extra_data.get("ADX"):
-                    fields.append({"name": "ADX", "value": f"{message.extra_data['ADX']:.1f}", "inline": True})
-                if message.extra_data.get("Volume Ratio"):
-                    fields.append({"name": "Volume", "value": f"{message.extra_data['Volume Ratio']:.2f}x", "inline": True})
-                if message.extra_data.get("Stop Loss") and message.extra_data.get("Target"):
-                    fields.append({"name": "Stop", "value": f"${message.extra_data['Stop Loss']:.2f}", "inline": True})
-                    fields.append({"name": "Target", "value": f"${message.extra_data['Target']:.2f}", "inline": True})
-                if message.extra_data.get("R/R Ratio"):
-                    fields.append({"name": "R/R", "value": f"{message.extra_data['R/R Ratio']:.2f}", "inline": True})
+                extra_fields = self._format_extra_data_fields(message.extra_data)
+                for label, value in extra_fields:
+                    if label == "RSI":
+                        fields.append({"name": "RSI", "value": f"{value:.1f}", "inline": True})
+                    elif label == "ADX":
+                        fields.append({"name": "ADX", "value": f"{value:.1f}", "inline": True})
+                    elif label == "Volume Ratio":
+                        fields.append({"name": "Volume", "value": f"{value:.2f}x", "inline": True})
+                    elif label == "Stop Loss":
+                        fields.append({"name": "Stop", "value": f"${value:.2f}", "inline": True})
+                    elif label == "Target":
+                        fields.append({"name": "Target", "value": f"${value:.2f}", "inline": True})
+                    elif label == "R/R Ratio":
+                        fields.append({"name": "R/R", "value": f"{value:.2f}", "inline": True})
+                    elif label == "Sector":
+                        fields.append({"name": "Sector", "value": str(value), "inline": True})
 
             # Create embed
             arrow = "🟢 ↗️" if message.direction == "long" else "🔴 ↘️"
             embed = {
                 "title": f"{arrow} {message.symbol} Signal",
-                "description": message.signal_type.replace('_', ' ').title(),
+                "description": message.signal_type.replace("_", " ").title(),
                 "color": 0x00FF00 if message.direction == "long" else 0xFF0000,
                 "fields": fields,
                 "timestamp": message.timestamp.isoformat(),
-                "footer": {
-                    "text": "EMA Cloud Scanner"
-                }
+                "footer": {"text": "EMA Cloud Scanner"},
             }
 
-            payload = {
-                "embeds": [embed],
-                "username": "EMA Cloud Scanner"
-            }
+            payload = {"embeds": [embed], "username": "EMA Cloud Scanner"}
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    self.webhook_url, 
+                    self.webhook_url,
                     json=payload,
-                    timeout=aiohttp.ClientTimeout(total=10)
+                    timeout=aiohttp.ClientTimeout(total=self.timeout),
                 ) as response:
                     if response.status == 204:
                         logger.debug(f"Discord alert sent successfully for {message.symbol}")
@@ -403,10 +497,6 @@ class DiscordAlertHandler(BaseAlertHandler):
                         logger.error(f"Discord webhook error {response.status}: {error_text}")
                         return False
 
-        except ImportError:
-            logger.error("aiohttp not installed. Install with: pip install aiohttp")
-            self.enabled = False
-            return False
         except Exception as e:
             logger.error(f"Discord alert error: {e}")
             return False
@@ -428,23 +518,34 @@ class EmailAlertHandler(BaseAlertHandler):
         from_name: str = "EMA Cloud Scanner",
         recipients: list[str] | None = None,
         subject_prefix: str = "[EMA Signal]",
+        timeout: int = 30,
     ):
         super().__init__(enabled)
-        self.smtp_server = smtp_server
+        # Support environment variables for credentials
+        self.smtp_server = smtp_server or os.getenv("SMTP_SERVER")
         self.smtp_port = smtp_port
         self.use_tls = use_tls
         self.use_ssl = use_ssl
-        self.username = username
-        self.password = password
-        self.from_address = from_address or username
+        self.username = username or os.getenv("SMTP_USERNAME")
+        self.password = password or os.getenv("SMTP_PASSWORD")
+        self.from_address = from_address or self.username or os.getenv("SMTP_FROM_ADDRESS")
         self.from_name = from_name
         self.recipients = recipients or []
         self.subject_prefix = subject_prefix
+        self.timeout = timeout
         self._validate_config()
 
     def _validate_config(self):
-        """Validate email configuration"""
+        """Validate email configuration and dependencies"""
         if self.enabled:
+            # Check for smtplib (should always be available in stdlib)
+            try:
+                import smtplib  # noqa: F401
+            except ImportError:
+                logger.error("smtplib not available. Email alerts require Python standard library.")
+                self.enabled = False
+                return
+
             if not self.smtp_server:
                 logger.warning("Email enabled but smtp_server not provided. Disabling email alerts.")
                 self.enabled = False
@@ -471,7 +572,7 @@ class EmailAlertHandler(BaseAlertHandler):
         """Create HTML email body"""
         arrow = "🟢 ↗️" if message.direction == "long" else "🔴 ↘️"
         color = "#00AA00" if message.direction == "long" else "#AA0000"
-        
+
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -523,26 +624,29 @@ class EmailAlertHandler(BaseAlertHandler):
                         </div>
                     </div>
         """
-        
-        # Add extra data if available
+
+        # Add extra data if available using shared formatter
         if message.extra_data:
-            html += '<div class="details"><h3>Additional Details</h3>'
-            if message.extra_data.get("RSI"):
-                html += f'<div class="info-row"><span class="info-label">RSI:</span><span class="info-value">{message.extra_data["RSI"]:.1f}</span></div>'
-            if message.extra_data.get("ADX"):
-                html += f'<div class="info-row"><span class="info-label">ADX:</span><span class="info-value">{message.extra_data["ADX"]:.1f}</span></div>'
-            if message.extra_data.get("Volume Ratio"):
-                html += f'<div class="info-row"><span class="info-label">Volume Ratio:</span><span class="info-value">{message.extra_data["Volume Ratio"]:.2f}x</span></div>'
-            if message.extra_data.get("Stop Loss"):
-                html += f'<div class="info-row"><span class="info-label">Stop Loss:</span><span class="info-value">${message.extra_data["Stop Loss"]:.2f}</span></div>'
-            if message.extra_data.get("Target"):
-                html += f'<div class="info-row"><span class="info-label">Target:</span><span class="info-value">${message.extra_data["Target"]:.2f}</span></div>'
-            if message.extra_data.get("R/R Ratio"):
-                html += f'<div class="info-row"><span class="info-label">Risk/Reward:</span><span class="info-value">{message.extra_data["R/R Ratio"]:.2f}</span></div>'
-            if message.extra_data.get("Sector"):
-                html += f'<div class="info-row"><span class="info-label">Sector:</span><span class="info-value">{message.extra_data["Sector"]}</span></div>'
-            html += '</div>'
-        
+            fields = self._format_extra_data_fields(message.extra_data)
+            if fields:
+                html += '<div class="details"><h3>Additional Details</h3>'
+                for label, value in fields:
+                    if label == "RSI":
+                        html += f'<div class="info-row"><span class="info-label">RSI:</span><span class="info-value">{value:.1f}</span></div>'
+                    elif label == "ADX":
+                        html += f'<div class="info-row"><span class="info-label">ADX:</span><span class="info-value">{value:.1f}</span></div>'
+                    elif label == "Volume Ratio":
+                        html += f'<div class="info-row"><span class="info-label">Volume Ratio:</span><span class="info-value">{value:.2f}x</span></div>'
+                    elif label == "Stop Loss":
+                        html += f'<div class="info-row"><span class="info-label">Stop Loss:</span><span class="info-value">${value:.2f}</span></div>'
+                    elif label == "Target":
+                        html += f'<div class="info-row"><span class="info-label">Target:</span><span class="info-value">${value:.2f}</span></div>'
+                    elif label == "R/R Ratio":
+                        html += f'<div class="info-row"><span class="info-label">Risk/Reward:</span><span class="info-value">{value:.2f}</span></div>'
+                    elif label == "Sector":
+                        html += f'<div class="info-row"><span class="info-label">Sector:</span><span class="info-value">{value}</span></div>'
+                html += "</div>"
+
         html += """
                 </div>
                 <div class="footer">
@@ -552,13 +656,13 @@ class EmailAlertHandler(BaseAlertHandler):
         </body>
         </html>
         """
-        
+
         return html
 
     def _create_text_message(self, message: AlertMessage) -> str:
         """Create plain text email body"""
         arrow = "↑" if message.direction == "long" else "↓"
-        
+
         text = f"""
 {arrow} {message.symbol} Signal
 {'=' * 50}
@@ -570,64 +674,65 @@ Strength: {message.strength}
 Time: {message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
 
 """
-        
-        # Add extra data if available
+
+        # Add extra data if available using shared formatter
         if message.extra_data:
-            text += "Additional Details:\n"
-            text += "-" * 50 + "\n"
-            if message.extra_data.get("RSI"):
-                text += f"RSI: {message.extra_data['RSI']:.1f}\n"
-            if message.extra_data.get("ADX"):
-                text += f"ADX: {message.extra_data['ADX']:.1f}\n"
-            if message.extra_data.get("Volume Ratio"):
-                text += f"Volume Ratio: {message.extra_data['Volume Ratio']:.2f}x\n"
-            if message.extra_data.get("Stop Loss"):
-                text += f"Stop Loss: ${message.extra_data['Stop Loss']:.2f}\n"
-            if message.extra_data.get("Target"):
-                text += f"Target: ${message.extra_data['Target']:.2f}\n"
-            if message.extra_data.get("R/R Ratio"):
-                text += f"Risk/Reward: {message.extra_data['R/R Ratio']:.2f}\n"
-            if message.extra_data.get("Sector"):
-                text += f"Sector: {message.extra_data['Sector']}\n"
-        
+            fields = self._format_extra_data_fields(message.extra_data)
+            if fields:
+                text += "Additional Details:\n"
+                text += "-" * 50 + "\n"
+                for label, value in fields:
+                    if label == "RSI":
+                        text += f"RSI: {value:.1f}\n"
+                    elif label == "ADX":
+                        text += f"ADX: {value:.1f}\n"
+                    elif label == "Volume Ratio":
+                        text += f"Volume Ratio: {value:.2f}x\n"
+                    elif label == "Stop Loss":
+                        text += f"Stop Loss: ${value:.2f}\n"
+                    elif label == "Target":
+                        text += f"Target: ${value:.2f}\n"
+                    elif label == "R/R Ratio":
+                        text += f"Risk/Reward: {value:.2f}\n"
+                    elif label == "Sector":
+                        text += f"Sector: {value}\n"
+
         text += "\n" + "=" * 50 + "\n"
         text += "EMA Cloud Scanner - Automated Trading Signal Notification\n"
-        
+
         return text
 
-    async def send_alert(self, message: AlertMessage) -> bool:
-        """Send email alert"""
-        if not self.enabled:
-            return False
+    def _send_smtp_sync(self, message: AlertMessage) -> None:
+        """Synchronous SMTP operations (run in thread pool)"""
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
 
+        # Create message
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"{self.subject_prefix} {message.symbol} - {message.signal_type.replace('_', ' ').title()}"
+        msg["From"] = f"{self.from_name} <{self.from_address}>"
+        msg["To"] = ", ".join(self.recipients)
+
+        # Create both plain text and HTML versions
+        text_body = self._create_text_message(message)
+        html_body = self._create_html_message(message)
+
+        # Attach both versions
+        part1 = MIMEText(text_body, "plain")
+        part2 = MIMEText(html_body, "html")
+        msg.attach(part1)
+        msg.attach(part2)
+
+        # Send email with timeout support
+        server = None
         try:
-            import smtplib
-            from email.mime.text import MIMEText
-            from email.mime.multipart import MIMEMultipart
-
-            # Create message
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"{self.subject_prefix} {message.symbol} - {message.signal_type.replace('_', ' ').title()}"
-            msg['From'] = f"{self.from_name} <{self.from_address}>"
-            msg['To'] = ", ".join(self.recipients)
-
-            # Create both plain text and HTML versions
-            text_body = self._create_text_message(message)
-            html_body = self._create_html_message(message)
-
-            # Attach both versions
-            part1 = MIMEText(text_body, 'plain')
-            part2 = MIMEText(html_body, 'html')
-            msg.attach(part1)
-            msg.attach(part2)
-
-            # Send email
             if self.use_ssl:
                 # SSL connection
-                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port)
+                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=self.timeout)
             else:
                 # Regular connection with optional TLS
-                server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=self.timeout)
                 server.ehlo()
                 if self.use_tls:
                     server.starttls()
@@ -636,15 +741,28 @@ Time: {message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
             # Login and send
             server.login(self.username, self.password)
             server.sendmail(self.from_address, self.recipients, msg.as_string())
-            server.quit()
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass  # Ignore errors during cleanup
 
-            logger.debug(f"Email alert sent successfully for {message.symbol} to {len(self.recipients)} recipient(s)")
+    @rate_limit(max_per_minute=10)  # Conservative limit for email
+    async def send_alert(self, message: AlertMessage) -> bool:
+        """Send email alert (non-blocking)"""
+        if not self.enabled:
+            return False
+
+        try:
+            # Run synchronous SMTP operations in thread pool to avoid blocking
+            await asyncio.to_thread(self._send_smtp_sync, message)
+
+            logger.debug(
+                f"Email alert sent successfully for {message.symbol} to {len(self.recipients)} recipient(s)"
+            )
             return True
 
-        except ImportError:
-            logger.error("smtplib not available. Email alerts require Python standard library.")
-            self.enabled = False
-            return False
         except Exception as e:
             logger.error(f"Email alert error: {e}")
             return False
