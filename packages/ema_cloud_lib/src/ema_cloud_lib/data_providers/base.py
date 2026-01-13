@@ -12,11 +12,11 @@ Each provider must implement the BaseDataProvider interface.
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -82,38 +82,30 @@ INTERVAL_MINUTES = {
 }
 
 
-@dataclass
-class OHLCV:
+class OHLCV(BaseModel):
     """Standard OHLCV data structure"""
 
-    timestamp: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
+    timestamp: datetime = Field(..., description="Bar timestamp")
+    open: float = Field(..., description="Opening price")
+    high: float = Field(..., description="Highest price")
+    low: float = Field(..., description="Lowest price")
+    close: float = Field(..., description="Closing price")
+    volume: float = Field(..., description="Trading volume")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "timestamp": self.timestamp,
-            "open": self.open,
-            "high": self.high,
-            "low": self.low,
-            "close": self.close,
-            "volume": self.volume,
-        }
+        """Convert to dictionary for compatibility"""
+        return self.model_dump()
 
 
-@dataclass
-class Quote:
+class Quote(BaseModel):
     """Real-time quote data"""
 
-    symbol: str
-    bid: float
-    ask: float
-    last: float
-    volume: float
-    timestamp: datetime
+    symbol: str = Field(..., description="Stock/ETF symbol")
+    bid: float = Field(..., description="Bid price")
+    ask: float = Field(..., description="Ask price")
+    last: float = Field(..., description="Last trade price")
+    volume: float = Field(..., description="Trade volume")
+    timestamp: datetime = Field(..., description="Quote timestamp")
 
 
 class DataProviderError(Exception):

@@ -11,26 +11,26 @@ Supports multiple output channels:
 import logging
 import sys
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class AlertMessage:
+class AlertMessage(BaseModel):
     """Standardized alert message"""
 
-    title: str
-    body: str
-    symbol: str
-    signal_type: str
-    direction: str
-    strength: str
-    price: float
-    timestamp: datetime
-    extra_data: dict[str, Any] = field(default_factory=dict)
+    title: str = Field(..., description="Alert title")
+    body: str = Field(..., description="Alert body text")
+    symbol: str = Field(..., description="Symbol for alert")
+    signal_type: str = Field(..., description="Type of signal")
+    direction: str = Field(..., description="Signal direction")
+    strength: str = Field(..., description="Signal strength")
+    price: float = Field(..., description="Price at signal")
+    timestamp: datetime = Field(..., description="Alert timestamp")
+    extra_data: dict[str, Any] = Field(default_factory=dict, description="Additional alert data")
 
     def to_short_string(self) -> str:
         """Short format for console"""

@@ -17,7 +17,7 @@ from ema_cloud_lib.config.settings import (
     TRADING_PRESETS,
     ScannerConfig,
 )
-from ema_cloud_lib.data_providers.base import DataProviderManager, YahooFinanceProvider
+from ema_cloud_lib.data_providers.base import DataProviderManager
 from ema_cloud_lib.holdings.manager import HoldingsManager
 from ema_cloud_lib.indicators.ema_cloud import EMACloudIndicator
 from ema_cloud_lib.signals.generator import SectorTrendState, Signal, SignalGenerator

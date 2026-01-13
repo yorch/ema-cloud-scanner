@@ -5,9 +5,10 @@ This module provides functions for loading and saving scanner configurations
 using pydantic-settings for path management and validation.
 """
 
-import json
 import logging
 from pathlib import Path
+
+from pydantic import ValidationError
 
 from ema_cloud_lib.config.settings import ScannerConfig
 
@@ -27,7 +28,7 @@ def get_user_config_path() -> Path:
 
 
 def load_config_from_path(path: str | Path) -> ScannerConfig:
-    """Load a config file, supporting both full and partial formats.
+    """Load a config file using Pydantic deserialization.
 
     Args:
         path: Path to the configuration file (JSON format)
@@ -37,21 +38,8 @@ def load_config_from_path(path: str | Path) -> ScannerConfig:
 
     Raises:
         FileNotFoundError: If the config file doesn't exist
-        json.JSONDecodeError: If the file contains invalid JSON
-        ValueError: If the config format is invalid
+        ValidationError: If the file contains invalid configuration data
     """
-    path = Path(path)
-    config_dict = json.loads(path.read_text())
-
-    if isinstance(config_dict, dict) and (
-        "ema_clouds" in config_dict
-        or "filters" in config_dict
-        or "alerts" in config_dict
-        or "data_provider" in config_dict
-        or "backtest" in config_dict
-    ):
-        return ScannerConfig.from_full_dict(config_dict)
-
     return ScannerConfig.load(str(path))
 
 
@@ -72,13 +60,13 @@ def load_user_config() -> ScannerConfig | None:
     try:
         logger.info("Loading user config from %s", path)
         return load_config_from_path(path)
-    except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+    except (OSError, ValidationError, ValueError, TypeError) as exc:
         logger.warning("Failed to load user config %s: %s", path, exc)
         return None
 
 
 def save_user_config(config: ScannerConfig) -> Path:
-    """Save the full config to the user config path.
+    """Save the config to the user config path using Pydantic serialization.
 
     Creates the config directory if it doesn't exist. Uses pydantic-settings
     to determine the appropriate location.
@@ -97,7 +85,7 @@ def save_user_config(config: ScannerConfig) -> Path:
     path = cli_settings.get_config_path()
 
     logger.info("Saving config to %s", path)
-    path.write_text(json.dumps(config.to_full_dict(), indent=2))
+    config.save(str(path))
     logger.debug("Config saved successfully to %s", path)
 
     return path

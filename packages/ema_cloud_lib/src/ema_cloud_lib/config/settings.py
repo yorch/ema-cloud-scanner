@@ -5,11 +5,11 @@ Based on Ripster's EMA Cloud Strategy
 All settings are configurable and support presets for different trading styles.
 """
 
-import json
-from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class TradingStyle(Enum):
@@ -47,26 +47,48 @@ class SignalType(Enum):
     PULLBACK_ENTRY = "pullback_entry"  # Pullback to 8-9 EMA cloud
 
 
-@dataclass
-class EMACloudConfig:
+class EMACloudConfig(BaseModel):
     """Configuration for a single EMA cloud"""
 
-    fast_period: int
-    slow_period: int
-    name: str
-    description: str
-    color_bullish: str = "#26a69a"  # Green
-    color_bearish: str = "#ef5350"  # Red
-    enabled: bool = True
+    fast_period: int = Field(..., description="Fast EMA period")
+    slow_period: int = Field(..., description="Slow EMA period")
+    name: str = Field(..., description="Cloud name")
+    description: str = Field(..., description="Cloud description")
+    color_bullish: str = Field(default="#26a69a", description="Bullish color (green)")
+    color_bearish: str = Field(default="#ef5350", description="Bearish color (red)")
+    enabled: bool = Field(default=True, description="Whether cloud is enabled")
+
+    @field_validator("fast_period", "slow_period")
+    @classmethod
+    def validate_period(cls, v: int) -> int:
+        """Validate EMA period is positive."""
+        if v < 1:
+            raise ValueError("EMA period must be >= 1")
+        return v
+
+    @field_validator("slow_period")
+    @classmethod
+    def validate_slow_greater_than_fast(cls, v: int, info) -> int:
+        """Validate slow period is greater than fast period."""
+        if "fast_period" in info.data and v <= info.data["fast_period"]:
+            raise ValueError("slow_period must be greater than fast_period")
+        return v
 
 
-@dataclass
-class TimeframeConfig:
+class TimeframeConfig(BaseModel):
     """Configuration for a specific timeframe"""
 
-    interval: str  # e.g., "1m", "5m", "10m", "1h", "1d"
-    display_name: str
-    bars_to_fetch: int = 500  # Number of historical bars to load
+    interval: str = Field(..., description="Timeframe interval (e.g., '1m', '5m', '1h', '1d')")
+    display_name: str = Field(..., description="Human-readable name")
+    bars_to_fetch: int = Field(default=500, description="Number of historical bars to load")
+
+    @field_validator("bars_to_fetch")
+    @classmethod
+    def validate_bars(cls, v: int) -> int:
+        """Validate bars to fetch is positive."""
+        if v < 1:
+            raise ValueError("bars_to_fetch must be >= 1")
+        return v
 
 
 # Ripster's EMA Cloud Configurations
@@ -113,47 +135,57 @@ DEFAULT_EMA_CLOUDS = {
 # Trading Style Presets
 TRADING_PRESETS = {
     TradingStyle.SCALPING: {
-        "primary_timeframe": TimeframeConfig("1m", "1 Minute", 500),
+        "primary_timeframe": TimeframeConfig(
+            interval="1m", display_name="1 Minute", bars_to_fetch=500
+        ),
         "confirmation_timeframes": [
-            TimeframeConfig("5m", "5 Minute", 200),
+            TimeframeConfig(interval="5m", display_name="5 Minute", bars_to_fetch=200),
         ],
         "enabled_clouds": ["trend_line", "pullback", "momentum"],
         "signal_confirmation_bars": 1,
         "min_cloud_thickness_pct": 0.02,  # 0.02%
     },
     TradingStyle.INTRADAY: {
-        "primary_timeframe": TimeframeConfig("10m", "10 Minute", 500),
+        "primary_timeframe": TimeframeConfig(
+            interval="10m", display_name="10 Minute", bars_to_fetch=500
+        ),
         "confirmation_timeframes": [
-            TimeframeConfig("1h", "1 Hour", 200),
-            TimeframeConfig("1d", "Daily", 100),
+            TimeframeConfig(interval="1h", display_name="1 Hour", bars_to_fetch=200),
+            TimeframeConfig(interval="1d", display_name="Daily", bars_to_fetch=100),
         ],
         "enabled_clouds": ["trend_line", "pullback", "trend_confirmation"],
         "signal_confirmation_bars": 2,
         "min_cloud_thickness_pct": 0.05,  # 0.05%
     },
     TradingStyle.SWING: {
-        "primary_timeframe": TimeframeConfig("1h", "1 Hour", 500),
+        "primary_timeframe": TimeframeConfig(
+            interval="1h", display_name="1 Hour", bars_to_fetch=500
+        ),
         "confirmation_timeframes": [
-            TimeframeConfig("4h", "4 Hour", 200),
-            TimeframeConfig("1d", "Daily", 100),
+            TimeframeConfig(interval="4h", display_name="4 Hour", bars_to_fetch=200),
+            TimeframeConfig(interval="1d", display_name="Daily", bars_to_fetch=100),
         ],
         "enabled_clouds": ["trend_line", "trend_confirmation", "long_term"],
         "signal_confirmation_bars": 2,
         "min_cloud_thickness_pct": 0.1,  # 0.1%
     },
     TradingStyle.POSITION: {
-        "primary_timeframe": TimeframeConfig("1d", "Daily", 500),
+        "primary_timeframe": TimeframeConfig(
+            interval="1d", display_name="Daily", bars_to_fetch=500
+        ),
         "confirmation_timeframes": [
-            TimeframeConfig("1wk", "Weekly", 104),
+            TimeframeConfig(interval="1wk", display_name="Weekly", bars_to_fetch=104),
         ],
         "enabled_clouds": ["trend_confirmation", "long_term", "major_trend"],
         "signal_confirmation_bars": 3,
         "min_cloud_thickness_pct": 0.2,  # 0.2%
     },
     TradingStyle.LONG_TERM: {
-        "primary_timeframe": TimeframeConfig("1wk", "Weekly", 260),
+        "primary_timeframe": TimeframeConfig(
+            interval="1wk", display_name="Weekly", bars_to_fetch=260
+        ),
         "confirmation_timeframes": [
-            TimeframeConfig("1mo", "Monthly", 60),
+            TimeframeConfig(interval="1mo", display_name="Monthly", bars_to_fetch=60),
         ],
         "enabled_clouds": ["trend_confirmation", "long_term", "major_trend"],
         "signal_confirmation_bars": 2,
@@ -237,208 +269,237 @@ ETF_SUBSETS = {
 }
 
 
-@dataclass
-class FilterConfig:
+class FilterConfig(BaseModel):
     """Configuration for signal filters"""
 
     # Volume filter
-    volume_enabled: bool = True
-    volume_multiplier: float = 1.5  # Volume must be 1.5x average
-    volume_lookback: int = 20  # 20-bar average volume
+    volume_enabled: bool = Field(default=True, description="Enable volume filter")
+    volume_multiplier: float = Field(default=1.5, description="Volume multiplier threshold (e.g., 1.5x average)")
+    volume_lookback: int = Field(default=20, description="Lookback period for average volume")
 
     # RSI filter
-    rsi_enabled: bool = True
-    rsi_period: int = 14
-    rsi_overbought: float = 70.0
-    rsi_oversold: float = 30.0
-    rsi_neutral_zone: tuple = (45.0, 55.0)
+    rsi_enabled: bool = Field(default=True, description="Enable RSI filter")
+    rsi_period: int = Field(default=14, description="RSI calculation period")
+    rsi_overbought: float = Field(default=70.0, description="RSI overbought threshold")
+    rsi_oversold: float = Field(default=30.0, description="RSI oversold threshold")
+    rsi_neutral_zone: tuple[float, float] = Field(default=(45.0, 55.0), description="RSI neutral zone range")
 
     # ADX filter (trend strength)
-    adx_enabled: bool = True
-    adx_period: int = 14
-    adx_min_strength: float = 20.0  # Minimum ADX for valid trend
-    adx_strong_trend: float = 30.0
+    adx_enabled: bool = Field(default=True, description="Enable ADX filter")
+    adx_period: int = Field(default=14, description="ADX calculation period")
+    adx_min_strength: float = Field(default=20.0, description="Minimum ADX for valid trend")
+    adx_strong_trend: float = Field(default=30.0, description="ADX threshold for strong trend")
 
     # VWAP filter
-    vwap_enabled: bool = True
-    vwap_confirmation: bool = True  # Require price on correct side of VWAP
+    vwap_enabled: bool = Field(default=True, description="Enable VWAP filter")
+    vwap_confirmation: bool = Field(default=True, description="Require price on correct side of VWAP")
 
     # ATR filter (volatility)
-    atr_enabled: bool = True
-    atr_period: int = 14
-    atr_min_threshold: float = 0.5  # Minimum ATR as % of price
-    atr_max_threshold: float = 5.0  # Maximum ATR (avoid extreme volatility)
+    atr_enabled: bool = Field(default=True, description="Enable ATR filter")
+    atr_period: int = Field(default=14, description="ATR calculation period")
+    atr_min_threshold: float = Field(default=0.5, description="Minimum ATR as % of price")
+    atr_max_threshold: float = Field(default=5.0, description="Maximum ATR (avoid extreme volatility)")
 
     # MACD confirmation
-    macd_enabled: bool = False
-    macd_fast: int = 12
-    macd_slow: int = 26
-    macd_signal: int = 9
+    macd_enabled: bool = Field(default=False, description="Enable MACD filter")
+    macd_fast: int = Field(default=12, description="MACD fast period")
+    macd_slow: int = Field(default=26, description="MACD slow period")
+    macd_signal: int = Field(default=9, description="MACD signal period")
 
     # Time of day filter
-    time_filter_enabled: bool = True
-    avoid_first_minutes: int = 15  # Avoid first 15 minutes
-    avoid_last_minutes: int = 15  # Avoid last 15 minutes
-    trading_start_time: str = "09:30"
-    trading_end_time: str = "16:00"
+    time_filter_enabled: bool = Field(default=True, description="Enable time of day filter")
+    avoid_first_minutes: int = Field(default=15, description="Minutes to avoid after market open")
+    avoid_last_minutes: int = Field(default=15, description="Minutes to avoid before market close")
+    trading_start_time: str = Field(default="09:30", description="Trading start time (HH:MM)")
+    trading_end_time: str = Field(default="16:00", description="Trading end time (HH:MM)")
+
+    @field_validator("rsi_overbought", "rsi_oversold")
+    @classmethod
+    def validate_rsi_range(cls, v: float) -> float:
+        """Validate RSI values are between 0 and 100."""
+        if not (0 <= v <= 100):
+            raise ValueError("RSI values must be between 0 and 100")
+        return v
+
+    @field_validator("rsi_overbought")
+    @classmethod
+    def validate_rsi_overbought_greater(cls, v: float, info) -> float:
+        """Validate overbought is greater than oversold."""
+        if "rsi_oversold" in info.data and v <= info.data["rsi_oversold"]:
+            raise ValueError("rsi_overbought must be greater than rsi_oversold")
+        return v
+
+    @field_validator("volume_multiplier", "adx_min_strength", "adx_strong_trend", "atr_min_threshold", "atr_max_threshold")
+    @classmethod
+    def validate_positive(cls, v: float) -> float:
+        """Validate numeric thresholds are positive."""
+        if v <= 0:
+            raise ValueError("Threshold must be positive")
+        return v
 
 
-@dataclass
-class AlertConfig:
+class AlertConfig(BaseModel):
     """Configuration for alerts"""
 
     # Console alerts
-    console_enabled: bool = True
-    console_colors: bool = True
+    console_enabled: bool = Field(default=True, description="Enable console alerts")
+    console_colors: bool = Field(default=True, description="Use colors in console alerts")
 
     # Desktop notifications
-    desktop_enabled: bool = True
-    desktop_sound: bool = True
+    desktop_enabled: bool = Field(default=True, description="Enable desktop notifications")
+    desktop_sound: bool = Field(default=True, description="Play sound with desktop notifications")
 
     # Future extensions (placeholders)
-    telegram_enabled: bool = False
-    telegram_bot_token: str | None = None
-    telegram_chat_id: str | None = None
+    telegram_enabled: bool = Field(default=False, description="Enable Telegram notifications")
+    telegram_bot_token: str | None = Field(default=None, description="Telegram bot token")
+    telegram_chat_id: str | None = Field(default=None, description="Telegram chat ID")
 
-    discord_enabled: bool = False
-    discord_webhook_url: str | None = None
+    discord_enabled: bool = Field(default=False, description="Enable Discord notifications")
+    discord_webhook_url: str | None = Field(default=None, description="Discord webhook URL")
 
-    email_enabled: bool = False
-    email_smtp_server: str | None = None
-    email_recipients: list[str] = field(default_factory=list)
+    email_enabled: bool = Field(default=False, description="Enable email notifications")
+    email_smtp_server: str | None = Field(default=None, description="SMTP server address")
+    email_recipients: list[str] = Field(default_factory=list, description="Email recipients list")
 
 
-@dataclass
-class DataProviderConfig:
+class DataProviderConfig(BaseModel):
     """Configuration for data providers"""
 
     # Yahoo Finance (default, free)
-    yahoo_enabled: bool = True
+    yahoo_enabled: bool = Field(default=True, description="Enable Yahoo Finance data provider")
 
     # Alpaca
-    alpaca_enabled: bool = False
-    alpaca_api_key: str | None = None
-    alpaca_secret_key: str | None = None
-    alpaca_paper: bool = True  # Use paper trading endpoint
+    alpaca_enabled: bool = Field(default=False, description="Enable Alpaca data provider")
+    alpaca_api_key: str | None = Field(default=None, description="Alpaca API key")
+    alpaca_secret_key: str | None = Field(default=None, description="Alpaca secret key")
+    alpaca_paper: bool = Field(default=True, description="Use Alpaca paper trading endpoint")
 
     # Polygon.io
-    polygon_enabled: bool = False
-    polygon_api_key: str | None = None
+    polygon_enabled: bool = Field(default=False, description="Enable Polygon.io data provider")
+    polygon_api_key: str | None = Field(default=None, description="Polygon.io API key")
 
     # Rate limiting
-    request_delay_ms: int = 100
-    max_concurrent_requests: int = 5
+    request_delay_ms: int = Field(default=100, description="Delay between requests (ms)")
+    max_concurrent_requests: int = Field(default=5, description="Maximum concurrent requests")
+
+    @field_validator("request_delay_ms", "max_concurrent_requests")
+    @classmethod
+    def validate_positive_int(cls, v: int) -> int:
+        """Validate rate limiting parameters are positive."""
+        if v < 1:
+            raise ValueError("Rate limiting parameters must be >= 1")
+        return v
 
 
-@dataclass
-class BacktestConfig:
+class BacktestConfig(BaseModel):
     """Configuration for backtesting"""
 
-    enabled: bool = True
-    start_date: str | None = None  # YYYY-MM-DD
-    end_date: str | None = None
-    initial_capital: float = 100000.0
-    position_size_pct: float = 10.0  # % of capital per trade
-    commission_per_trade: float = 0.0
-    slippage_pct: float = 0.05
+    enabled: bool = Field(default=True, description="Enable backtesting")
+    start_date: str | None = Field(default=None, description="Backtest start date (YYYY-MM-DD)")
+    end_date: str | None = Field(default=None, description="Backtest end date (YYYY-MM-DD)")
+    initial_capital: float = Field(default=100000.0, description="Initial capital for backtest")
+    position_size_pct: float = Field(default=10.0, description="Position size as % of capital per trade")
+    commission_per_trade: float = Field(default=0.0, description="Commission per trade")
+    slippage_pct: float = Field(default=0.05, description="Slippage as % of price")
+
+    @field_validator("initial_capital")
+    @classmethod
+    def validate_initial_capital(cls, v: float) -> float:
+        """Validate initial capital is positive."""
+        if v <= 0:
+            raise ValueError("initial_capital must be positive")
+        return v
+
+    @field_validator("position_size_pct")
+    @classmethod
+    def validate_position_size(cls, v: float) -> float:
+        """Validate position size is between 0 and 100."""
+        if not (0 < v <= 100):
+            raise ValueError("position_size_pct must be between 0 and 100")
+        return v
 
 
-@dataclass
-class ScannerConfig:
+class ScannerConfig(BaseModel):
     """Main scanner configuration"""
 
     # Trading style preset
-    trading_style: TradingStyle = TradingStyle.INTRADAY
+    trading_style: TradingStyle = Field(default=TradingStyle.INTRADAY, description="Trading style preset")
 
     # Sector configuration
-    active_sectors: list[str] = field(default_factory=lambda: ETF_SUBSETS["all_sectors"])
-    custom_symbols: list[str] = field(default_factory=list)  # Additional symbols to scan
+    active_sectors: list[str] = Field(
+        default_factory=lambda: ETF_SUBSETS["all_sectors"].copy(),
+        description="Active sector ETFs to scan"
+    )
+    custom_symbols: list[str] = Field(
+        default_factory=list,
+        description="Additional symbols to scan"
+    )
 
     # EMA Cloud settings
-    ema_clouds: dict[str, EMACloudConfig] = field(default_factory=lambda: DEFAULT_EMA_CLOUDS.copy())
+    ema_clouds: dict[str, EMACloudConfig] = Field(
+        default_factory=lambda: DEFAULT_EMA_CLOUDS.copy(),
+        description="EMA cloud configurations"
+    )
 
     # Filter settings
-    filters: FilterConfig = field(default_factory=FilterConfig)
+    filters: FilterConfig = Field(default_factory=FilterConfig, description="Signal filter configuration")
 
     # Alert settings
-    alerts: AlertConfig = field(default_factory=AlertConfig)
+    alerts: AlertConfig = Field(default_factory=AlertConfig, description="Alert configuration")
 
     # Data provider settings
-    data_provider: DataProviderConfig = field(default_factory=DataProviderConfig)
+    data_provider: DataProviderConfig = Field(
+        default_factory=DataProviderConfig,
+        description="Data provider configuration"
+    )
 
     # Backtest settings
-    backtest: BacktestConfig = field(default_factory=BacktestConfig)
+    backtest: BacktestConfig = Field(default_factory=BacktestConfig, description="Backtest configuration")
 
     # Scan interval (seconds)
-    scan_interval: int = 60
+    scan_interval: int = Field(default=60, description="Scan interval in seconds")
 
     # Holdings settings
-    fetch_holdings: bool = True
-    top_holdings_count: int = 10  # Number of top holdings to track per ETF
+    fetch_holdings: bool = Field(default=True, description="Fetch ETF holdings data")
+    top_holdings_count: int = Field(default=10, description="Number of top holdings to track per ETF")
 
     # Dashboard settings
-    dashboard_refresh_rate: int = 5  # Seconds
-    show_all_etfs: bool = True
+    dashboard_refresh_rate: int = Field(default=5, description="Dashboard refresh rate in seconds")
+    show_all_etfs: bool = Field(default=True, description="Show all ETFs in dashboard")
 
-    def to_full_dict(self) -> dict[str, Any]:
-        """Serialize full configuration to a dict for UI editing."""
-        return {
-            "trading_style": self.trading_style.value,
-            "active_sectors": list(self.active_sectors),
-            "custom_symbols": list(self.custom_symbols),
-            "ema_clouds": {name: asdict(cfg) for name, cfg in self.ema_clouds.items()},
-            "filters": asdict(self.filters),
-            "alerts": asdict(self.alerts),
-            "data_provider": asdict(self.data_provider),
-            "backtest": asdict(self.backtest),
-            "scan_interval": self.scan_interval,
-            "fetch_holdings": self.fetch_holdings,
-            "top_holdings_count": self.top_holdings_count,
-            "dashboard_refresh_rate": self.dashboard_refresh_rate,
-            "show_all_etfs": self.show_all_etfs,
-        }
-
+    @field_validator("scan_interval")
     @classmethod
-    def from_full_dict(cls, config_dict: dict[str, Any]) -> "ScannerConfig":
-        """Create a config instance from a full dict (typically edited in UI)."""
-        config = cls()
+    def validate_scan_interval(cls, v: int) -> int:
+        """Validate scan interval is reasonable."""
+        if v < 1:
+            raise ValueError("scan_interval must be >= 1 second")
+        return v
 
-        if "trading_style" in config_dict:
-            config.trading_style = TradingStyle(config_dict["trading_style"])
-        if "active_sectors" in config_dict:
-            config.active_sectors = config_dict["active_sectors"]
-        if "custom_symbols" in config_dict:
-            config.custom_symbols = config_dict["custom_symbols"]
-        if "scan_interval" in config_dict:
-            config.scan_interval = int(config_dict["scan_interval"])
-        if "fetch_holdings" in config_dict:
-            config.fetch_holdings = bool(config_dict["fetch_holdings"])
-        if "top_holdings_count" in config_dict:
-            config.top_holdings_count = int(config_dict["top_holdings_count"])
-        if "dashboard_refresh_rate" in config_dict:
-            config.dashboard_refresh_rate = int(config_dict["dashboard_refresh_rate"])
-        if "show_all_etfs" in config_dict:
-            config.show_all_etfs = bool(config_dict["show_all_etfs"])
+    @field_validator("top_holdings_count")
+    @classmethod
+    def validate_holdings_count(cls, v: int) -> int:
+        """Validate holdings count is positive."""
+        if v < 1:
+            raise ValueError("top_holdings_count must be >= 1")
+        return v
 
-        if "ema_clouds" in config_dict:
-            config.ema_clouds = {
-                name: EMACloudConfig(**cloud_dict)
-                for name, cloud_dict in config_dict["ema_clouds"].items()
-            }
+    @field_validator("dashboard_refresh_rate")
+    @classmethod
+    def validate_refresh_rate(cls, v: int) -> int:
+        """Validate refresh rate is positive."""
+        if v < 1:
+            raise ValueError("dashboard_refresh_rate must be >= 1 second")
+        return v
 
-        if "filters" in config_dict:
-            config.filters = FilterConfig(**config_dict["filters"])
+    @field_validator("active_sectors")
+    @classmethod
+    def validate_active_sectors(cls, v: list[str]) -> list[str]:
+        """Validate all sectors exist."""
+        for sector in v:
+            if sector not in SECTOR_ETFS:
+                raise ValueError(f"Unknown sector: {sector}")
+        return v
 
-        if "alerts" in config_dict:
-            config.alerts = AlertConfig(**config_dict["alerts"])
-
-        if "data_provider" in config_dict:
-            config.data_provider = DataProviderConfig(**config_dict["data_provider"])
-
-        if "backtest" in config_dict:
-            config.backtest = BacktestConfig(**config_dict["backtest"])
-
-        return config
     def get_preset(self) -> dict[str, Any]:
         """Get the current trading style preset configuration"""
         return TRADING_PRESETS[self.trading_style]
@@ -451,44 +512,19 @@ class ScannerConfig:
 
     def validate(self) -> list[str]:
         """
-        Validate configuration and return list of warnings/errors.
-        Returns empty list if configuration is valid.
+        Validate configuration and return list of warnings (not errors).
+        Pydantic handles hard validation errors automatically.
+        This method provides soft warnings for suboptimal settings.
         """
-        issues = []
+        warnings = []
 
-        # Validate active sectors
-        for sector in self.active_sectors:
-            if sector not in SECTOR_ETFS:
-                issues.append(f"Unknown sector: {sector}")
-
-        # Validate scan interval
+        # Warn about scan interval extremes
         if self.scan_interval < 10:
-            issues.append(f"Scan interval {self.scan_interval}s is very low, may hit rate limits")
+            warnings.append(f"Scan interval {self.scan_interval}s is very low, may hit rate limits")
         if self.scan_interval > 3600:
-            issues.append(f"Scan interval {self.scan_interval}s is very high, may miss signals")
+            warnings.append(f"Scan interval {self.scan_interval}s is very high, may miss signals")
 
-        # Validate filter settings
-        if self.filters.rsi_overbought <= self.filters.rsi_oversold:
-            issues.append("RSI overbought must be greater than oversold")
-        if not (0 < self.filters.rsi_overbought <= 100):
-            issues.append(f"RSI overbought {self.filters.rsi_overbought} must be between 0 and 100")
-        if not (0 <= self.filters.rsi_oversold < 100):
-            issues.append(f"RSI oversold {self.filters.rsi_oversold} must be between 0 and 100")
-
-        # Validate EMA cloud settings
-        for name, cloud in self.ema_clouds.items():
-            if cloud.fast_period >= cloud.slow_period:
-                issues.append(f"EMA cloud '{name}': fast_period must be < slow_period")
-            if cloud.fast_period < 1:
-                issues.append(f"EMA cloud '{name}': fast_period must be >= 1")
-
-        # Validate backtest settings
-        if self.backtest.position_size_pct <= 0 or self.backtest.position_size_pct > 100:
-            issues.append("Backtest position_size_pct must be between 0 and 100")
-        if self.backtest.initial_capital <= 0:
-            issues.append("Backtest initial_capital must be positive")
-
-        return issues
+        return warnings
 
     def get_enabled_clouds(self) -> dict[str, EMACloudConfig]:
         """Get enabled EMA clouds based on trading style"""
@@ -501,51 +537,15 @@ class ScannerConfig:
         }
 
     def save(self, filepath: str):
-        """Save configuration to JSON file"""
-        config_dict = {
-            "trading_style": self.trading_style.value,
-            "active_sectors": self.active_sectors,
-            "custom_symbols": self.custom_symbols,
-            "scan_interval": self.scan_interval,
-            "fetch_holdings": self.fetch_holdings,
-            "top_holdings_count": self.top_holdings_count,
-            "filters": {
-                "volume_enabled": self.filters.volume_enabled,
-                "volume_multiplier": self.filters.volume_multiplier,
-                "rsi_enabled": self.filters.rsi_enabled,
-                "adx_enabled": self.filters.adx_enabled,
-                "vwap_enabled": self.filters.vwap_enabled,
-                "atr_enabled": self.filters.atr_enabled,
-                "time_filter_enabled": self.filters.time_filter_enabled,
-            },
-            "alerts": {
-                "console_enabled": self.alerts.console_enabled,
-                "desktop_enabled": self.alerts.desktop_enabled,
-            },
-            "data_provider": {
-                "yahoo_enabled": self.data_provider.yahoo_enabled,
-                "alpaca_enabled": self.data_provider.alpaca_enabled,
-                "polygon_enabled": self.data_provider.polygon_enabled,
-            },
-        }
-        Path(filepath).write_text(json.dumps(config_dict, indent=2))
+        """Save configuration to JSON file using Pydantic serialization"""
+        config_json = self.model_dump_json(indent=2, exclude_none=False)
+        Path(filepath).write_text(config_json)
 
     @classmethod
     def load(cls, filepath: str) -> "ScannerConfig":
-        """Load configuration from JSON file"""
-        config_dict = json.loads(Path(filepath).read_text())
-        config = cls()
-
-        if "trading_style" in config_dict:
-            config.trading_style = TradingStyle(config_dict["trading_style"])
-        if "active_sectors" in config_dict:
-            config.active_sectors = config_dict["active_sectors"]
-        if "custom_symbols" in config_dict:
-            config.custom_symbols = config_dict["custom_symbols"]
-        if "scan_interval" in config_dict:
-            config.scan_interval = config_dict["scan_interval"]
-
-        return config
+        """Load configuration from JSON file using Pydantic deserialization"""
+        config_json = Path(filepath).read_text()
+        return cls.model_validate_json(config_json)
 
 
 # Default configuration instance

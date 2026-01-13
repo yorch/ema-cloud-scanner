@@ -14,12 +14,12 @@ Signal Generation Rules:
 """
 
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
 from enum import Enum
 from typing import Any
 
 import pandas as pd
+from pydantic import BaseModel, Field
 
 from ema_cloud_lib.config.settings import FilterConfig, SignalType, TradingStyle
 from ema_cloud_lib.indicators.ema_cloud import (
@@ -34,13 +34,12 @@ from ema_cloud_lib.indicators.ema_cloud import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FilterResult:
+class FilterResult(BaseModel):
     """Result of applying a single filter"""
 
-    passed: bool
-    reason: str
-    filter_name: str = ""
+    passed: bool = Field(..., description="Whether filter passed")
+    reason: str = Field(..., description="Reason for pass/fail")
+    filter_name: str = Field(default="", description="Name of the filter")
 
     def __bool__(self) -> bool:
         return self.passed
@@ -61,41 +60,40 @@ class SignalStrength(Enum):
     VERY_WEAK = 1
 
 
-@dataclass
-class Signal:
+class Signal(BaseModel):
     """Trading signal with all relevant information"""
 
-    symbol: str
-    signal_type: SignalType
-    direction: str  # "long" or "short"
-    strength: SignalStrength
-    timestamp: datetime
-    price: float
+    symbol: str = Field(..., description="Symbol for the signal")
+    signal_type: SignalType = Field(..., description="Type of signal")
+    direction: str = Field(..., description="Signal direction: long or short")
+    strength: SignalStrength = Field(..., description="Signal strength rating")
+    timestamp: datetime = Field(..., description="Signal generation timestamp")
+    price: float = Field(..., description="Price at signal generation")
 
     # Cloud data at signal time
-    primary_cloud_state: CloudState
-    price_relation: PriceRelation
+    primary_cloud_state: CloudState = Field(..., description="Primary cloud state")
+    price_relation: PriceRelation = Field(..., description="Price relation to cloud")
 
     # Confirmation indicators
-    rsi: float | None = None
-    adx: float | None = None
-    volume_ratio: float | None = None
-    vwap_confirmed: bool = False
-    macd_confirmed: bool = False
+    rsi: float | None = Field(default=None, description="RSI value")
+    adx: float | None = Field(default=None, description="ADX value")
+    volume_ratio: float | None = Field(default=None, description="Volume relative to average")
+    vwap_confirmed: bool = Field(default=False, description="VWAP confirmation status")
+    macd_confirmed: bool = Field(default=False, description="MACD confirmation status")
 
     # Risk management
-    suggested_stop: float | None = None
-    suggested_target: float | None = None
-    risk_reward_ratio: float | None = None
+    suggested_stop: float | None = Field(default=None, description="Suggested stop loss price")
+    suggested_target: float | None = Field(default=None, description="Suggested target price")
+    risk_reward_ratio: float | None = Field(default=None, description="Risk/reward ratio")
 
     # Filter results
-    filters_passed: list[str] = field(default_factory=list)
-    filters_failed: list[str] = field(default_factory=list)
+    filters_passed: list[str] = Field(default_factory=list, description="List of passed filters")
+    filters_failed: list[str] = Field(default_factory=list, description="List of failed filters")
 
     # Additional context
-    sector: str | None = None
-    etf_symbol: str | None = None
-    notes: list[str] = field(default_factory=list)
+    sector: str | None = Field(default=None, description="Sector classification")
+    etf_symbol: str | None = Field(default=None, description="Related ETF symbol")
+    notes: list[str] = Field(default_factory=list, description="Additional notes")
 
     def is_valid(self) -> bool:
         """Check if signal passed all required filters"""
@@ -167,29 +165,30 @@ class Signal:
         }
 
 
-@dataclass
-class SectorTrendState:
+class SectorTrendState(BaseModel):
     """Current trend state for a sector ETF"""
 
-    symbol: str
-    sector_name: str
-    timestamp: datetime
+    symbol: str = Field(..., description="ETF symbol")
+    sector_name: str = Field(..., description="Sector name")
+    timestamp: datetime = Field(..., description="Timestamp of trend state")
 
     # Trend info
-    trend_direction: str  # "bullish", "bearish", "neutral"
-    trend_strength: float  # 0-100
-    trend_duration: int  # Bars in current trend
+    trend_direction: str = Field(..., description="Trend direction: bullish, bearish, or neutral")
+    trend_strength: float = Field(..., description="Trend strength (0-100)")
+    trend_duration: int = Field(..., description="Bars in current trend")
 
     # Cloud states
-    cloud_states: dict[str, CloudState] = field(default_factory=dict)
-    cloud_alignment: int = 0  # Number of aligned clouds
+    cloud_states: dict[str, CloudState] = Field(
+        default_factory=dict, description="Cloud states by name"
+    )
+    cloud_alignment: int = Field(default=0, description="Number of aligned clouds")
 
     # Key levels
-    support_level: float | None = None
-    resistance_level: float | None = None
+    support_level: float | None = Field(default=None, description="Support price level")
+    resistance_level: float | None = Field(default=None, description="Resistance price level")
 
     # Recent signals
-    last_signal: Signal | None = None
+    last_signal: Signal | None = Field(default=None, description="Most recent signal")
 
     def is_bullish(self) -> bool:
         return self.trend_direction == "bullish"

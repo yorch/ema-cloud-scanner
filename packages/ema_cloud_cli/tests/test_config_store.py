@@ -91,7 +91,7 @@ def test_load_config_from_path(tmp_path):
 
     # Create test config
     config = ScannerConfig(trading_style=TradingStyle.POSITION)
-    config_path.write_text(json.dumps(config.to_full_dict(), indent=2))
+    config.save(str(config_path))
 
     # Load from path
     loaded_config = load_config_from_path(config_path)
@@ -118,14 +118,12 @@ def test_load_config_partial_format(tmp_path):
 
 
 def test_load_config_full_format(tmp_path):
-    """Test loading config in full format."""
+    """Test loading config using Pydantic serialization."""
     config_path = tmp_path / "full_config.json"
 
-    # Create full config
-    config = ScannerConfig()
-    full_dict = config.to_full_dict()
-    full_dict["trading_style"] = "intraday"
-    config_path.write_text(json.dumps(full_dict, indent=2))
+    # Create and save config
+    config = ScannerConfig(trading_style=TradingStyle.INTRADAY)
+    config.save(str(config_path))
 
     # Load from path
     loaded_config = load_config_from_path(config_path)

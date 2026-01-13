@@ -14,12 +14,12 @@ Additional indicators for signal filtering:
 """
 
 import logging
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -43,47 +43,47 @@ class PriceRelation(Enum):
     TOUCHING_BOTTOM = "touching_bottom"  # Price at bottom of cloud
 
 
-@dataclass
-class CloudData:
+class CloudData(BaseModel):
     """Data structure for EMA cloud analysis"""
 
-    name: str
-    fast_ema: float
-    slow_ema: float
-    cloud_top: float
-    cloud_bottom: float
-    cloud_thickness: float
-    cloud_thickness_pct: float
-    state: CloudState
-    price_relation: PriceRelation
-    is_expanding: bool
-    is_contracting: bool
-    slope: float  # Positive = upward, negative = downward
+    name: str = Field(..., description="Cloud name")
+    fast_ema: float = Field(..., description="Fast EMA value")
+    slow_ema: float = Field(..., description="Slow EMA value")
+    cloud_top: float = Field(..., description="Top of cloud (max of fast/slow)")
+    cloud_bottom: float = Field(..., description="Bottom of cloud (min of fast/slow)")
+    cloud_thickness: float = Field(..., description="Absolute cloud thickness")
+    cloud_thickness_pct: float = Field(..., description="Cloud thickness as percentage")
+    state: CloudState = Field(..., description="Current cloud state")
+    price_relation: PriceRelation = Field(..., description="Price relation to cloud")
+    is_expanding: bool = Field(..., description="Whether cloud is expanding")
+    is_contracting: bool = Field(..., description="Whether cloud is contracting")
+    slope: float = Field(..., description="Cloud slope (positive=upward, negative=downward)")
 
 
-@dataclass
-class TrendAnalysis:
+class TrendAnalysis(BaseModel):
     """Complete trend analysis result"""
 
-    symbol: str
-    timestamp: pd.Timestamp
-    price: float
-    clouds: dict[str, CloudData]
-    overall_trend: str  # "bullish", "bearish", "neutral"
-    trend_strength: float  # 0-100
-    trend_alignment: int  # Number of aligned clouds
-    signals: list[str]
+    model_config = {"arbitrary_types_allowed": True}
+
+    symbol: str = Field(..., description="Symbol being analyzed")
+    timestamp: pd.Timestamp = Field(..., description="Analysis timestamp")
+    price: float = Field(..., description="Current price")
+    clouds: dict[str, CloudData] = Field(..., description="Cloud data by name")
+    overall_trend: str = Field(..., description="Overall trend: bullish, bearish, or neutral")
+    trend_strength: float = Field(..., description="Trend strength (0-100)")
+    trend_alignment: int = Field(..., description="Number of aligned clouds")
+    signals: list[str] = Field(default_factory=list, description="List of signal types detected")
 
     # Additional indicators
-    rsi: float | None = None
-    adx: float | None = None
-    atr: float | None = None
-    atr_pct: float | None = None
-    vwap: float | None = None
-    volume_ratio: float | None = None
-    macd: float | None = None
-    macd_signal: float | None = None
-    macd_histogram: float | None = None
+    rsi: float | None = Field(default=None, description="RSI value")
+    adx: float | None = Field(default=None, description="ADX value")
+    atr: float | None = Field(default=None, description="ATR value")
+    atr_pct: float | None = Field(default=None, description="ATR as percentage of price")
+    vwap: float | None = Field(default=None, description="VWAP value")
+    volume_ratio: float | None = Field(default=None, description="Volume relative to average")
+    macd: float | None = Field(default=None, description="MACD value")
+    macd_signal: float | None = Field(default=None, description="MACD signal line")
+    macd_histogram: float | None = Field(default=None, description="MACD histogram")
 
     @property
     def primary_cloud_state(self) -> CloudState | None:

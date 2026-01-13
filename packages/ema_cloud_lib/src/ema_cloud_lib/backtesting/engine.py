@@ -6,37 +6,36 @@ Tests signals against historical data to evaluate performance.
 """
 
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class Trade:
+class Trade(BaseModel):
     """Represents a single trade"""
 
-    entry_time: datetime
-    entry_price: float
-    direction: str  # "long" or "short"
-    signal_type: str
-    signal_strength: str
+    entry_time: datetime = Field(..., description="Trade entry timestamp")
+    entry_price: float = Field(..., description="Entry price")
+    direction: str = Field(..., description="Trade direction: long or short")
+    signal_type: str = Field(..., description="Signal type that triggered trade")
+    signal_strength: str = Field(..., description="Signal strength rating")
 
-    exit_time: datetime | None = None
-    exit_price: float | None = None
-    exit_reason: str | None = None
+    exit_time: datetime | None = Field(default=None, description="Trade exit timestamp")
+    exit_price: float | None = Field(default=None, description="Exit price")
+    exit_reason: str | None = Field(default=None, description="Reason for exit")
 
-    stop_loss: float | None = None
-    take_profit: float | None = None
+    stop_loss: float | None = Field(default=None, description="Stop loss price")
+    take_profit: float | None = Field(default=None, description="Take profit price")
 
-    pnl: float = 0.0
-    pnl_pct: float = 0.0
-    is_winner: bool = False
-    bars_held: int = 0
+    pnl: float = Field(default=0.0, description="Profit/loss amount")
+    pnl_pct: float = Field(default=0.0, description="Profit/loss percentage")
+    is_winner: bool = Field(default=False, description="Whether trade was profitable")
+    bars_held: int = Field(default=0, description="Number of bars trade was held")
 
     def close(self, exit_time: datetime, exit_price: float, exit_reason: str):
         """Close the trade"""
@@ -53,17 +52,16 @@ class Trade:
         self.is_winner = self.pnl > 0
 
 
-@dataclass
-class BacktestResult:
+class BacktestResult(BaseModel):
     """Results from a backtest run"""
 
-    symbol: str
-    start_date: datetime
-    end_date: datetime
-    initial_capital: float
-    final_capital: float
+    symbol: str = Field(..., description="Symbol tested")
+    start_date: datetime = Field(..., description="Backtest start date")
+    end_date: datetime = Field(..., description="Backtest end date")
+    initial_capital: float = Field(..., description="Starting capital")
+    final_capital: float = Field(..., description="Ending capital")
 
-    trades: list[Trade] = field(default_factory=list)
+    trades: list[Trade] = Field(default_factory=list, description="List of all trades")
 
     # Performance metrics
     total_return: float = 0.0

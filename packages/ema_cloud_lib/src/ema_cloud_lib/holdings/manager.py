@@ -7,35 +7,34 @@ Supports multiple data sources and caching.
 
 import json
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class Holding:
+class Holding(BaseModel):
     """Single ETF holding"""
 
-    symbol: str
-    name: str
-    weight: float  # Percentage weight in ETF
-    shares: int | None = None
-    market_value: float | None = None
-    sector: str | None = None
+    symbol: str = Field(..., description="Stock symbol")
+    name: str = Field(..., description="Company name")
+    weight: float = Field(..., description="Percentage weight in ETF")
+    shares: int | None = Field(default=None, description="Number of shares held")
+    market_value: float | None = Field(default=None, description="Market value of holding")
+    sector: str | None = Field(default=None, description="Sector classification")
 
 
-@dataclass
-class ETFHoldings:
+class ETFHoldings(BaseModel):
     """Holdings data for an ETF"""
 
-    etf_symbol: str
-    etf_name: str
-    as_of_date: datetime
-    total_holdings: int
-    holdings: list[Holding]
+    etf_symbol: str = Field(..., description="ETF symbol")
+    etf_name: str = Field(..., description="ETF name")
+    as_of_date: datetime = Field(..., description="Data as of date")
+    total_holdings: int = Field(..., description="Total number of holdings")
+    holdings: list[Holding] = Field(..., description="List of holdings")
 
     def get_top_holdings(self, n: int = 10) -> list[Holding]:
         """Get top N holdings by weight"""
@@ -47,22 +46,8 @@ class ETFHoldings:
         return [h.symbol for h in self.holdings]
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "etf_symbol": self.etf_symbol,
-            "etf_name": self.etf_name,
-            "as_of_date": self.as_of_date.isoformat(),
-            "total_holdings": self.total_holdings,
-            "holdings": [
-                {
-                    "symbol": h.symbol,
-                    "name": h.name,
-                    "weight": h.weight,
-                    "shares": h.shares,
-                    "market_value": h.market_value,
-                }
-                for h in self.holdings
-            ],
-        }
+        """Convert to dictionary for compatibility"""
+        return self.model_dump()
 
 
 class HoldingsProvider:
@@ -155,136 +140,136 @@ class StaticHoldingsProvider(HoldingsProvider):
     # Static holdings data for sector ETFs (top 10 as of knowledge cutoff)
     STATIC_HOLDINGS = {
         "XLK": [
-            Holding("NVDA", "NVIDIA Corporation", 14.79),
-            Holding("AAPL", "Apple Inc.", 12.59),
-            Holding("MSFT", "Microsoft Corporation", 11.69),
-            Holding("AVGO", "Broadcom Inc.", 5.16),
-            Holding("PLTR", "Palantir Technologies Inc.", 3.47),
-            Holding("AMD", "Advanced Micro Devices", 3.25),
-            Holding("CRM", "Salesforce Inc.", 3.10),
-            Holding("ORCL", "Oracle Corporation", 2.95),
-            Holding("CSCO", "Cisco Systems Inc.", 2.45),
-            Holding("ADBE", "Adobe Inc.", 2.35),
+            Holding(symbol="NVDA", name="NVIDIA Corporation", weight=14.79),
+            Holding(symbol="AAPL", name="Apple Inc.", weight=12.59),
+            Holding(symbol="MSFT", name="Microsoft Corporation", weight=11.69),
+            Holding(symbol="AVGO", name="Broadcom Inc.", weight=5.16),
+            Holding(symbol="PLTR", name="Palantir Technologies Inc.", weight=3.47),
+            Holding(symbol="AMD", name="Advanced Micro Devices", weight=3.25),
+            Holding(symbol="CRM", name="Salesforce Inc.", weight=3.10),
+            Holding(symbol="ORCL", name="Oracle Corporation", weight=2.95),
+            Holding(symbol="CSCO", name="Cisco Systems Inc.", weight=2.45),
+            Holding(symbol="ADBE", name="Adobe Inc.", weight=2.35),
         ],
         "XLF": [
-            Holding("BRK.B", "Berkshire Hathaway Inc.", 11.46),
-            Holding("JPM", "JPMorgan Chase & Co.", 11.22),
-            Holding("V", "Visa Inc.", 7.43),
-            Holding("MA", "Mastercard Inc.", 5.94),
-            Holding("BAC", "Bank of America Corporation", 4.72),
-            Holding("WFC", "Wells Fargo & Company", 3.25),
-            Holding("GS", "Goldman Sachs Group Inc.", 2.85),
-            Holding("SPGI", "S&P Global Inc.", 2.65),
-            Holding("MS", "Morgan Stanley", 2.55),
-            Holding("AXP", "American Express Company", 2.45),
+            Holding(symbol="BRK.B", name="Berkshire Hathaway Inc.", weight=11.46),
+            Holding(symbol="JPM", name="JPMorgan Chase & Co.", weight=11.22),
+            Holding(symbol="V", name="Visa Inc.", weight=7.43),
+            Holding(symbol="MA", name="Mastercard Inc.", weight=5.94),
+            Holding(symbol="BAC", name="Bank of America Corporation", weight=4.72),
+            Holding(symbol="WFC", name="Wells Fargo & Company", weight=3.25),
+            Holding(symbol="GS", name="Goldman Sachs Group Inc.", weight=2.85),
+            Holding(symbol="SPGI", name="S&P Global Inc.", weight=2.65),
+            Holding(symbol="MS", name="Morgan Stanley", weight=2.55),
+            Holding(symbol="AXP", name="American Express Company", weight=2.45),
         ],
         "XLV": [
-            Holding("LLY", "Eli Lilly and Company", 11.85),
-            Holding("UNH", "UnitedHealth Group Inc.", 9.25),
-            Holding("JNJ", "Johnson & Johnson", 6.45),
-            Holding("ABBV", "AbbVie Inc.", 5.85),
-            Holding("MRK", "Merck & Co. Inc.", 5.15),
-            Holding("TMO", "Thermo Fisher Scientific", 4.25),
-            Holding("ABT", "Abbott Laboratories", 3.95),
-            Holding("PFE", "Pfizer Inc.", 3.15),
-            Holding("DHR", "Danaher Corporation", 2.85),
-            Holding("AMGN", "Amgen Inc.", 2.75),
+            Holding(symbol="LLY", name="Eli Lilly and Company", weight=11.85),
+            Holding(symbol="UNH", name="UnitedHealth Group Inc.", weight=9.25),
+            Holding(symbol="JNJ", name="Johnson & Johnson", weight=6.45),
+            Holding(symbol="ABBV", name="AbbVie Inc.", weight=5.85),
+            Holding(symbol="MRK", name="Merck & Co. Inc.", weight=5.15),
+            Holding(symbol="TMO", name="Thermo Fisher Scientific", weight=4.25),
+            Holding(symbol="ABT", name="Abbott Laboratories", weight=3.95),
+            Holding(symbol="PFE", name="Pfizer Inc.", weight=3.15),
+            Holding(symbol="DHR", name="Danaher Corporation", weight=2.85),
+            Holding(symbol="AMGN", name="Amgen Inc.", weight=2.75),
         ],
         "XLE": [
-            Holding("XOM", "Exxon Mobil Corporation", 23.15),
-            Holding("CVX", "Chevron Corporation", 16.85),
-            Holding("COP", "ConocoPhillips", 7.25),
-            Holding("EOG", "EOG Resources Inc.", 4.95),
-            Holding("SLB", "Schlumberger Limited", 4.65),
-            Holding("MPC", "Marathon Petroleum Corp.", 4.35),
-            Holding("PSX", "Phillips 66", 3.85),
-            Holding("VLO", "Valero Energy Corporation", 3.55),
-            Holding("WMB", "Williams Companies Inc.", 3.25),
-            Holding("OKE", "ONEOK Inc.", 2.95),
+            Holding(symbol="XOM", name="Exxon Mobil Corporation", weight=23.15),
+            Holding(symbol="CVX", name="Chevron Corporation", weight=16.85),
+            Holding(symbol="COP", name="ConocoPhillips", weight=7.25),
+            Holding(symbol="EOG", name="EOG Resources Inc.", weight=4.95),
+            Holding(symbol="SLB", name="Schlumberger Limited", weight=4.65),
+            Holding(symbol="MPC", name="Marathon Petroleum Corp.", weight=4.35),
+            Holding(symbol="PSX", name="Phillips 66", weight=3.85),
+            Holding(symbol="VLO", name="Valero Energy Corporation", weight=3.55),
+            Holding(symbol="WMB", name="Williams Companies Inc.", weight=3.25),
+            Holding(symbol="OKE", name="ONEOK Inc.", weight=2.95),
         ],
         "XLY": [
-            Holding("AMZN", "Amazon.com Inc.", 22.45),
-            Holding("TSLA", "Tesla Inc.", 12.85),
-            Holding("HD", "The Home Depot Inc.", 8.45),
-            Holding("MCD", "McDonald's Corporation", 4.25),
-            Holding("LOW", "Lowe's Companies Inc.", 3.85),
-            Holding("BKNG", "Booking Holdings Inc.", 3.55),
-            Holding("SBUX", "Starbucks Corporation", 3.25),
-            Holding("TJX", "TJX Companies Inc.", 2.95),
-            Holding("NKE", "Nike Inc.", 2.65),
-            Holding("CMG", "Chipotle Mexican Grill", 2.35),
+            Holding(symbol="AMZN", name="Amazon.com Inc.", weight=22.45),
+            Holding(symbol="TSLA", name="Tesla Inc.", weight=12.85),
+            Holding(symbol="HD", name="The Home Depot Inc.", weight=8.45),
+            Holding(symbol="MCD", name="McDonald's Corporation", weight=4.25),
+            Holding(symbol="LOW", name="Lowe's Companies Inc.", weight=3.85),
+            Holding(symbol="BKNG", name="Booking Holdings Inc.", weight=3.55),
+            Holding(symbol="SBUX", name="Starbucks Corporation", weight=3.25),
+            Holding(symbol="TJX", name="TJX Companies Inc.", weight=2.95),
+            Holding(symbol="NKE", name="Nike Inc.", weight=2.65),
+            Holding(symbol="CMG", name="Chipotle Mexican Grill", weight=2.35),
         ],
         "XLP": [
-            Holding("PG", "Procter & Gamble Company", 14.85),
-            Holding("COST", "Costco Wholesale Corp.", 12.45),
-            Holding("WMT", "Walmart Inc.", 10.25),
-            Holding("KO", "Coca-Cola Company", 9.15),
-            Holding("PEP", "PepsiCo Inc.", 8.45),
-            Holding("PM", "Philip Morris Int'l", 5.25),
-            Holding("MDLZ", "Mondelez International", 3.95),
-            Holding("MO", "Altria Group Inc.", 3.55),
-            Holding("CL", "Colgate-Palmolive Company", 3.15),
-            Holding("KMB", "Kimberly-Clark Corp.", 2.45),
+            Holding(symbol="PG", name="Procter & Gamble Company", weight=14.85),
+            Holding(symbol="COST", name="Costco Wholesale Corp.", weight=12.45),
+            Holding(symbol="WMT", name="Walmart Inc.", weight=10.25),
+            Holding(symbol="KO", name="Coca-Cola Company", weight=9.15),
+            Holding(symbol="PEP", name="PepsiCo Inc.", weight=8.45),
+            Holding(symbol="PM", name="Philip Morris Int'l", weight=5.25),
+            Holding(symbol="MDLZ", name="Mondelez International", weight=3.95),
+            Holding(symbol="MO", name="Altria Group Inc.", weight=3.55),
+            Holding(symbol="CL", name="Colgate-Palmolive Company", weight=3.15),
+            Holding(symbol="KMB", name="Kimberly-Clark Corp.", weight=2.45),
         ],
         "XLI": [
-            Holding("GE", "General Electric Company", 5.25),
-            Holding("CAT", "Caterpillar Inc.", 4.85),
-            Holding("RTX", "RTX Corporation", 4.55),
-            Holding("HON", "Honeywell International", 4.25),
-            Holding("UNP", "Union Pacific Corporation", 4.05),
-            Holding("BA", "Boeing Company", 3.75),
-            Holding("DE", "Deere & Company", 3.45),
-            Holding("LMT", "Lockheed Martin Corp.", 3.15),
-            Holding("UPS", "United Parcel Service", 2.95),
-            Holding("ADP", "Automatic Data Processing", 2.75),
+            Holding(symbol="GE", name="General Electric Company", weight=5.25),
+            Holding(symbol="CAT", name="Caterpillar Inc.", weight=4.85),
+            Holding(symbol="RTX", name="RTX Corporation", weight=4.55),
+            Holding(symbol="HON", name="Honeywell International", weight=4.25),
+            Holding(symbol="UNP", name="Union Pacific Corporation", weight=4.05),
+            Holding(symbol="BA", name="Boeing Company", weight=3.75),
+            Holding(symbol="DE", name="Deere & Company", weight=3.45),
+            Holding(symbol="LMT", name="Lockheed Martin Corp.", weight=3.15),
+            Holding(symbol="UPS", name="United Parcel Service", weight=2.95),
+            Holding(symbol="ADP", name="Automatic Data Processing", weight=2.75),
         ],
         "XLB": [
-            Holding("LIN", "Linde plc", 17.85),
-            Holding("SHW", "Sherwin-Williams Company", 9.45),
-            Holding("FCX", "Freeport-McMoRan Inc.", 7.25),
-            Holding("APD", "Air Products & Chemicals", 6.85),
-            Holding("ECL", "Ecolab Inc.", 5.45),
-            Holding("NEM", "Newmont Corporation", 4.85),
-            Holding("CTVA", "Corteva Inc.", 4.25),
-            Holding("DOW", "Dow Inc.", 3.95),
-            Holding("DD", "DuPont de Nemours Inc.", 3.55),
-            Holding("NUE", "Nucor Corporation", 3.15),
+            Holding(symbol="LIN", name="Linde plc", weight=17.85),
+            Holding(symbol="SHW", name="Sherwin-Williams Company", weight=9.45),
+            Holding(symbol="FCX", name="Freeport-McMoRan Inc.", weight=7.25),
+            Holding(symbol="APD", name="Air Products & Chemicals", weight=6.85),
+            Holding(symbol="ECL", name="Ecolab Inc.", weight=5.45),
+            Holding(symbol="NEM", name="Newmont Corporation", weight=4.85),
+            Holding(symbol="CTVA", name="Corteva Inc.", weight=4.25),
+            Holding(symbol="DOW", name="Dow Inc.", weight=3.95),
+            Holding(symbol="DD", name="DuPont de Nemours Inc.", weight=3.55),
+            Holding(symbol="NUE", name="Nucor Corporation", weight=3.15),
         ],
         "XLU": [
-            Holding("NEE", "NextEra Energy Inc.", 14.25),
-            Holding("SO", "Southern Company", 8.45),
-            Holding("DUK", "Duke Energy Corporation", 7.85),
-            Holding("CEG", "Constellation Energy", 6.55),
-            Holding("SRE", "Sempra Energy", 5.25),
-            Holding("AEP", "American Electric Power", 4.85),
-            Holding("D", "Dominion Energy Inc.", 4.25),
-            Holding("PCG", "PG&E Corporation", 3.95),
-            Holding("EXC", "Exelon Corporation", 3.55),
-            Holding("XEL", "Xcel Energy Inc.", 3.15),
+            Holding(symbol="NEE", name="NextEra Energy Inc.", weight=14.25),
+            Holding(symbol="SO", name="Southern Company", weight=8.45),
+            Holding(symbol="DUK", name="Duke Energy Corporation", weight=7.85),
+            Holding(symbol="CEG", name="Constellation Energy", weight=6.55),
+            Holding(symbol="SRE", name="Sempra Energy", weight=5.25),
+            Holding(symbol="AEP", name="American Electric Power", weight=4.85),
+            Holding(symbol="D", name="Dominion Energy Inc.", weight=4.25),
+            Holding(symbol="PCG", name="PG&E Corporation", weight=3.95),
+            Holding(symbol="EXC", name="Exelon Corporation", weight=3.55),
+            Holding(symbol="XEL", name="Xcel Energy Inc.", weight=3.15),
         ],
         "XLRE": [
-            Holding("PLD", "Prologis Inc.", 10.85),
-            Holding("AMT", "American Tower Corp.", 9.45),
-            Holding("EQIX", "Equinix Inc.", 7.85),
-            Holding("WELL", "Welltower Inc.", 5.95),
-            Holding("SPG", "Simon Property Group", 5.25),
-            Holding("PSA", "Public Storage", 4.85),
-            Holding("DLR", "Digital Realty Trust", 4.25),
-            Holding("O", "Realty Income Corp.", 3.95),
-            Holding("CCI", "Crown Castle Inc.", 3.55),
-            Holding("VICI", "VICI Properties Inc.", 3.25),
+            Holding(symbol="PLD", name="Prologis Inc.", weight=10.85),
+            Holding(symbol="AMT", name="American Tower Corp.", weight=9.45),
+            Holding(symbol="EQIX", name="Equinix Inc.", weight=7.85),
+            Holding(symbol="WELL", name="Welltower Inc.", weight=5.95),
+            Holding(symbol="SPG", name="Simon Property Group", weight=5.25),
+            Holding(symbol="PSA", name="Public Storage", weight=4.85),
+            Holding(symbol="DLR", name="Digital Realty Trust", weight=4.25),
+            Holding(symbol="O", name="Realty Income Corp.", weight=3.95),
+            Holding(symbol="CCI", name="Crown Castle Inc.", weight=3.55),
+            Holding(symbol="VICI", name="VICI Properties Inc.", weight=3.25),
         ],
         "XLC": [
-            Holding("META", "Meta Platforms Inc.", 22.45),
-            Holding("GOOGL", "Alphabet Inc. Class A", 12.85),
-            Holding("GOOG", "Alphabet Inc. Class C", 10.75),
-            Holding("NFLX", "Netflix Inc.", 5.45),
-            Holding("T", "AT&T Inc.", 4.95),
-            Holding("VZ", "Verizon Communications", 4.55),
-            Holding("DIS", "Walt Disney Company", 4.15),
-            Holding("CMCSA", "Comcast Corporation", 3.85),
-            Holding("CHTR", "Charter Communications", 2.95),
-            Holding("EA", "Electronic Arts Inc.", 2.45),
+            Holding(symbol="META", name="Meta Platforms Inc.", weight=22.45),
+            Holding(symbol="GOOGL", name="Alphabet Inc. Class A", weight=12.85),
+            Holding(symbol="GOOG", name="Alphabet Inc. Class C", weight=10.75),
+            Holding(symbol="NFLX", name="Netflix Inc.", weight=5.45),
+            Holding(symbol="T", name="AT&T Inc.", weight=4.95),
+            Holding(symbol="VZ", name="Verizon Communications", weight=4.55),
+            Holding(symbol="DIS", name="Walt Disney Company", weight=4.15),
+            Holding(symbol="CMCSA", name="Comcast Corporation", weight=3.85),
+            Holding(symbol="CHTR", name="Charter Communications", weight=2.95),
+            Holding(symbol="EA", name="Electronic Arts Inc.", weight=2.45),
         ],
     }
 
