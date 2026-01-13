@@ -20,6 +20,7 @@ from textual.widgets import (
 from textual.widgets._selection_list import Selection
 
 from ema_cloud_lib.config.settings import ScannerConfig, SECTOR_ETFS, TradingStyle
+from ema_cloud_cli.config_store import save_user_config
 
 
 class SettingsScreen(ModalScreen[ScannerConfig]):
@@ -576,7 +577,7 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                                     ),
                                 )
             with Horizontal(id="settings-actions"):
-                yield Button("Apply", id="settings-apply", variant="success")
+                yield Button("Apply & Save", id="settings-apply", variant="success")
                 yield Button("Cancel", id="settings-cancel", variant="error")
 
     def _row(self, label: str, widget) -> Horizontal:
@@ -722,6 +723,13 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
         except (ValueError, TypeError) as exc:
             self.notify(f"Settings error: {exc}", severity="error")
             return
+
+        try:
+            saved_path = save_user_config(new_config)
+        except OSError as exc:
+            self.notify(f"Settings save failed: {exc}", severity="error")
+        else:
+            self.notify(f"Settings saved to {saved_path}", severity="information")
 
         self._on_apply(new_config)
         self.dismiss(new_config)

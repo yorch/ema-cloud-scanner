@@ -10,6 +10,7 @@ import logging
 import signal
 import sys
 
+from ema_cloud_cli.config_store import load_config_from_path, load_user_config
 from ema_cloud_cli.dashboard import SimpleDashboard, TerminalDashboard
 from ema_cloud_lib import EMACloudScanner, ScannerConfig, TradingStyle
 from ema_cloud_lib.config.settings import ETF_SUBSETS
@@ -79,7 +80,10 @@ async def main():
     setup_logging(args.verbose)
 
     # Load or create config
-    config = ScannerConfig.load(args.config) if args.config else ScannerConfig()
+    if args.config:
+        config = load_config_from_path(args.config)
+    else:
+        config = load_user_config() or ScannerConfig()
 
     # Apply CLI overrides
     style_map = {
