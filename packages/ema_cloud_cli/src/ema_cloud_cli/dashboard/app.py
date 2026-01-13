@@ -11,6 +11,7 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.widgets import DataTable, Footer, Header, Static
 
+from ema_cloud_cli.dashboard.log_viewer import LogViewer, TextualLogHandler
 from ema_cloud_cli.dashboard.settings import SettingsScreen
 from ema_cloud_cli.dashboard.status_bar import StatusBar
 from ema_cloud_cli.dashboard.styles import DASHBOARD_CSS
@@ -39,6 +40,7 @@ class TerminalDashboard(App):
         Binding("r", "refresh", "Refresh"),
         Binding("d", "toggle_dark", "Toggle Dark Mode"),
         Binding("s", "settings", "Settings"),
+        Binding("l", "toggle_logs", "Toggle Logs"),
     ]
 
     def __init__(
@@ -58,6 +60,8 @@ class TerminalDashboard(App):
         self._on_quit = on_quit
         self._config = config or ScannerConfig()
         self._on_config_update = on_config_update
+        self._log_handler = None
+        self._logs_visible = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -68,6 +72,9 @@ class TerminalDashboard(App):
             with Vertical(id="signals-container"):
                 yield Static("Recent Signals", id="signals-title", classes="table-title")
                 yield DataTable(id="signals-table", cursor_type="row", zebra_stripes=True)
+            with Vertical(id="logs-container"):
+                yield Static("Application Logs", id="logs-title", classes="table-title")
+                yield LogViewer(max_lines=100, id="log-viewer")
         yield StatusBar(id="status-bar")
         yield Footer()
 
@@ -79,9 +86,34 @@ class TerminalDashboard(App):
         self._refresh_display()
         self._update_timer = self.set_interval(self.refresh_rate, self._refresh_display)
 
+        # Setup log handler
+        try:
+            log_viewer = self.query_one("#log-viewer", LogViewer)
+            self._log_handler = TextualLogHandler(log_viewer)
+            self._log_handler.setLevel(logging.DEBUG)
+
+            # Add handler to root logger to capture all logs
+            root_logger = logging.getLogger()
+            root_logger.addHandler(self._log_handler)
+
+            # Flush any buffered logs
+            self._log_handler.flush_buffer()
+
+            # Hide logs container by default
+            self._toggle_logs_visibility(False)
+
+        except NoMatches:
+            logger.warning("Log viewer widget not found")
+
     def on_unmount(self) -> None:
         """Mark dashboard as unmounted to prevent late updates."""
         self._is_mounted = False
+
+        # Remove log handler
+        if self._log_handler:
+            self._log_handler.deactivate()
+            root_logger = logging.getLogger()
+            root_logger.removeHandler(self._log_handler)
 
     def update_etf_data(self, data: ETFDisplayData) -> None:
         """Update ETF display data."""
@@ -139,6 +171,21 @@ class TerminalDashboard(App):
     def action_settings(self) -> None:
         """Open settings panel."""
         self.push_screen(SettingsScreen(self._config, self.apply_config))
+
+    def action_toggle_logs(self) -> None:
+        """Toggle logs visibility."""
+        self._logs_visible = not self._logs_visible
+        self._toggle_logs_visibility(self._logs_visible)
+        status = "shown" if self._logs_visible else "hidden"
+        self.notify(f"Logs {status}")
+
+    def _toggle_logs_visibility(self, visible: bool) -> None:
+        """Toggle the logs container visibility."""
+        try:
+            logs_container = self.query_one("#logs-container")
+            logs_container.display = visible
+        except NoMatches:
+            pass
 
     def action_quit(self) -> None:
         """Quit the dashboard and signal shutdown."""

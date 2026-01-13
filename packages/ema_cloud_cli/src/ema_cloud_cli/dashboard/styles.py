@@ -34,6 +34,12 @@ Footer {
     padding: 0 1;
 }
 
+#logs-container {
+    width: 1fr;
+    border: solid $accent;
+    padding: 0 1;
+}
+
 #etf-table {
     height: 100%;
 }
@@ -56,6 +62,15 @@ Footer {
 
 #signals-title {
     color: magenta;
+}
+
+#logs-title {
+    color: yellow;
+}
+
+#log-viewer {
+    height: 100%;
+    border: none;
 }
 
 #status-bar {
