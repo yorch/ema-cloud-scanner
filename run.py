@@ -13,6 +13,7 @@ Usage (without activation):
 Examples:
     python run.py --once
     python run.py --style swing --etfs XLK XLF
+    python run.py backtest XLK --start-date 2023-01-01 --end-date 2023-12-31
     python run.py --help
 """
 import sys

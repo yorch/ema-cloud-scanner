@@ -131,8 +131,8 @@ class EMACloudScanner:
         self._recent_signals: dict[str, Signal] = {}
         self._signal_cooldown: dict[str, datetime] = {}
 
-        # Cooldown period to avoid duplicate signals (minutes)
-        self.signal_cooldown_minutes = 15
+        # Cooldown period to avoid duplicate signals (minutes) - from config
+        self.signal_cooldown_minutes = self.config.signal_cooldown_minutes
 
     @property
     def dashboard(self) -> DashboardProtocol | None:

@@ -50,6 +50,13 @@ def count_bullish_clouds(clouds: dict[str, CloudData]) -> int:
     return sum(1 for c in clouds.values() if c.state in [CloudState.BULLISH, CloudState.CROSSING_UP])
 
 
+class SignalDirection(Enum):
+    """Signal direction classification"""
+
+    LONG = "long"
+    SHORT = "short"
+
+
 class SignalStrength(Enum):
     """Signal strength classification"""
 

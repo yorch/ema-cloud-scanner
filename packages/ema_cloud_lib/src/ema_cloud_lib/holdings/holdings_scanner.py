@@ -9,11 +9,10 @@ from typing import Any
 
 import pandas as pd
 
-from ..config.settings import FilterConfig, ScannerConfig, TradingStyle
+from ..config.settings import FilterConfig, ScannerConfig, SignalType, TradingStyle
 from ..data_providers.base import DataProviderManager
 from ..indicators.ema_cloud import EMACloudIndicator
-from ..signals.generator import SignalGenerator
-from ..types.signals import Signal, SignalDirection, SignalStrength, SignalType
+from ..signals.generator import Signal, SignalDirection, SignalGenerator, SignalStrength
 
 logger = logging.getLogger(__name__)
 

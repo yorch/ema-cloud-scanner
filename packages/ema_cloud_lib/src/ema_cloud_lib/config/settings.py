@@ -554,6 +554,9 @@ class ScannerConfig(BaseModel):
     dashboard_refresh_rate: int = Field(default=5, description="Dashboard refresh rate in seconds")
     show_all_etfs: bool = Field(default=True, description="Show all ETFs in dashboard")
 
+    # Signal cooldown (minutes)
+    signal_cooldown_minutes: int = Field(default=15, description="Signal cooldown period in minutes to avoid duplicate alerts")
+
     @field_validator("scan_interval")
     @classmethod
     def validate_scan_interval(cls, v: int) -> int:
