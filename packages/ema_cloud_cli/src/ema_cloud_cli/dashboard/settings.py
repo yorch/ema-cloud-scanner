@@ -616,7 +616,7 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
             return
 
         try:
-            config_dict = self._config.to_full_dict()
+            config_dict = self._config.model_dump()
             config_dict["trading_style"] = self.query_one("#trading_style", Select).value
             config_dict["scan_interval"] = self._read_int("scan_interval")
             config_dict["dashboard_refresh_rate"] = self._read_int("dashboard_refresh_rate")
@@ -715,7 +715,7 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                     f"cloud-{key}-color_bearish"
                 )
 
-            new_config = ScannerConfig.from_full_dict(config_dict)
+            new_config = ScannerConfig.model_validate(config_dict)
             issues = new_config.validate()
             if issues:
                 self.notify("Settings validation: " + "; ".join(issues), severity="error")
