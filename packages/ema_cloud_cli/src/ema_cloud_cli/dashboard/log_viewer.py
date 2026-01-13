@@ -18,6 +18,11 @@ class LogViewer(RichLog):
         super().__init__(max_lines=max_lines, wrap=False, highlight=True, markup=True, **kwargs)
         self.max_lines = max_lines
 
+    def on_mount(self) -> None:
+        """Called when widget is mounted."""
+        # Add a welcome message to verify the widget is working
+        self.write("[dim]Log viewer ready. Waiting for log messages...[/dim]")
+
 
 class TextualLogHandler(logging.Handler):
     """
@@ -59,8 +64,13 @@ class TextualLogHandler(logging.Handler):
             self._log_buffer.append(styled_msg)
 
             # Write to viewer if available
-            if self.log_viewer and hasattr(self.log_viewer, 'write'):
-                self.log_viewer.write(styled_msg)
+            # RichLog widget uses write() method for adding content
+            try:
+                if self.log_viewer:
+                    self.log_viewer.write(styled_msg)
+            except Exception as e:
+                # Silently fail if widget is not ready
+                pass
 
         except Exception:
             self.handleError(record)

@@ -93,11 +93,21 @@ class TerminalDashboard(App):
             self._log_handler.setLevel(logging.DEBUG)
 
             # Add handler to root logger to capture all logs
+            # This handler will coexist with the file handler set up by CLI
             root_logger = logging.getLogger()
             root_logger.addHandler(self._log_handler)
 
+            # Set root logger to DEBUG to ensure all messages reach handlers
+            # Individual handlers can filter as needed
+            if root_logger.level > logging.DEBUG:
+                root_logger.setLevel(logging.DEBUG)
+
             # Flush any buffered logs
             self._log_handler.flush_buffer()
+
+            # Add an initial log message to verify logging is working
+            logger.info("Log viewer initialized - logs will appear here")
+            logger.debug("Debug logging is enabled")
 
             # Hide logs container by default
             self._toggle_logs_visibility(False)
