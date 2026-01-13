@@ -12,6 +12,8 @@ from platformdirs import user_config_dir
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ema_cloud_cli.constants import APP_NAME
+
 
 class CLISettings(BaseSettings):
     """CLI application settings with environment variable support.
@@ -99,7 +101,7 @@ class CLISettings(BaseSettings):
     @staticmethod
     def _get_default_config_dir() -> Path:
         """Return the platform-appropriate default config directory using platformdirs."""
-        return Path(user_config_dir("ema_cloud_cli", appauthor=False))
+        return Path(user_config_dir(APP_NAME, appauthor=False))
 
     def ensure_config_dir(self) -> Path:
         """Ensure the config directory exists and return its path."""

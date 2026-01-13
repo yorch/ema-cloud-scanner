@@ -306,6 +306,19 @@ optional arguments:
   --once                Run a single scan and exit
 ```
 
+## Logging
+
+The scanner uses intelligent logging that adapts based on the display mode:
+
+- **With dashboard** (default): Logs written to file, clean TUI interface
+  - Log file: `~/Library/Logs/ema-cloud-scanner/scanner.log` (macOS)
+  - Third-party logs suppressed for cleaner output
+  - Location displayed at startup
+
+- **Without dashboard** (`--no-dashboard`): Logs to console with formatted output
+
+For detailed logging information, see [packages/ema_cloud_cli/LOGGING.md](packages/ema_cloud_cli/LOGGING.md).
+
 ## Data Providers
 
 ### Yahoo Finance (Default)

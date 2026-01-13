@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from platformdirs import user_log_dir
 
 from ema_cloud_cli.config_store import load_config_from_path, load_user_config
+from ema_cloud_cli.constants import APP_NAME
 from ema_cloud_cli.dashboard import SimpleDashboard, TerminalDashboard
 from ema_cloud_cli.settings import get_cli_settings
 from ema_cloud_lib import EMACloudScanner, ScannerConfig, TradingStyle
@@ -27,15 +29,47 @@ app = typer.Typer(
 )
 
 
-def setup_logging(verbose: bool = False):
-    """Configure logging"""
+def setup_logging(verbose: bool = False, use_dashboard: bool = True):
+    """
+    Configure logging.
+
+    When dashboard is enabled, logs go to file to avoid interfering with TUI.
+    When dashboard is disabled, logs go to console.
+    """
     level = logging.DEBUG if verbose else logging.INFO
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    # Clear any existing handlers
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+
+    if use_dashboard:
+        # Write logs to file when using TUI dashboard
+        log_dir = Path(user_log_dir(APP_NAME, appauthor=False))
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "scanner.log"
+
+        handler = logging.FileHandler(log_file)
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
+        root_logger.addHandler(handler)
+        root_logger.setLevel(level)
+
+        # Suppress noisy third-party loggers when using dashboard
+        logging.getLogger("aiohttp").setLevel(logging.WARNING)
+        logging.getLogger("yfinance").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("asyncio").setLevel(logging.WARNING)
+    else:
+        # Console output when no dashboard
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
 
 async def async_main(
@@ -170,7 +204,13 @@ def main(
     if not all_hours and cli_settings.all_hours:
         all_hours = True
 
-    setup_logging(verbose)
+    setup_logging(verbose, use_dashboard=not no_dashboard)
+
+    # Inform user where logs are written when using dashboard
+    if not no_dashboard:
+        log_dir = Path(user_log_dir(APP_NAME, appauthor=False))
+        log_file = log_dir / "scanner.log"
+        typer.echo(f"Logs: {log_file}")
 
     # Validate style choice
     valid_styles = ["scalping", "intraday", "swing", "position", "long_term"]
