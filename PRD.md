@@ -72,6 +72,33 @@ Traders manually monitoring multiple sector ETFs for EMA cloud signals is time-c
 
 ### Technical Architecture
 
+**Dual-Package Workspace:**
+
+```text
+ema_cloud_sector_scanner/
+├── packages/
+│   ├── ema_cloud_lib/          # Core library (framework-agnostic)
+│   │   ├── scanner.py          # EMACloudScanner, MarketHours
+│   │   ├── config/             # Settings, presets, enums
+│   │   ├── indicators/         # EMA cloud calculations
+│   │   ├── signals/            # Signal detection
+│   │   ├── alerts/             # Alert handlers
+│   │   ├── data_providers/     # Yahoo, Alpaca, Polygon
+│   │   ├── holdings/           # ETF holdings management
+│   │   ├── backtesting/        # Backtest engine
+│   │   └── types/              # Protocols, display types
+│   │
+│   └── ema_cloud_cli/          # CLI application
+│       ├── cli.py              # Typer entry point
+│       ├── config_store.py     # User preferences
+│       └── dashboard/          # Textual-based terminal UI
+│
+├── pyproject.toml              # Workspace config (uv)
+└── run.py                      # Development runner
+```
+
+**Component Flow:**
+
 ```text
 ┌─────────────────┐     ┌──────────────┐     ┌─────────────┐
 │  Data Providers │────▶│  Indicators  │────▶│   Signals   │
@@ -85,16 +112,19 @@ Traders manually monitoring multiple sector ETFs for EMA cloud signals is time-c
                                                     ▼
                         ┌──────────────┐     ┌─────────────┐
                         │  Dashboard   │◀────│   Scanner   │
-                        │ (Terminal UI)│     │ (Main Loop) │
+                        │ (Textual UI) │     │ (Main Loop) │
                         └──────────────┘     └─────────────┘
 ```
 
 **Key Design Decisions:**
 
-- Async Python for concurrent data fetching
-- Modular plugin architecture (swap data providers, add alert channels)
-- Configuration-driven (JSON presets per trading style)
-- Fallback data providers (Yahoo → Alpaca → Polygon)
+- **Dual-package architecture**: Core library (`ema_cloud_lib`) is framework-agnostic; CLI (`ema_cloud_cli`) provides terminal UI
+- **Dependency injection**: Dashboard integration via `DashboardProtocol` interface
+- **Async Python**: Concurrent data fetching with `asyncio` and `aiohttp`
+- **Modular plugin architecture**: Swap data providers, add alert channels
+- **Configuration-driven**: Pydantic v2 models with JSON serialization
+- **Fallback data providers**: Yahoo → Alpaca → Polygon
+- **uv workspace management**: Efficient dependency management and development workflow
 
 ---
 
@@ -124,11 +154,20 @@ LONG_TERM:  Weekly charts, clouds 72-89/200-233
 
 ### Dependencies
 
+**Core Dependencies:**
+
 - `pandas`, `numpy` — Data processing
 - `yfinance` — Free market data (primary)
+- `pydantic` ≥2.0 — Configuration validation and serialization
+- `textual` ≥0.40 — Terminal UI framework
+- `typer` — CLI framework
+- `aiohttp` — Async HTTP client for data providers
+
+**Optional Dependencies:**
+
 - `alpaca-py` — Real-time data (optional)
-- `rich` — Terminal dashboard
-- `plyer` — Desktop notifications
+- `plyer` — Desktop notifications (optional)
+- `polygon-api-client` — Polygon.io data provider (optional)
 
 ---
 
@@ -154,15 +193,32 @@ LONG_TERM:  Weekly charts, clouds 72-89/200-233
 ### Usage
 
 ```bash
-# Install
-pip install -r requirements.txt
+# Installation (dual-package workspace)
+# Quick start - run directly without installing (development)
+uv run python run.py --once
+
+# Or install packages for persistent use
+uv pip install -e packages/ema_cloud_lib
+uv pip install -e packages/ema_cloud_cli
+
+# Install with optional dependencies
+uv pip install -e "packages/ema_cloud_lib[all]"  # All optional providers
 
 # Run with defaults (intraday, all sectors)
-python scanner.py
+ema-scanner
+
+# Or via development runner
+uv run python run.py
 
 # Custom configuration
-python scanner.py --style swing --etfs XLK,XLF,XLE --interval 1h
+ema-scanner --style swing --etfs XLK XLF XLE
 
-# Backtest mode
-python scanner.py --backtest --days 90 --symbol XLK
+# Use preset subset
+ema-scanner --subset growth_sectors
+
+# Single scan (no continuous monitoring)
+ema-scanner --once
+
+# Verbose logging
+ema-scanner -v
 ```
