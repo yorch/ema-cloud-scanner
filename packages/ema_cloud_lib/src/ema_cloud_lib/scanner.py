@@ -239,8 +239,9 @@ class EMACloudScanner:
         Analyze a single ETF and return analysis results.
         """
         # Fetch data
-        preset = TRADING_PRESETS.get(self.config.trading_style, {})
-        interval = preset.get("timeframe", "10m")
+        preset = self.config.get_preset()
+        primary_tf = preset.get("primary_timeframe")
+        interval = primary_tf.interval if primary_tf else "10m"
 
         df = await self.fetch_data(symbol, interval)
         if df is None or len(df) < 50:

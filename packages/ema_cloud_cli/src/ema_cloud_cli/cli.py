@@ -200,6 +200,34 @@ def main(
         typer.Option("--all-hours", help="Scan during extended hours (not just market hours)"),
     ] = False,
 
+    # Timeframe configuration
+    primary_timeframe: Annotated[
+        str | None,
+        typer.Option("--timeframe", "-t", help="Primary timeframe (e.g., 1m, 5m, 10m, 1h, 4h, 1d)"),
+    ] = None,
+    confirmation_timeframes: Annotated[
+        list[str] | None,
+        typer.Option("--confirm-timeframes", help="Confirmation timeframes for multi-timeframe analysis (can specify multiple)"),
+    ] = None,
+    disable_mtf: Annotated[
+        bool,
+        typer.Option("--disable-mtf", help="Disable multi-timeframe confirmation"),
+    ] = False,
+
+    # EMA Cloud configuration
+    enable_clouds: Annotated[
+        list[str] | None,
+        typer.Option("--enable-clouds", help="Enable specific clouds: trend_line, pullback, momentum, trend_confirmation, long_term, major_trend"),
+    ] = None,
+    disable_clouds: Annotated[
+        list[str] | None,
+        typer.Option("--disable-clouds", help="Disable specific clouds by name"),
+    ] = None,
+    cloud_thickness: Annotated[
+        float | None,
+        typer.Option("--cloud-thickness", help="Minimum cloud thickness percentage (e.g., 0.05 for 0.05%)"),
+    ] = None,
+
     # Holdings
     scan_holdings: Annotated[
         bool,
@@ -413,6 +441,46 @@ def main(
         typer.echo(f"Custom symbols: {', '.join(scanner_config.custom_symbols)}")
 
     scanner_config.scan_interval = interval
+
+    # Apply timeframe configuration
+    preset = scanner_config.get_preset()
+    if primary_timeframe:
+        from ema_cloud_lib.config.settings import TimeframeConfig
+        preset["primary_timeframe"] = TimeframeConfig(
+            interval=primary_timeframe,
+            display_name=primary_timeframe,
+            bars_to_fetch=preset["primary_timeframe"].bars_to_fetch
+        )
+        typer.echo(f"Primary timeframe: {primary_timeframe}")
+
+    if confirmation_timeframes:
+        from ema_cloud_lib.config.settings import TimeframeConfig
+        preset["confirmation_timeframes"] = [
+            TimeframeConfig(interval=tf, display_name=tf, bars_to_fetch=200)
+            for tf in confirmation_timeframes
+        ]
+        typer.echo(f"Confirmation timeframes: {', '.join(confirmation_timeframes)}")
+
+    if disable_mtf:
+        preset["confirmation_timeframes"] = []
+        typer.echo("Multi-timeframe confirmation disabled")
+
+    # Apply EMA cloud configuration
+    if enable_clouds:
+        # Disable all clouds first, then enable specified ones
+        for cloud_name in scanner_config.ema_clouds:
+            scanner_config.ema_clouds[cloud_name].enabled = cloud_name in enable_clouds
+        typer.echo(f"Enabled clouds: {', '.join(enable_clouds)}")
+
+    if disable_clouds:
+        for cloud_name in disable_clouds:
+            if cloud_name in scanner_config.ema_clouds:
+                scanner_config.ema_clouds[cloud_name].enabled = False
+        typer.echo(f"Disabled clouds: {', '.join(disable_clouds)}")
+
+    if cloud_thickness is not None:
+        preset["min_cloud_thickness_pct"] = cloud_thickness
+        typer.echo(f"Cloud thickness threshold: {cloud_thickness}%")
 
     # Apply holdings configuration
     if scan_holdings:
@@ -708,6 +776,58 @@ def config_show(
     # Display as formatted JSON (mode='json' serializes enums to their values)
     config_dict = config.model_dump(mode='json', exclude_none=True)
     console.print_json(data=config_dict)
+
+
+@app.command()
+def config_save(
+    output_path: Annotated[
+        Path,
+        typer.Argument(help="Path where to save the configuration file"),
+    ],
+    style: Annotated[
+        str | None,
+        typer.Option("--style", "-s", help="Trading style preset to save"),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Overwrite existing file"),
+    ] = False,
+):
+    """Save configuration to a JSON file."""
+    # Check if file exists
+    if output_path.exists() and not force:
+        overwrite = typer.confirm(f"File {output_path} exists. Overwrite?")
+        if not overwrite:
+            console.print("[yellow]Cancelled[/yellow]")
+            raise typer.Exit(0)
+
+    # Create config
+    config = load_user_config() or ScannerConfig()
+
+    # Apply style if specified
+    if style:
+        valid_styles = ["scalping", "intraday", "swing", "position", "long_term"]
+        if style.lower() not in valid_styles:
+            console.print(f"[red]Invalid style '{style}'. Choose from: {', '.join(valid_styles)}[/red]")
+            raise typer.Exit(1)
+
+        style_map = {
+            "scalping": TradingStyle.SCALPING,
+            "intraday": TradingStyle.INTRADAY,
+            "swing": TradingStyle.SWING,
+            "position": TradingStyle.POSITION,
+            "long_term": TradingStyle.LONG_TERM,
+        }
+        config.trading_style = style_map[style.lower()]
+
+    # Save configuration
+    try:
+        config.save(str(output_path))
+        console.print(f"[green]Configuration saved to {output_path}[/green]")
+        console.print(f"Load with: --config {output_path}")
+    except Exception as e:
+        console.print(f"[red]Error saving config: {e}[/red]")
+        raise typer.Exit(1)
 
 
 def run():

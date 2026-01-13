@@ -110,8 +110,10 @@ class HoldingsScanner:
         """
         try:
             # Fetch stock data
-            timeframe = self.config.timeframe
-            limit = self.config.lookback_periods
+            preset = self.config.get_preset()
+            primary_tf = preset.get("primary_timeframe")
+            timeframe = primary_tf.interval if primary_tf else "10m"
+            limit = primary_tf.bars_to_fetch if primary_tf else 500
 
             df = await self.data_manager.fetch_bars(symbol, timeframe, limit)
             if df is None or df.empty:
