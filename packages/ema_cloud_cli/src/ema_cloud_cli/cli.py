@@ -191,6 +191,18 @@ def main(
         bool,
         typer.Option("--once", help="Run a single scan and exit"),
     ] = False,
+    scan_holdings: Annotated[
+        bool,
+        typer.Option("--scan-holdings", help="Enable scanning of individual stocks within sector holdings"),
+    ] = False,
+    holdings_count: Annotated[
+        int,
+        typer.Option("--holdings-count", help="Number of top holdings to scan per ETF"),
+    ] = 10,
+    holdings_concurrent: Annotated[
+        int,
+        typer.Option("--holdings-concurrent", help="Maximum concurrent stock scans per ETF"),
+    ] = 5,
 ):
     """Main entry point"""
     # Load CLI settings (can be customized via environment variables)
@@ -245,6 +257,13 @@ def main(
     if subset:
         scanner_config.etf_subset = subset
     scanner_config.scan_interval = interval
+
+    # Apply holdings scanning options
+    if scan_holdings:
+        scanner_config.scan_holdings = True
+        scanner_config.top_holdings_count = holdings_count
+        scanner_config.holdings_max_concurrent = holdings_concurrent
+        typer.echo(f"Holdings scanning enabled: {holdings_count} stocks per ETF, max {holdings_concurrent} concurrent")
 
     # Apply CLI settings for dashboard refresh rate if not customized
     if scanner_config.dashboard_refresh_rate == 1:  # Default value

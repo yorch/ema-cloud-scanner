@@ -1,5 +1,6 @@
 """Holdings module for EMA Cloud Library."""
 
+from .holdings_scanner import HoldingsScanner, SectorTrend, StockSignalContext
 from .manager import (
     ETFHoldings,
     Holding,
@@ -16,4 +17,7 @@ __all__ = [
     "HoldingsProvider",
     "StaticHoldingsProvider",
     "YahooHoldingsProvider",
+    "HoldingsScanner",
+    "SectorTrend",
+    "StockSignalContext",
 ]

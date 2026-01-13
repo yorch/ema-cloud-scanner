@@ -547,6 +547,8 @@ class ScannerConfig(BaseModel):
     # Holdings settings
     fetch_holdings: bool = Field(default=True, description="Fetch ETF holdings data")
     top_holdings_count: int = Field(default=10, description="Number of top holdings to track per ETF")
+    scan_holdings: bool = Field(default=False, description="Enable scanning individual stocks within sector holdings")
+    holdings_max_concurrent: int = Field(default=5, description="Maximum concurrent stock scans per ETF")
 
     # Dashboard settings
     dashboard_refresh_rate: int = Field(default=5, description="Dashboard refresh rate in seconds")
@@ -566,6 +568,16 @@ class ScannerConfig(BaseModel):
         """Validate holdings count is positive."""
         if v < 1:
             raise ValueError("top_holdings_count must be >= 1")
+        return v
+
+    @field_validator("holdings_max_concurrent")
+    @classmethod
+    def validate_holdings_concurrent(cls, v: int) -> int:
+        """Validate concurrent scan limit is reasonable."""
+        if v < 1:
+            raise ValueError("holdings_max_concurrent must be >= 1")
+        if v > 20:
+            raise ValueError("holdings_max_concurrent must be <= 20 to avoid rate limits")
         return v
 
     @field_validator("dashboard_refresh_rate")
