@@ -11,9 +11,6 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.widgets import DataTable, Footer, Header, Static
 
-from ema_cloud_lib import api_call_tracker
-from ema_cloud_lib.config.settings import ScannerConfig
-from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
 from ema_cloud_cli.dashboard.settings import SettingsScreen
 from ema_cloud_cli.dashboard.status_bar import StatusBar
 from ema_cloud_cli.dashboard.styles import DASHBOARD_CSS
@@ -23,6 +20,9 @@ from ema_cloud_cli.dashboard.tables import (
     update_etf_table,
     update_signals_table,
 )
+from ema_cloud_lib import api_call_tracker
+from ema_cloud_lib.config.settings import ScannerConfig
+from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
 
 logger = logging.getLogger(__name__)
 

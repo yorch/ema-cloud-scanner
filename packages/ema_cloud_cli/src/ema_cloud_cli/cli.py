@@ -8,13 +8,13 @@ import asyncio
 import logging
 import signal
 from pathlib import Path
-from typing import Optional
+from typing import Annotated
 
 import typer
-from typing_extensions import Annotated
 
 from ema_cloud_cli.config_store import load_config_from_path, load_user_config
 from ema_cloud_cli.dashboard import SimpleDashboard, TerminalDashboard
+from ema_cloud_cli.settings import get_cli_settings
 from ema_cloud_lib import EMACloudScanner, ScannerConfig, TradingStyle
 from ema_cloud_lib.config.settings import ETF_SUBSETS
 
@@ -126,11 +126,11 @@ def main(
         ),
     ] = "intraday",
     etfs: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--etfs", "-e", help="Specific ETFs to scan (e.g., XLK XLF XLV)"),
     ] = None,
     subset: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--subset", help="ETF subset to scan", case_sensitive=False),
     ] = None,
     interval: Annotated[
@@ -150,7 +150,7 @@ def main(
         typer.Option("--verbose", "-v", help="Enable verbose logging"),
     ] = False,
     config: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to config JSON file", exists=True),
     ] = None,
     once: Annotated[
@@ -159,6 +159,17 @@ def main(
     ] = False,
 ):
     """Main entry point"""
+    # Load CLI settings (can be customized via environment variables)
+    cli_settings = get_cli_settings()
+
+    # Apply CLI settings defaults if not explicitly set
+    if not verbose and cli_settings.verbose:
+        verbose = True
+    if not no_dashboard and cli_settings.no_dashboard:
+        no_dashboard = True
+    if not all_hours and cli_settings.all_hours:
+        all_hours = True
+
     setup_logging(verbose)
 
     # Validate style choice
@@ -194,6 +205,10 @@ def main(
     if subset:
         scanner_config.etf_subset = subset
     scanner_config.scan_interval = interval
+
+    # Apply CLI settings for dashboard refresh rate if not customized
+    if scanner_config.dashboard_refresh_rate == 1:  # Default value
+        scanner_config.dashboard_refresh_rate = cli_settings.dashboard_refresh_rate
 
     # Run async main
     asyncio.run(async_main(scanner_config, no_dashboard, all_hours, once))

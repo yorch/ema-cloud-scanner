@@ -5,5 +5,6 @@ Command-line interface for the EMA Cloud Sector Scanner.
 """
 
 from ema_cloud_cli.cli import main, run
+from ema_cloud_cli.settings import CLISettings, get_cli_settings, reset_cli_settings
 
-__all__ = ["main", "run"]
+__all__ = ["main", "run", "CLISettings", "get_cli_settings", "reset_cli_settings"]

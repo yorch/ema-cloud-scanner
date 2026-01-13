@@ -19,8 +19,8 @@ from textual.widgets import (
 )
 from textual.widgets._selection_list import Selection
 
-from ema_cloud_lib.config.settings import ScannerConfig, SECTOR_ETFS, TradingStyle
 from ema_cloud_cli.config_store import save_user_config
+from ema_cloud_lib.config.settings import SECTOR_ETFS, ScannerConfig, TradingStyle
 
 
 class SettingsScreen(ModalScreen[ScannerConfig]):
