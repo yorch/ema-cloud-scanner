@@ -154,12 +154,32 @@ Alert system uses **observer pattern** for extensibility:
 
 ```python
 # Handlers subscribe to signals
-scanner.alert_manager.register_handler(ConsoleHandler())
-scanner.alert_manager.register_handler(DesktopHandler())
-scanner.alert_manager.register_handler(TelegramHandler())
+scanner.alert_manager.add_handler(ConsoleAlertHandler())
+scanner.alert_manager.add_handler(DesktopAlertHandler())
+scanner.alert_manager.add_handler(TelegramAlertHandler(
+    enabled=True,
+    bot_token="your_token",
+    chat_id="your_chat_id"
+))
+scanner.alert_manager.add_handler(DiscordAlertHandler(
+    enabled=True,
+    webhook_url="your_webhook_url"
+))
+
+# Alerts sent asynchronously to all enabled handlers
+await scanner.alert_manager.send_alert(alert_message)
 ```
 
-**When adding alerts**: Create new handler in `alerts/handlers.py` implementing the handler interface.
+**Available handlers**:
+
+- `ConsoleAlertHandler` - Terminal output with color coding
+- `DesktopAlertHandler` - Native OS notifications (requires `plyer`)
+- `TelegramAlertHandler` - Telegram bot messages (requires `aiohttp`)
+- `DiscordAlertHandler` - Discord webhook messages (requires `aiohttp`)
+
+**When adding alerts**: Create new handler in `alerts/handlers.py` implementing `BaseAlertHandler` interface.
+
+**Alert configuration**: Use `AlertConfig` in `config/settings.py` to enable/disable handlers and provide credentials.
 
 ## Key Configuration Objects
 
