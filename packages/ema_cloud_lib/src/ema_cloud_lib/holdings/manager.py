@@ -338,6 +338,10 @@ class HoldingsManager:
         if not force_refresh and etf_symbol in self._cache:
             cache_time = self._cache_times.get(etf_symbol)
             if cache_time and datetime.now() - cache_time < self.cache_duration:
+                # Import here to avoid circular dependency
+                from ema_cloud_lib import api_call_tracker
+
+                api_call_tracker.record_cache_hit()
                 return self._cache[etf_symbol]
 
         # Check file cache
@@ -350,11 +354,20 @@ class HoldingsManager:
                     holdings = self._parse_cached_holdings(data)
                     self._cache[etf_symbol] = holdings
                     self._cache_times[etf_symbol] = cache_date
+                    # Import here to avoid circular dependency
+                    from ema_cloud_lib import api_call_tracker
+
+                    api_call_tracker.record_cache_hit()
                     return holdings
             except Exception as e:
                 logger.warning(f"Error reading cache for {etf_symbol}: {e}")
 
         # Fetch from providers
+        # Import here to avoid circular dependency
+        from ema_cloud_lib import api_call_tracker
+
+        api_call_tracker.record_cache_miss()
+
         for provider in self.providers:
             try:
                 holdings = await provider.get_holdings(etf_symbol)

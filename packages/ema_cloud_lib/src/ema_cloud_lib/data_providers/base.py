@@ -22,23 +22,44 @@ logger = logging.getLogger(__name__)
 
 
 class APICallTracker:
-    """Track API calls and calculate call rate per minute."""
+    """Track API calls and calculate comprehensive statistics."""
 
     def __init__(self):
         self._total_calls: int = 0
+        self._failed_calls: int = 0
         self._call_timestamps: list[float] = []
         self._window_seconds: int = 60  # Track calls within last minute
+        self._last_call_time: float | None = None
+        self._start_time: float = self._get_time()
+        self._cache_hits: int = 0
+        self._cache_attempts: int = 0
 
-    def record_call(self) -> None:
-        """Record an API call."""
+    def _get_time(self) -> float:
+        """Get current time (mockable for testing)."""
         import time
 
-        current_time = time.time()
+        return time.time()
+
+    def record_call(self, failed: bool = False) -> None:
+        """Record an API call."""
+        current_time = self._get_time()
         self._total_calls += 1
+        if failed:
+            self._failed_calls += 1
         self._call_timestamps.append(current_time)
+        self._last_call_time = current_time
         # Clean old timestamps outside the window
         cutoff = current_time - self._window_seconds
         self._call_timestamps = [t for t in self._call_timestamps if t > cutoff]
+
+    def record_cache_hit(self) -> None:
+        """Record a cache hit."""
+        self._cache_attempts += 1
+        self._cache_hits += 1
+
+    def record_cache_miss(self) -> None:
+        """Record a cache miss."""
+        self._cache_attempts += 1
 
     @property
     def total_calls(self) -> int:
@@ -46,21 +67,93 @@ class APICallTracker:
         return self._total_calls
 
     @property
+    def failed_calls(self) -> int:
+        """Total number of failed API calls."""
+        return self._failed_calls
+
+    @property
+    def success_rate(self) -> float:
+        """Success rate as percentage (0-100)."""
+        if self._total_calls == 0:
+            return 100.0
+        return ((self._total_calls - self._failed_calls) / self._total_calls) * 100
+
+    @property
     def calls_per_minute(self) -> float:
         """Calculate calls per minute based on recent activity."""
-        import time
-
         if not self._call_timestamps:
             return 0.0
-        current_time = time.time()
+        current_time = self._get_time()
         cutoff = current_time - self._window_seconds
         recent_calls = [t for t in self._call_timestamps if t > cutoff]
         return len(recent_calls)
 
+    @property
+    def last_call_seconds_ago(self) -> float | None:
+        """Seconds since last API call."""
+        if self._last_call_time is None:
+            return None
+        return self._get_time() - self._last_call_time
+
+    @property
+    def uptime_seconds(self) -> float:
+        """Total uptime in seconds since tracker creation."""
+        return self._get_time() - self._start_time
+
+    @property
+    def cache_hit_rate(self) -> float:
+        """Cache hit rate as percentage (0-100)."""
+        if self._cache_attempts == 0:
+            return 0.0
+        return (self._cache_hits / self._cache_attempts) * 100
+
+    @property
+    def cache_hits(self) -> int:
+        """Total cache hits."""
+        return self._cache_hits
+
+    @property
+    def cache_misses(self) -> int:
+        """Total cache misses."""
+        return self._cache_attempts - self._cache_hits
+
+    def get_stats(self) -> dict:
+        """
+        Get comprehensive statistics.
+
+        Returns:
+            dict with keys:
+                - total_calls: int
+                - failed_calls: int
+                - success_rate: float (percentage)
+                - calls_per_minute: float
+                - last_call_seconds_ago: float | None
+                - uptime_seconds: float
+                - cache_hits: int
+                - cache_misses: int
+                - cache_hit_rate: float (percentage)
+        """
+        return {
+            "total_calls": self.total_calls,
+            "failed_calls": self.failed_calls,
+            "success_rate": self.success_rate,
+            "calls_per_minute": self.calls_per_minute,
+            "last_call_seconds_ago": self.last_call_seconds_ago,
+            "uptime_seconds": self.uptime_seconds,
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "cache_hit_rate": self.cache_hit_rate,
+        }
+
     def reset(self) -> None:
         """Reset the tracker."""
         self._total_calls = 0
+        self._failed_calls = 0
         self._call_timestamps = []
+        self._last_call_time = None
+        self._start_time = self._get_time()
+        self._cache_hits = 0
+        self._cache_attempts = 0
 
 
 # Global API call tracker instance
@@ -366,6 +459,7 @@ class YahooFinanceProvider(BaseDataProvider):
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
         """Get quotes for multiple symbols (parallel fetching)"""
+
         async def fetch_quote(symbol: str) -> tuple[str, Quote | None]:
             try:
                 return symbol, await self.get_quote(symbol)
@@ -657,6 +751,7 @@ class PolygonProvider(BaseDataProvider):
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
         """Get quotes for multiple symbols (parallel fetching)"""
+
         async def fetch_quote(symbol: str) -> tuple[str, Quote | None]:
             try:
                 return symbol, await self.get_quote(symbol)

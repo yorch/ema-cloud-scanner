@@ -15,6 +15,7 @@ from textual.widgets import DataTable, Footer, Header, Static
 from ema_cloud_cli.dashboard.log_viewer import LogViewer, TextualLogHandler
 from ema_cloud_cli.dashboard.market_hours import MarketHoursIndicator
 from ema_cloud_cli.dashboard.settings import SettingsScreen
+from ema_cloud_cli.dashboard.stats_modal import StatsModal
 from ema_cloud_cli.dashboard.status_bar import StatusBar
 from ema_cloud_cli.dashboard.styles import DASHBOARD_CSS
 from ema_cloud_cli.dashboard.tables import (
@@ -45,6 +46,7 @@ class TerminalDashboard(App):
         Binding("r", "refresh", "Refresh"),
         Binding("d", "toggle_dark", "Toggle Dark Mode"),
         Binding("s", "settings", "Settings"),
+        Binding("S", "show_stats", "Stats"),
         Binding("l", "toggle_logs", "Toggle Logs"),
         Binding("h", "toggle_holdings", "Toggle Holdings"),
         Binding("left", "show_etf_view", "ETF View"),
@@ -196,6 +198,8 @@ class TerminalDashboard(App):
         status_bar.signals_count = len(self._signals)
         status_bar.api_calls = api_call_tracker.total_calls
         status_bar.api_calls_per_min = api_call_tracker.calls_per_minute
+        status_bar.cache_hit_rate = api_call_tracker.cache_hit_rate
+        status_bar.last_call_seconds = api_call_tracker.last_call_seconds_ago or 0
         # Use cached values instead of recalculating
         status_bar.holdings_count = self._cached_holdings_total
         status_bar.holdings_signals_count = self._cached_holdings_signals
@@ -222,6 +226,10 @@ class TerminalDashboard(App):
     def action_settings(self) -> None:
         """Open settings panel."""
         self.push_screen(SettingsScreen(self._config, self.apply_config))
+
+    def action_show_stats(self) -> None:
+        """Show system statistics modal."""
+        self.push_screen(StatsModal())
 
     def action_toggle_logs(self) -> None:
         """Toggle logs visibility."""
@@ -402,9 +410,7 @@ class SimpleDashboard:
         print(f"SECTOR ETF SUMMARY - {datetime.now().strftime('%H:%M:%S')}")
         print(f"{'=' * 60}")
 
-        for etf in sorted(
-            self._etf_data.values(), key=lambda x: x.trend_strength, reverse=True
-        ):
+        for etf in sorted(self._etf_data.values(), key=lambda x: x.trend_strength, reverse=True):
             trend_icon = (
                 "🟢"
                 if etf.trend == TrendDirection.BULLISH.value
