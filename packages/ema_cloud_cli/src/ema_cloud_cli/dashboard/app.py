@@ -13,6 +13,7 @@ from textual.css.query import NoMatches
 from textual.widgets import DataTable, Footer, Header, Static
 
 from ema_cloud_cli.dashboard.log_viewer import LogViewer, TextualLogHandler
+from ema_cloud_cli.dashboard.market_hours import MarketHoursIndicator
 from ema_cloud_cli.dashboard.settings import SettingsScreen
 from ema_cloud_cli.dashboard.status_bar import StatusBar
 from ema_cloud_cli.dashboard.styles import DASHBOARD_CSS
@@ -77,6 +78,7 @@ class TerminalDashboard(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
+        yield MarketHoursIndicator(id="market-hours-indicator")
         with Horizontal(id="content"):
             with Vertical(id="etf-container"):
                 yield Static("Sector ETF Overview", id="etf-title", classes="table-title")

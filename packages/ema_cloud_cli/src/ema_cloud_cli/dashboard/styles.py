@@ -6,11 +6,20 @@ DASHBOARD_CSS = """
 Screen {
     layout: grid;
     grid-size: 1;
-    grid-rows: auto 1fr auto auto;
+    grid-rows: auto auto 1fr auto auto;
 }
 
 Header {
     dock: none;
+}
+
+#market-hours-indicator {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    background: $surface;
+    color: $text;
+    padding: 0 1;
 }
 
 Footer {
