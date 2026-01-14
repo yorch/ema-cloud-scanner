@@ -15,11 +15,14 @@ class StatusBar(Static):
     signals_count = reactive(0)
     api_calls = reactive(0)
     api_calls_per_min = reactive(0.0)
+    holdings_count = reactive(0)
+    holdings_signals_count = reactive(0)
 
     def render(self) -> str:
         return (
             f"ETFs: {self.bullish_count + self.bearish_count + self.neutral_count} | "
             f"🟢 {self.bullish_count} 🔴 {self.bearish_count} ⚪ {self.neutral_count} | "
             f"Signals: {self.signals_count} | "
+            f"Holdings: {self.holdings_signals_count}/{self.holdings_count} | "
             f"API: {self.api_calls} ({self.api_calls_per_min:.0f}/min)"
         )

@@ -15,12 +15,15 @@ Adds support for:
 import asyncio
 import json
 import logging
+import os
+import re
 import signal
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from logging.handlers import RotatingFileHandler
 from platformdirs import user_cache_dir, user_log_dir
 from rich.console import Console
 from rich.table import Table
@@ -44,9 +47,99 @@ app = typer.Typer(
 )
 
 
-def setup_logging(verbose: bool = False, use_dashboard: bool = True):
-    """Configure logging."""
-    level = logging.DEBUG if verbose else logging.INFO
+def _parse_log_rotation(rotation: str | None) -> int | None:
+    """Parse size-based rotation strings like 'size:10MB'."""
+    if not rotation:
+        return None
+    match = re.match(r"^size:(\d+)(KB|MB|GB)$", rotation.strip(), re.IGNORECASE)
+    if not match:
+        return None
+    size = int(match.group(1))
+    unit = match.group(2).upper()
+    multiplier = {"KB": 1024, "MB": 1024**2, "GB": 1024**3}[unit]
+    return size * multiplier
+
+
+def _parse_log_retention(retention: str | None) -> int | None:
+    """Parse retention strings like '7 days' to backup count."""
+    if not retention:
+        return None
+    match = re.match(r"^(\d+)", retention.strip())
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _param_is_default(ctx: typer.Context, name: str) -> bool:
+    """
+    Return True if parameter came from defaults (not explicitly provided by user).
+
+    Args:
+        ctx: Typer context
+        name: Parameter name to check
+
+    Returns:
+        True if parameter is using default value
+    """
+    try:
+        # Typer uses Click internally - check if param was explicitly set
+        # If parameter wasn't explicitly set, it won't be in params
+        if name not in ctx.params:
+            return True
+
+        # Find the parameter definition in the command's params list
+        for param in ctx.command.params:
+            if param.name == name:
+                # Compare current value with default
+                return ctx.params.get(name) == param.default
+
+        # If we couldn't find the param definition, assume it's default
+        return True
+    except (AttributeError, KeyError, IndexError):
+        # If we can't determine, assume it's default
+        return True
+
+
+def _parse_bool(value: str) -> bool | None:
+    """Parse common truthy/falsey strings."""
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _determine_log_level(verbose: int, cli_settings) -> int:
+    """
+    Determine log level with clear precedence: CLI flag > settings > default.
+
+    Args:
+        verbose: Verbose count from CLI (-v = 1, -vv = 2)
+        cli_settings: CLI settings instance
+
+    Returns:
+        Logging level constant
+    """
+    if verbose >= 2:
+        return logging.DEBUG
+    elif verbose == 1:
+        return logging.INFO
+    elif cli_settings.log_level:
+        return getattr(logging, cli_settings.log_level, logging.INFO)
+    return logging.INFO
+
+
+def setup_logging(verbose: int = 0, use_dashboard: bool = True):
+    """
+    Configure logging with file or console output.
+
+    Args:
+        verbose: Verbosity level (0=INFO, 1=INFO, 2+=DEBUG)
+        use_dashboard: Whether dashboard is being used (affects output target)
+    """
+    cli_settings = get_cli_settings()
+    level = _determine_log_level(verbose, cli_settings)
 
     # Clear any existing handlers
     root_logger = logging.getLogger()
@@ -54,11 +147,15 @@ def setup_logging(verbose: bool = False, use_dashboard: bool = True):
 
     if use_dashboard:
         # Write logs to file when using TUI dashboard
-        log_dir = Path(user_log_dir(APP_NAME, appauthor=False))
+        log_dir = cli_settings.log_dir or Path(user_log_dir(APP_NAME, appauthor=False))
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / "scanner.log"
-
-        handler = logging.FileHandler(log_file)
+        log_file = log_dir / cli_settings.log_filename
+        max_bytes = _parse_log_rotation(cli_settings.log_rotation)
+        backup_count = _parse_log_retention(cli_settings.log_retention) or 0
+        if max_bytes:
+            handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
+        else:
+            handler = logging.FileHandler(log_file)
         handler.setFormatter(
             logging.Formatter(
                 "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -171,7 +268,6 @@ def main(
             case_sensitive=False,
         ),
     ] = "intraday",
-
     # Symbols
     etfs: Annotated[
         list[str] | None,
@@ -185,7 +281,6 @@ def main(
         list[str] | None,
         typer.Option("--custom-symbols", help="Additional custom symbols (stocks, ETFs, indices)"),
     ] = None,
-
     # Scan configuration
     interval: Annotated[
         int,
@@ -199,7 +294,6 @@ def main(
         bool,
         typer.Option("--all-hours", help="Scan during extended hours (not just market hours)"),
     ] = False,
-
     # Timeframe configuration
     primary_timeframe: Annotated[
         str | None,
@@ -207,17 +301,22 @@ def main(
     ] = None,
     confirmation_timeframes: Annotated[
         list[str] | None,
-        typer.Option("--confirm-timeframes", help="Confirmation timeframes for multi-timeframe analysis (can specify multiple)"),
+        typer.Option(
+            "--confirm-timeframes",
+            help="Confirmation timeframes for multi-timeframe analysis (can specify multiple)",
+        ),
     ] = None,
     disable_mtf: Annotated[
         bool,
         typer.Option("--disable-mtf", help="Disable multi-timeframe confirmation"),
     ] = False,
-
     # EMA Cloud configuration
     enable_clouds: Annotated[
         list[str] | None,
-        typer.Option("--enable-clouds", help="Enable specific clouds: trend_line, pullback, momentum, trend_confirmation, long_term, major_trend"),
+        typer.Option(
+            "--enable-clouds",
+            help="Enable specific clouds: trend_line, pullback, momentum, trend_confirmation, long_term, major_trend",
+        ),
     ] = None,
     disable_clouds: Annotated[
         list[str] | None,
@@ -225,13 +324,16 @@ def main(
     ] = None,
     cloud_thickness: Annotated[
         float | None,
-        typer.Option("--cloud-thickness", help="Minimum cloud thickness percentage (e.g., 0.05 for 0.05%)"),
+        typer.Option(
+            "--cloud-thickness", help="Minimum cloud thickness percentage (e.g., 0.05 for 0.05%)"
+        ),
     ] = None,
-
     # Holdings
     scan_holdings: Annotated[
         bool,
-        typer.Option("--scan-holdings", help="Enable scanning of individual stocks within sector holdings"),
+        typer.Option(
+            "--scan-holdings", help="Enable scanning of individual stocks within sector holdings"
+        ),
     ] = False,
     holdings_count: Annotated[
         int,
@@ -241,7 +343,6 @@ def main(
         int,
         typer.Option("--holdings-concurrent", help="Maximum concurrent stock scans per ETF"),
     ] = 5,
-
     # Dashboard
     no_dashboard: Annotated[
         bool,
@@ -251,7 +352,6 @@ def main(
         int | None,
         typer.Option("--refresh-rate", help="Dashboard refresh rate in seconds"),
     ] = None,
-
     # Data provider
     provider: Annotated[
         str | None,
@@ -273,7 +373,6 @@ def main(
         str | None,
         typer.Option("--polygon-key", help="Polygon.io API key", envvar="POLYGON_API_KEY"),
     ] = None,
-
     # Filters
     enable_volume: Annotated[
         bool | None,
@@ -299,7 +398,6 @@ def main(
         bool | None,
         typer.Option("--enable-macd/--disable-macd", help="MACD filter"),
     ] = None,
-
     # Filter parameters
     rsi_period: Annotated[
         int | None,
@@ -313,7 +411,6 @@ def main(
         float | None,
         typer.Option("--volume-multiplier", help="Volume multiplier threshold (e.g., 1.5)"),
     ] = None,
-
     # Email notifications
     email_alerts: Annotated[
         bool,
@@ -321,7 +418,9 @@ def main(
     ] = False,
     email_smtp_server: Annotated[
         str | None,
-        typer.Option("--smtp-server", help="SMTP server (e.g., smtp.gmail.com)", envvar="SMTP_SERVER"),
+        typer.Option(
+            "--smtp-server", help="SMTP server (e.g., smtp.gmail.com)", envvar="SMTP_SERVER"
+        ),
     ] = None,
     email_smtp_port: Annotated[
         int | None,
@@ -343,22 +442,26 @@ def main(
         list[str] | None,
         typer.Option("--email-to", help="Recipient email addresses (can specify multiple)"),
     ] = None,
-
     # Signal cooldown
     signal_cooldown: Annotated[
         int | None,
         typer.Option("--signal-cooldown", help="Signal cooldown in minutes (default: 15)"),
     ] = None,
-
     # Configuration
     config: Annotated[
         Path | None,
         typer.Option("--config", "-c", help="Path to config JSON file", exists=True),
     ] = None,
-    verbose: Annotated[
+    print_config: Annotated[
         bool,
-        typer.Option("--verbose", "-v", help="Enable verbose logging"),
+        typer.Option("--print-config", help="Print effective configuration and exit"),
     ] = False,
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "--verbose", "-v", count=True, help="Enable verbose logging (-vv for extra detail)"
+        ),
+    ] = 0,
 ):
     """Run the EMA Cloud scanner with real-time monitoring."""
     # If a subcommand is being invoked, skip the main scanning logic
@@ -369,19 +472,50 @@ def main(
     cli_settings = get_cli_settings()
 
     # Apply CLI settings defaults
-    if not verbose and cli_settings.verbose:
-        verbose = True
+    if verbose == 0 and cli_settings.verbose:
+        verbose = 1
     if not no_dashboard and cli_settings.no_dashboard:
         no_dashboard = True
     if not all_hours and cli_settings.all_hours:
         all_hours = True
 
+    # Environment variable overrides for scanner defaults
+    if _param_is_default(ctx, "style"):
+        env_style = os.getenv("EMA_SCANNER_TRADING_STYLE")
+        if env_style:
+            style = env_style
+
+    if _param_is_default(ctx, "interval"):
+        env_interval = os.getenv("EMA_SCANNER_SCAN_INTERVAL")
+        if env_interval:
+            try:
+                interval = int(env_interval)
+            except ValueError:
+                logger.warning("Invalid EMA_SCANNER_SCAN_INTERVAL '%s', ignoring", env_interval)
+
+    if _param_is_default(ctx, "all_hours"):
+        env_market_hours_only = os.getenv("EMA_SCANNER_MARKET_HOURS_ONLY")
+        if env_market_hours_only:
+            market_hours_only = _parse_bool(env_market_hours_only)
+            if market_hours_only is None:
+                logger.warning(
+                    "Invalid EMA_SCANNER_MARKET_HOURS_ONLY '%s', ignoring",
+                    env_market_hours_only,
+                )
+            else:
+                all_hours = not market_hours_only
+
+    if _param_is_default(ctx, "provider"):
+        env_provider = os.getenv("EMA_DATA_PROVIDER")
+        if env_provider:
+            provider = env_provider
+
     setup_logging(verbose, use_dashboard=not no_dashboard)
 
     # Inform user where logs are written when using dashboard
     if not no_dashboard:
-        log_dir = Path(user_log_dir(APP_NAME, appauthor=False))
-        log_file = log_dir / "scanner.log"
+        log_dir = cli_settings.log_dir or Path(user_log_dir(APP_NAME, appauthor=False))
+        log_file = log_dir / cli_settings.log_filename
         typer.echo(f"Logs: {log_file}")
 
     # Validate style choice
@@ -392,7 +526,9 @@ def main(
 
     # Validate subset if provided
     if subset and subset not in ETF_SUBSETS:
-        typer.echo(f"Error: Invalid subset '{subset}'. Choose from: {', '.join(ETF_SUBSETS.keys())}")
+        typer.echo(
+            f"Error: Invalid subset '{subset}'. Choose from: {', '.join(ETF_SUBSETS.keys())}"
+        )
         raise typer.Exit(1)
 
     # Validate provider
@@ -446,15 +582,17 @@ def main(
     preset = scanner_config.get_preset()
     if primary_timeframe:
         from ema_cloud_lib.config.settings import TimeframeConfig
+
         preset["primary_timeframe"] = TimeframeConfig(
             interval=primary_timeframe,
             display_name=primary_timeframe,
-            bars_to_fetch=preset["primary_timeframe"].bars_to_fetch
+            bars_to_fetch=preset["primary_timeframe"].bars_to_fetch,
         )
         typer.echo(f"Primary timeframe: {primary_timeframe}")
 
     if confirmation_timeframes:
         from ema_cloud_lib.config.settings import TimeframeConfig
+
         preset["confirmation_timeframes"] = [
             TimeframeConfig(interval=tf, display_name=tf, bars_to_fetch=200)
             for tf in confirmation_timeframes
@@ -487,7 +625,9 @@ def main(
         scanner_config.scan_holdings = True
         scanner_config.top_holdings_count = holdings_count
         scanner_config.holdings_max_concurrent = holdings_concurrent
-        typer.echo(f"Holdings scanning: {holdings_count} stocks per ETF, max {holdings_concurrent} concurrent")
+        typer.echo(
+            f"Holdings scanning: {holdings_count} stocks per ETF, max {holdings_concurrent} concurrent"
+        )
 
     # Apply dashboard refresh rate
     if refresh_rate:
@@ -546,7 +686,9 @@ def main(
     # Apply email configuration
     if email_alerts:
         if not all([email_smtp_server, email_username, email_password, email_from, email_to]):
-            typer.echo("Error: Email alerts require --smtp-server, --smtp-username, --smtp-password, --email-from, --email-to")
+            typer.echo(
+                "Error: Email alerts require --smtp-server, --smtp-username, --smtp-password, --email-from, --email-to"
+            )
             raise typer.Exit(1)
         scanner_config.alerts.email_enabled = True
         scanner_config.alerts.email_smtp_server = email_smtp_server
@@ -561,6 +703,11 @@ def main(
     if signal_cooldown is not None:
         scanner_config.signal_cooldown_minutes = signal_cooldown
         typer.echo(f"Signal cooldown: {signal_cooldown} minutes")
+
+    if print_config:
+        config_dict = scanner_config.model_dump(mode="json", exclude_none=True)
+        console.print_json(data=config_dict)
+        raise typer.Exit(0)
 
     # Run async main
     asyncio.run(async_main(scanner_config, no_dashboard, all_hours, once))
@@ -605,9 +752,11 @@ def backtest(
         typer.Option("--report", help="Save detailed report to JSON file"),
     ] = None,
     verbose: Annotated[
-        bool,
-        typer.Option("--verbose", "-v", help="Enable verbose logging"),
-    ] = False,
+        int,
+        typer.Option(
+            "--verbose", "-v", count=True, help="Enable verbose logging (-vv for extra detail)"
+        ),
+    ] = 0,
 ):
     """Run backtests on historical data."""
     setup_logging(verbose, use_dashboard=False)
@@ -676,10 +825,7 @@ def backtest(
 
         # Save report if requested
         if report:
-            report_data = {
-                symbol: result.to_dict()
-                for symbol, result in results.items()
-            }
+            report_data = {symbol: result.to_dict() for symbol, result in results.items()}
             report.write_text(json.dumps(report_data, indent=2, default=str))
             console.print(f"\n[green]Report saved to {report}[/green]")
 
@@ -774,7 +920,7 @@ def config_show(
             config = ScannerConfig()
 
     # Display as formatted JSON (mode='json' serializes enums to their values)
-    config_dict = config.model_dump(mode='json', exclude_none=True)
+    config_dict = config.model_dump(mode="json", exclude_none=True)
     console.print_json(data=config_dict)
 
 
@@ -808,7 +954,9 @@ def config_save(
     if style:
         valid_styles = ["scalping", "intraday", "swing", "position", "long_term"]
         if style.lower() not in valid_styles:
-            console.print(f"[red]Invalid style '{style}'. Choose from: {', '.join(valid_styles)}[/red]")
+            console.print(
+                f"[red]Invalid style '{style}'. Choose from: {', '.join(valid_styles)}[/red]"
+            )
             raise typer.Exit(1)
 
         style_map = {

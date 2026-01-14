@@ -3,6 +3,7 @@ Terminal dashboard application and helpers.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 
 from textual.app import App, ComposeResult
@@ -17,13 +18,16 @@ from ema_cloud_cli.dashboard.status_bar import StatusBar
 from ema_cloud_cli.dashboard.styles import DASHBOARD_CSS
 from ema_cloud_cli.dashboard.tables import (
     setup_etf_table,
+    setup_holdings_table,
     setup_signals_table,
     update_etf_table,
+    update_holdings_table,
     update_signals_table,
 )
 from ema_cloud_lib import api_call_tracker
 from ema_cloud_lib.config.settings import ScannerConfig
-from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
+from ema_cloud_lib.constants import MAX_LOG_LINES, MAX_SIGNALS_DISPLAY, TrendDirection
+from ema_cloud_lib.types.display import ETFDisplayData, HoldingsETFDisplayData, SignalDisplayData
 
 logger = logging.getLogger(__name__)
 
@@ -41,20 +45,22 @@ class TerminalDashboard(App):
         Binding("d", "toggle_dark", "Toggle Dark Mode"),
         Binding("s", "settings", "Settings"),
         Binding("l", "toggle_logs", "Toggle Logs"),
+        Binding("h", "toggle_holdings", "Toggle Holdings"),
+        Binding("left", "show_etf_view", "ETF View"),
     ]
 
     def __init__(
         self,
         refresh_rate: int = 2,
         config: ScannerConfig | None = None,
-        on_quit=None,
-        on_config_update=None,
+        on_quit: Callable[[], None] | None = None,
+        on_config_update: Callable[[ScannerConfig], None] | None = None,
     ):
         super().__init__()
         self.refresh_rate = refresh_rate
         self._etf_data: dict[str, ETFDisplayData] = {}
         self._signals: list[SignalDisplayData] = []
-        self._max_signals = 50
+        self._max_signals = MAX_SIGNALS_DISPLAY
         self._update_timer = None
         self._is_mounted = False
         self._on_quit = on_quit
@@ -62,6 +68,12 @@ class TerminalDashboard(App):
         self._on_config_update = on_config_update
         self._log_handler = None
         self._logs_visible = False
+        self._holdings_visible = False
+        self._holdings_data: dict[str, HoldingsETFDisplayData] = {}
+        self._selected_holdings_etf: str | None = None
+        # Performance optimization: cache computed values
+        self._cached_holdings_total: int = 0
+        self._cached_holdings_signals: int = 0
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -72,9 +84,12 @@ class TerminalDashboard(App):
             with Vertical(id="signals-container"):
                 yield Static("Recent Signals", id="signals-title", classes="table-title")
                 yield DataTable(id="signals-table", cursor_type="row", zebra_stripes=True)
+            with Vertical(id="holdings-container"):
+                yield Static("Holdings Scanner", id="holdings-title", classes="table-title")
+                yield DataTable(id="holdings-table", cursor_type="row", zebra_stripes=True)
             with Vertical(id="logs-container"):
                 yield Static("Application Logs", id="logs-title", classes="table-title")
-                yield LogViewer(max_lines=100, id="log-viewer")
+                yield LogViewer(max_lines=MAX_LOG_LINES, id="log-viewer")
         yield StatusBar(id="status-bar")
         yield Footer()
 
@@ -82,6 +97,7 @@ class TerminalDashboard(App):
         """Initialize tables and start refresh timer."""
         setup_etf_table(self)
         setup_signals_table(self)
+        setup_holdings_table(self)
         self._is_mounted = True
         self._refresh_display()
         self._update_timer = self.set_interval(self.refresh_rate, self._refresh_display)
@@ -109,8 +125,9 @@ class TerminalDashboard(App):
             logger.info("Log viewer initialized - logs will appear here")
             logger.debug("Debug logging is enabled")
 
-            # Hide logs container by default
+            # Hide logs and holdings containers by default
             self._toggle_logs_visibility(False)
+            self._toggle_holdings_visibility(False)
 
         except NoMatches:
             logger.warning("Log viewer widget not found")
@@ -141,6 +158,18 @@ class TerminalDashboard(App):
             update_signals_table(self, self._signals)
             self._update_status_bar()
 
+    def update_holdings_data(self, data: HoldingsETFDisplayData) -> None:
+        """Update holdings display data."""
+        self._holdings_data[data.etf_symbol] = data
+        if not self._selected_holdings_etf:
+            self._selected_holdings_etf = data.etf_symbol
+        # Update cached counts
+        self._update_holdings_cache()
+        if self._is_mounted:
+            if self._holdings_visible:
+                self._refresh_holdings_table()
+            self._update_status_bar()
+
     def _update_status_bar(self) -> None:
         """Update the status bar with current statistics."""
         if not self._is_mounted:
@@ -150,8 +179,13 @@ class TerminalDashboard(App):
         except NoMatches:
             return
 
-        bullish = sum(1 for e in self._etf_data.values() if e.trend == "bullish")
-        bearish = sum(1 for e in self._etf_data.values() if e.trend == "bearish")
+        # Single-pass ETF trend counting for efficiency
+        bullish = bearish = 0
+        for etf in self._etf_data.values():
+            if etf.trend == TrendDirection.BULLISH.value:
+                bullish += 1
+            elif etf.trend == TrendDirection.BEARISH.value:
+                bearish += 1
         neutral = len(self._etf_data) - bullish - bearish
 
         status_bar.bullish_count = bullish
@@ -160,6 +194,9 @@ class TerminalDashboard(App):
         status_bar.signals_count = len(self._signals)
         status_bar.api_calls = api_call_tracker.total_calls
         status_bar.api_calls_per_min = api_call_tracker.calls_per_minute
+        # Use cached values instead of recalculating
+        status_bar.holdings_count = self._cached_holdings_total
+        status_bar.holdings_signals_count = self._cached_holdings_signals
 
     def _refresh_display(self) -> None:
         """Periodic refresh of the display."""
@@ -167,6 +204,8 @@ class TerminalDashboard(App):
             return
         update_etf_table(self, self._etf_data)
         update_signals_table(self, self._signals)
+        if self._holdings_visible:
+            self._refresh_holdings_table()
         self._update_status_bar()
 
     def action_toggle_dark(self) -> None:
@@ -188,6 +227,22 @@ class TerminalDashboard(App):
         self._toggle_logs_visibility(self._logs_visible)
         status = "shown" if self._logs_visible else "hidden"
         self.notify(f"Logs {status}")
+
+    def action_toggle_holdings(self) -> None:
+        """Toggle holdings view."""
+        self._holdings_visible = not self._holdings_visible
+        self._toggle_holdings_visibility(self._holdings_visible)
+        if self._holdings_visible:
+            self._refresh_holdings_table()
+        status = "shown" if self._holdings_visible else "hidden"
+        self.notify(f"Holdings {status}")
+
+    def action_show_etf_view(self) -> None:
+        """Switch back to ETF/signal view."""
+        if self._holdings_visible:
+            self._holdings_visible = False
+            self._toggle_holdings_visibility(False)
+            self.notify("Holdings hidden")
 
     def _toggle_logs_visibility(self, visible: bool) -> None:
         """Toggle the logs container visibility."""
@@ -225,6 +280,80 @@ class TerminalDashboard(App):
         """Run the dashboard within an existing async context."""
         await super().run_async()
 
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Keep holdings view synced to the selected ETF."""
+        data_table = getattr(event, "data_table", None) or getattr(event, "control", None)
+        if not data_table or data_table.id != "etf-table":
+            return
+        row_key = getattr(event, "row_key", None)
+        if row_key:
+            self._selected_holdings_etf = str(row_key)
+            if self._holdings_visible:
+                self._refresh_holdings_table()
+
+    def _refresh_holdings_table(self) -> None:
+        """Refresh holdings table for the selected ETF."""
+        if not self._selected_holdings_etf and self._holdings_data:
+            self._selected_holdings_etf = next(iter(self._holdings_data))
+        if not self._selected_holdings_etf:
+            return
+        holdings_data = self._holdings_data.get(self._selected_holdings_etf)
+        if holdings_data:
+            update_holdings_table(self, holdings_data.holdings)
+            self._update_holdings_title(holdings_data)
+        else:
+            update_holdings_table(self, [])
+            self._update_holdings_title(None)
+
+    def _update_holdings_title(self, data: HoldingsETFDisplayData | None) -> None:
+        """
+        Update holdings title with ETF context.
+
+        Args:
+            data: Holdings data for display, or None to show default title
+        """
+        try:
+            title = self.query_one("#holdings-title", Static)
+        except NoMatches:
+            return
+
+        if not data or not data.sector_trend:
+            title.update("Holdings Scanner")
+            return
+
+        trend = data.sector_trend.lower()
+        if TrendDirection.BULLISH.value in trend:
+            trend_icon = "🟢"
+        elif TrendDirection.BEARISH.value in trend:
+            trend_icon = "🔴"
+        else:
+            trend_icon = "⚪"
+
+        sector = data.sector or data.etf_symbol
+        title.update(
+            f"Holdings Scanner - {data.etf_symbol} ({sector}) [{trend_icon} {trend.upper()}]"
+        )
+
+    def _toggle_holdings_visibility(self, visible: bool) -> None:
+        """Toggle holdings and signals containers visibility."""
+        try:
+            holdings_container = self.query_one("#holdings-container")
+            signals_container = self.query_one("#signals-container")
+            holdings_container.display = visible
+            signals_container.display = not visible
+        except NoMatches:
+            pass
+
+    def _update_holdings_cache(self) -> None:
+        """Update cached holdings counts for performance optimization."""
+        total = 0
+        signals = 0
+        for data in self._holdings_data.values():
+            total += data.total_holdings or len(data.holdings)
+            signals += sum(1 for holding in data.holdings if holding.signal_type)
+        self._cached_holdings_total = total
+        self._cached_holdings_signals = signals
+
 
 class SimpleDashboard:
     """
@@ -244,8 +373,12 @@ class SimpleDashboard:
     def add_signal(self, signal: SignalDisplayData) -> None:
         """Add a new signal."""
         self._signals.insert(0, signal)
-        self._signals = self._signals[:50]
+        self._signals = self._signals[:MAX_SIGNALS_DISPLAY]
         self._print_signal(signal)
+
+    def update_holdings_data(self, data: HoldingsETFDisplayData) -> None:
+        """No-op for simple dashboard."""
+        return None
 
     def _print_signal(self, signal: SignalDisplayData) -> None:
         """Print a signal to console."""
@@ -272,8 +405,8 @@ class SimpleDashboard:
         ):
             trend_icon = (
                 "🟢"
-                if etf.trend == "bullish"
-                else ("🔴" if etf.trend == "bearish" else "⚪")
+                if etf.trend == TrendDirection.BULLISH.value
+                else ("🔴" if etf.trend == TrendDirection.BEARISH.value else "⚪")
             )
             print(
                 f"{trend_icon} {etf.symbol:6} | {etf.sector:20} | "

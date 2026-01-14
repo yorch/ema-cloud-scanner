@@ -14,15 +14,20 @@ import pandas as pd
 from ema_cloud_lib.alerts import AlertManager, create_alert_from_signal
 from ema_cloud_lib.config.settings import (
     SYMBOL_TO_SECTOR,
-    TRADING_PRESETS,
     ScannerConfig,
 )
+from ema_cloud_lib.constants import TrendDirection
 from ema_cloud_lib.data_providers.base import DataProviderManager
 from ema_cloud_lib.holdings.holdings_scanner import HoldingsScanner, SectorTrend
-from ema_cloud_lib.holdings.manager import HoldingsManager
+from ema_cloud_lib.holdings.manager import Holding, HoldingsManager
 from ema_cloud_lib.indicators.ema_cloud import EMACloudIndicator
 from ema_cloud_lib.signals.generator import SectorTrendState, Signal, SignalGenerator
-from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
+from ema_cloud_lib.types.display import (
+    ETFDisplayData,
+    HoldingDisplayData,
+    HoldingsETFDisplayData,
+    SignalDisplayData,
+)
 from ema_cloud_lib.types.protocols import DashboardProtocol
 
 logger = logging.getLogger(__name__)
@@ -202,7 +207,7 @@ class EMACloudScanner:
         self.data_manager = DataProviderManager(self._data_provider_config_dict())
         self.cloud_indicator, self.signal_generator = self._build_indicators()
         self.alert_manager = AlertManager.create_default(self._alert_config_dict())
-        
+
         # Reinitialize holdings scanner if enabled
         if self.config.scan_holdings:
             self.holdings_scanner = HoldingsScanner(
@@ -302,15 +307,11 @@ class EMACloudScanner:
             # Convert SectorTrendState to SectorTrend for filtering
             sector_trend = self._sector_trend_from_state(sector_state)
             trend_strength = int(sector_state.trend_strength * 100)
-            self.holdings_scanner.update_sector_trend(
-                etf_symbol, sector_trend, trend_strength
-            )
+            self.holdings_scanner.update_sector_trend(etf_symbol, sector_trend, trend_strength)
 
         # Scan holdings
         max_concurrent = self.config.holdings_max_concurrent
-        stock_signals = await self.holdings_scanner.scan_holdings(
-            etf_symbol, max_concurrent
-        )
+        stock_signals = await self.holdings_scanner.scan_holdings(etf_symbol, max_concurrent)
 
         if not stock_signals:
             return None
@@ -319,17 +320,19 @@ class EMACloudScanner:
         results = []
         for context in stock_signals:
             signal = context.signal
-            results.append({
-                "symbol": signal.symbol,
-                "sector_etf": context.sector_etf,
-                "sector_trend": context.sector_trend.value,
-                "signal_type": signal.type.value,
-                "direction": signal.direction.value,
-                "strength": signal.strength.value,
-                "price": signal.price,
-                "timestamp": signal.timestamp,
-                "filters_passed": signal.filters_passed,
-            })
+            results.append(
+                {
+                    "symbol": signal.symbol,
+                    "sector_etf": context.sector_etf,
+                    "sector_trend": context.sector_trend.value,
+                    "signal_type": signal.type.value,
+                    "direction": signal.direction.value,
+                    "strength": signal.strength.value,
+                    "price": signal.price,
+                    "timestamp": signal.timestamp,
+                    "filters_passed": signal.filters_passed,
+                }
+            )
 
         return results
 
@@ -343,13 +346,42 @@ class EMACloudScanner:
         Returns:
             SectorTrend enum value
         """
-        trend_str = state.trend.lower()
-        if "bull" in trend_str or "up" in trend_str:
+        trend_str = state.trend_direction.lower()
+        if TrendDirection.BULLISH.value in trend_str:
             return SectorTrend.BULLISH
-        elif "bear" in trend_str or "down" in trend_str:
+        elif TrendDirection.BEARISH.value in trend_str:
             return SectorTrend.BEARISH
         else:
             return SectorTrend.NEUTRAL
+
+    def _create_signal_display_data(
+        self, signal_data: dict, signal_type_suffix: str = "", notes: str = ""
+    ) -> SignalDisplayData:
+        """
+        Create SignalDisplayData from signal dictionary.
+
+        Args:
+            signal_data: Signal data dictionary
+            signal_type_suffix: Optional suffix to append to signal type
+            notes: Optional notes for the signal
+
+        Returns:
+            SignalDisplayData instance
+        """
+        signal_type = signal_data["signal_type"]
+        if signal_type_suffix:
+            signal_type = f"{signal_type} {signal_type_suffix}"
+
+        return SignalDisplayData(
+            symbol=signal_data["symbol"],
+            timestamp=signal_data["timestamp"],
+            signal_type=signal_type,
+            direction=signal_data["direction"],
+            strength=signal_data["strength"],
+            price=signal_data["price"],
+            is_valid=signal_data.get("filters_passed", True),
+            notes=notes,
+        )
 
     async def scan_all_etfs(self) -> list[dict]:
         """Scan all configured ETFs"""
@@ -461,14 +493,51 @@ class EMACloudScanner:
         if not self.holdings_scanner:
             return
 
-        # Fetch holdings if needed
+        # Fetch holdings with metadata
         etf_symbols = [analysis["symbol"] for analysis in etf_analyses]
-        holdings_data = await self.holdings_manager.get_all_sector_holdings(
-            etf_symbols, self.config.top_holdings_count
+        holdings_by_etf: dict[str, list[Holding]] = {}
+        total_holdings_by_etf: dict[str, int] = {}
+        etf_names: dict[str, str] = {}
+
+        holdings_results = await asyncio.gather(
+            *[self.holdings_manager.get_holdings(symbol) for symbol in etf_symbols],
+            return_exceptions=True,
         )
 
+        for etf_symbol, holdings in zip(etf_symbols, holdings_results, strict=False):
+            if isinstance(holdings, Exception):
+                logger.warning(f"Holdings lookup failed for {etf_symbol}: {holdings}")
+                # Set empty defaults to prevent KeyError later
+                holdings_by_etf[etf_symbol] = []
+                total_holdings_by_etf[etf_symbol] = 0
+                etf_names[etf_symbol] = etf_symbol
+                continue
+            if holdings:
+                top_holdings = holdings.get_top_holdings(self.config.top_holdings_count)
+                holdings_by_etf[etf_symbol] = top_holdings
+                total_holdings_by_etf[etf_symbol] = len(top_holdings)
+                etf_names[etf_symbol] = holdings.etf_name
+            else:
+                custom_holdings = self.holdings_manager.get_custom_holdings(etf_symbol)
+                if custom_holdings:
+                    holdings_by_etf[etf_symbol] = [
+                        Holding(symbol=symbol, name=symbol, weight=0.0)
+                        for symbol in custom_holdings[: self.config.top_holdings_count]
+                    ]
+                    total_holdings_by_etf[etf_symbol] = len(custom_holdings)
+                    etf_names[etf_symbol] = etf_symbol
+                else:
+                    # No holdings available for this ETF
+                    holdings_by_etf[etf_symbol] = []
+                    total_holdings_by_etf[etf_symbol] = 0
+                    etf_names[etf_symbol] = etf_symbol
+
         # Set holdings in scanner
-        self.holdings_scanner.set_holdings(holdings_data)
+        holdings_symbols = {
+            etf_symbol: [holding.symbol for holding in holdings]
+            for etf_symbol, holdings in holdings_by_etf.items()
+        }
+        self.holdings_scanner.set_holdings(holdings_symbols)
 
         logger.info(f"Scanning holdings for {len(etf_symbols)} sector ETFs")
 
@@ -478,6 +547,13 @@ class EMACloudScanner:
             stock_signals = await self.scan_etf_holdings(etf_symbol)
             if stock_signals:
                 all_stock_signals.extend(stock_signals)
+            self._update_holdings_dashboard(
+                etf_symbol,
+                holdings_by_etf.get(etf_symbol, []),
+                stock_signals or [],
+                total_holdings_by_etf.get(etf_symbol),
+                etf_names.get(etf_symbol),
+            )
 
         if all_stock_signals:
             logger.info(f"Found {len(all_stock_signals)} stock signals across all holdings")
@@ -501,16 +577,78 @@ class EMACloudScanner:
 
             # Update dashboard if available
             if self._dashboard:
-                # Convert to SignalDisplayData format
-                signal_display = SignalDisplayData(
-                    symbol=signal_data["symbol"],
-                    signal_type=f"{signal_data['signal_type']} (Holdings: {signal_data['sector_etf']})",
-                    direction=signal_data["direction"],
-                    strength=signal_data["strength"],
-                    price=signal_data["price"],
-                    timestamp=signal_data["timestamp"],
+                # Convert to SignalDisplayData format using helper
+                signal_display = self._create_signal_display_data(
+                    signal_data,
+                    signal_type_suffix=f"(Holdings: {signal_data['sector_etf']})",
+                    notes="Holdings signal",
                 )
                 self._dashboard.add_signal(signal_display)
+
+    def _update_holdings_dashboard(
+        self,
+        etf_symbol: str,
+        holdings: list[Holding],
+        stock_signals: list[dict],
+        total_holdings: int | None,
+        etf_name: str | None,
+    ) -> None:
+        """Update dashboard holdings view with latest data."""
+        if not self._dashboard:
+            return
+
+        sector_state = self._sector_states.get(etf_symbol)
+        sector_trend = (
+            self._sector_trend_from_state(sector_state).value
+            if sector_state
+            else SectorTrend.NEUTRAL.value
+        )
+
+        holdings_by_symbol = {holding.symbol: holding for holding in holdings}
+        signals_by_symbol = {signal["symbol"]: signal for signal in stock_signals}
+
+        display_holdings: list[HoldingDisplayData] = []
+        for holding in holdings:
+            signal = signals_by_symbol.get(holding.symbol)
+            display_holdings.append(
+                HoldingDisplayData(
+                    symbol=holding.symbol,
+                    company=holding.name,
+                    weight=holding.weight,
+                    price=signal["price"] if signal else None,
+                    direction=signal["direction"] if signal else None,
+                    signal_type=signal["signal_type"] if signal else None,
+                    strength=signal["strength"] if signal else None,
+                    timestamp=signal["timestamp"] if signal else None,
+                )
+            )
+
+        for symbol, signal in signals_by_symbol.items():
+            if symbol in holdings_by_symbol:
+                continue
+            display_holdings.append(
+                HoldingDisplayData(
+                    symbol=symbol,
+                    company=None,
+                    weight=None,
+                    price=signal["price"],
+                    direction=signal["direction"],
+                    signal_type=signal["signal_type"],
+                    strength=signal["strength"],
+                    timestamp=signal["timestamp"],
+                )
+            )
+
+        self._dashboard.update_holdings_data(
+            HoldingsETFDisplayData(
+                etf_symbol=etf_symbol,
+                etf_name=etf_name,
+                sector=SYMBOL_TO_SECTOR.get(etf_symbol, etf_symbol),
+                sector_trend=sector_trend,
+                total_holdings=total_holdings,
+                holdings=display_holdings,
+            )
+        )
 
     def _format_stock_signal_alert(self, signal_data: dict) -> str:
         """
@@ -531,7 +669,7 @@ class EMACloudScanner:
         price = signal_data["price"]
 
         direction_arrow = "↑" if direction == "long" else "↓"
-        
+
         return (
             f"🎯 HOLDINGS SIGNAL: {symbol} ({sector_etf})\n"
             f"  Signal: {signal_type} {direction_arrow}\n"

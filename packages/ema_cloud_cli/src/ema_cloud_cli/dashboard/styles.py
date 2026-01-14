@@ -40,11 +40,21 @@ Footer {
     padding: 0 1;
 }
 
+#holdings-container {
+    width: 1fr;
+    border: solid $primary;
+    padding: 0 1;
+}
+
 #etf-table {
     height: 100%;
 }
 
 #signals-table {
+    height: 100%;
+}
+
+#holdings-table {
     height: 100%;
 }
 
@@ -66,6 +76,10 @@ Footer {
 
 #logs-title {
     color: yellow;
+}
+
+#holdings-title {
+    color: green;
 }
 
 #log-viewer {

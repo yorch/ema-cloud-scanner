@@ -40,3 +40,29 @@ class SignalDisplayData(BaseModel):
     strength: str = Field(..., description="Signal strength rating")
     is_valid: bool = Field(..., description="Whether signal passes all validations")
     notes: str = Field(..., description="Additional signal notes")
+
+
+class HoldingDisplayData(BaseModel):
+    """Data structure for holdings display"""
+
+    symbol: str = Field(..., description="Stock symbol")
+    company: str | None = Field(default=None, description="Company name")
+    weight: float | None = Field(default=None, description="Holding weight percentage")
+    price: float | None = Field(default=None, description="Price at signal generation")
+    direction: str | None = Field(default=None, description="Signal direction: long or short")
+    signal_type: str | None = Field(default=None, description="Type of signal detected")
+    strength: str | None = Field(default=None, description="Signal strength rating")
+    timestamp: datetime | None = Field(default=None, description="Signal timestamp")
+
+
+class HoldingsETFDisplayData(BaseModel):
+    """Holdings display data for a sector ETF"""
+
+    etf_symbol: str = Field(..., description="ETF symbol")
+    etf_name: str | None = Field(default=None, description="ETF name")
+    sector: str | None = Field(default=None, description="Sector classification")
+    sector_trend: str = Field(..., description="Sector trend: bullish, bearish, or neutral")
+    total_holdings: int | None = Field(default=None, description="Total holdings count")
+    holdings: list[HoldingDisplayData] = Field(
+        default_factory=list, description="Holdings with signal details"
+    )

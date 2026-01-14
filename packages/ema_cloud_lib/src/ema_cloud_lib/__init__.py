@@ -31,7 +31,7 @@ from ema_cloud_lib.backtesting.engine import (
     run_quick_backtest,
 )
 
-# Configuration
+# Configuration and constants
 from ema_cloud_lib.config.settings import (
     ETF_SUBSETS,
     SECTOR_ETFS,
@@ -43,6 +43,7 @@ from ema_cloud_lib.config.settings import (
     SignalType,
     TradingStyle,
 )
+from ema_cloud_lib.constants import MAX_LOG_LINES, MAX_SIGNALS_DISPLAY, TrendDirection
 
 # Data providers
 from ema_cloud_lib.data_providers.base import (
@@ -82,7 +83,12 @@ from ema_cloud_lib.signals.generator import (
 )
 
 # Types for display/dashboard integration
-from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
+from ema_cloud_lib.types.display import (
+    ETFDisplayData,
+    HoldingDisplayData,
+    HoldingsETFDisplayData,
+    SignalDisplayData,
+)
 from ema_cloud_lib.types.protocols import DashboardProtocol
 
 __version__ = "0.1.0"
@@ -104,8 +110,14 @@ __all__ = [
     "ETF_SUBSETS",
     "SYMBOL_TO_SECTOR",
     "TRADING_PRESETS",
+    # Constants
+    "TrendDirection",
+    "MAX_SIGNALS_DISPLAY",
+    "MAX_LOG_LINES",
     # Types
     "ETFDisplayData",
+    "HoldingDisplayData",
+    "HoldingsETFDisplayData",
     "SignalDisplayData",
     "DashboardProtocol",
     # Indicators

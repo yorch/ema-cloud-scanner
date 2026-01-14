@@ -6,6 +6,7 @@ using pydantic-settings for automatic environment variable support and validatio
 Uses platformdirs for cross-platform config directory detection.
 """
 
+import os
 from pathlib import Path
 
 from platformdirs import user_config_dir
@@ -74,6 +75,32 @@ class CLISettings(BaseSettings):
         description="Dashboard refresh rate in seconds",
     )
 
+    # Logging preferences
+    log_dir: Path | None = Field(
+        default=None,
+        description="Custom log directory path. If None, uses platform default.",
+    )
+
+    log_filename: str = Field(
+        default="scanner.log",
+        description="Log filename when dashboard logging is enabled",
+    )
+
+    log_level: str | None = Field(
+        default=None,
+        description="Override log level (DEBUG/INFO/WARNING/ERROR/CRITICAL)",
+    )
+
+    log_rotation: str | None = Field(
+        default=None,
+        description="Log rotation policy (e.g., 'size:10MB')",
+    )
+
+    log_retention: str | None = Field(
+        default=None,
+        description="Log retention policy (e.g., '7 days')",
+    )
+
     @field_validator("config_dir", mode="before")
     @classmethod
     def expand_config_dir(cls, v: str | Path | None) -> Path | None:
@@ -82,6 +109,23 @@ class CLISettings(BaseSettings):
             return None
         path = Path(v)
         return path.expanduser().resolve()
+
+    @field_validator("log_dir", mode="before")
+    @classmethod
+    def expand_log_dir(cls, v: str | Path | None) -> Path | None:
+        """Expand user home directory in log path."""
+        if v is None:
+            return None
+        path = Path(v)
+        return path.expanduser().resolve()
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def normalize_log_level(cls, v: str | None) -> str | None:
+        """Normalize log level values to uppercase."""
+        if v is None:
+            return None
+        return v.upper()
 
     def get_config_path(self) -> Path:
         """Get the full path to the configuration file.
@@ -122,7 +166,13 @@ def get_cli_settings() -> CLISettings:
     """
     global _settings
     if _settings is None:
-        _settings = CLISettings()
+        config_dir_env = os.getenv("EMA_CLI_CONFIG_DIR")
+        if config_dir_env:
+            config_dir = Path(config_dir_env).expanduser().resolve()
+        else:
+            config_dir = CLISettings._get_default_config_dir()
+        env_file = config_dir / ".env"
+        _settings = CLISettings(_env_file=env_file)
     return _settings
 
 

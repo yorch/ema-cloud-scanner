@@ -5,7 +5,7 @@ Table setup and rendering helpers for the terminal dashboard.
 from textual.css.query import NoMatches
 from textual.widgets import DataTable
 
-from ema_cloud_lib.types.display import ETFDisplayData, SignalDisplayData
+from ema_cloud_lib.types.display import ETFDisplayData, HoldingDisplayData, SignalDisplayData
 
 
 def setup_etf_table(app) -> None:
@@ -37,6 +37,20 @@ def setup_signals_table(app) -> None:
     table.add_column("Signal", key="signal", width=22)
     table.add_column("Price", key="price", width=9)
     table.add_column("Str", key="strength", width=8)
+
+
+def setup_holdings_table(app) -> None:
+    """Setup holdings table columns."""
+    try:
+        table = app.query_one("#holdings-table", DataTable)
+    except NoMatches:
+        return
+    table.add_column("Symbol", key="symbol", width=8)
+    table.add_column("Company", key="company", width=20)
+    table.add_column("Weight", key="weight", width=8)
+    table.add_column("Price", key="price", width=10)
+    table.add_column("Trend", key="trend", width=6)
+    table.add_column("Signal", key="signal", width=16)
 
 
 def update_etf_table(app, etf_data: dict[str, ETFDisplayData]) -> None:
@@ -102,4 +116,42 @@ def update_signals_table(
             f"${signal.price:.2f}",
             signal.strength[:6],
             key=f"sig-{i}",
+        )
+
+
+def update_holdings_table(
+    app,
+    holdings: list[HoldingDisplayData],
+) -> None:
+    """Refresh the holdings table with current data."""
+    try:
+        table = app.query_one("#holdings-table", DataTable)
+    except NoMatches:
+        return
+    table.clear()
+
+    if not holdings:
+        table.add_row("-", "No holdings data", "-", "-", "-", "-", key="holdings-empty")
+        return
+
+    for holding in holdings:
+        if holding.direction == "long":
+            trend_text = "🟢"
+        elif holding.direction == "short":
+            trend_text = "🔴"
+        else:
+            trend_text = "⚪"
+
+        weight_text = f"{holding.weight:.1f}%" if holding.weight is not None else "-"
+        price_text = f"${holding.price:.2f}" if holding.price is not None else "-"
+        signal_text = holding.signal_type[:14] if holding.signal_type else "-"
+
+        table.add_row(
+            holding.symbol,
+            (holding.company or holding.symbol)[:18],
+            weight_text,
+            price_text,
+            trend_text,
+            signal_text,
+            key=f"holding-{holding.symbol}",
         )

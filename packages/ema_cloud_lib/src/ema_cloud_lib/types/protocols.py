@@ -7,7 +7,7 @@ frontends (CLI, web, etc.) to interact with the core library.
 
 from typing import Protocol, runtime_checkable
 
-from .display import ETFDisplayData, SignalDisplayData
+from .display import ETFDisplayData, HoldingsETFDisplayData, SignalDisplayData
 
 
 @runtime_checkable
@@ -20,6 +20,10 @@ class DashboardProtocol(Protocol):
 
     def add_signal(self, signal: SignalDisplayData) -> None:
         """Add a new signal to the display."""
+        ...
+
+    def update_holdings_data(self, data: HoldingsETFDisplayData) -> None:
+        """Update holdings display data."""
         ...
 
     def stop(self) -> None:
