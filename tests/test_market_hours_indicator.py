@@ -2,9 +2,7 @@
 Tests for market hours indicator functionality.
 """
 
-from datetime import datetime, time
-
-import pytest
+from datetime import datetime
 
 from ema_cloud_lib.scanner import MarketHours
 

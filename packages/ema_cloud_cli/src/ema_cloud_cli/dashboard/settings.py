@@ -627,7 +627,9 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
             sectors = self.query_one("#active_sectors", SelectionList).selected
             config_dict["active_sectors"] = list(sectors)
             symbols_raw = self._read_input("custom_symbols")
-            symbols = [s.strip().upper() for s in symbols_raw.replace(",", " ").split() if s.strip()]
+            symbols = [
+                s.strip().upper() for s in symbols_raw.replace(",", " ").split() if s.strip()
+            ]
             config_dict["custom_symbols"] = symbols
 
             filters = config_dict["filters"]
@@ -675,9 +677,7 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
             alerts["email_enabled"] = self._read_switch("email_enabled")
             alerts["email_smtp_server"] = self._read_optional("email_smtp_server")
             recipients = self._read_input("email_recipients")
-            alerts["email_recipients"] = [
-                r.strip() for r in recipients.split(",") if r.strip()
-            ]
+            alerts["email_recipients"] = [r.strip() for r in recipients.split(",") if r.strip()]
 
             data_provider = config_dict["data_provider"]
             data_provider["yahoo_enabled"] = self._read_switch("yahoo_enabled")
@@ -696,9 +696,7 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
             backtest["end_date"] = self._read_optional("backtest_end_date")
             backtest["initial_capital"] = self._read_float("backtest_initial_capital")
             backtest["position_size_pct"] = self._read_float("backtest_position_size_pct")
-            backtest["commission_per_trade"] = self._read_float(
-                "backtest_commission_per_trade"
-            )
+            backtest["commission_per_trade"] = self._read_float("backtest_commission_per_trade")
             backtest["slippage_pct"] = self._read_float("backtest_slippage_pct")
 
             clouds = config_dict["ema_clouds"]
@@ -708,12 +706,8 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                 clouds[key]["slow_period"] = self._read_int(f"cloud-{key}-slow_period")
                 clouds[key]["name"] = self._read_input(f"cloud-{key}-name")
                 clouds[key]["description"] = self._read_input(f"cloud-{key}-description")
-                clouds[key]["color_bullish"] = self._read_input(
-                    f"cloud-{key}-color_bullish"
-                )
-                clouds[key]["color_bearish"] = self._read_input(
-                    f"cloud-{key}-color_bearish"
-                )
+                clouds[key]["color_bullish"] = self._read_input(f"cloud-{key}-color_bullish")
+                clouds[key]["color_bearish"] = self._read_input(f"cloud-{key}-color_bearish")
 
             new_config = ScannerConfig.model_validate(config_dict)
             issues = new_config.validate()

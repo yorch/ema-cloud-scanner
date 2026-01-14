@@ -36,7 +36,7 @@ class MarketHoursIndicator(Static):
 
         # Format: 🟢 MARKET OPEN | 2h 34m to close
         display_text = f"{status['emoji']} {status['message']}"
-        if status['time_info']:
+        if status["time_info"]:
             display_text += f" | {status['time_info']}"
 
         self.market_status = display_text

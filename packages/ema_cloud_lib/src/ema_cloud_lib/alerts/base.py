@@ -24,6 +24,7 @@ def rate_limit(max_per_minute: int):
     Args:
         max_per_minute: Maximum number of calls allowed per minute
     """
+
     def decorator(func):
         last_called = deque(maxlen=max_per_minute)
 
@@ -42,6 +43,7 @@ def rate_limit(max_per_minute: int):
             return await func(self, *args, **kwargs)
 
         return wrapper
+
     return decorator
 
 

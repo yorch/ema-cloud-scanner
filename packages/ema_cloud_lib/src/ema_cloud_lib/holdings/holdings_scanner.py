@@ -3,13 +3,10 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
 from typing import Any
 
-import pandas as pd
-
-from ..config.settings import FilterConfig, ScannerConfig, SignalType, TradingStyle
+from ..config.settings import ScannerConfig
 from ..data_providers.base import DataProviderManager
 from ..indicators.ema_cloud import EMACloudIndicator
 from ..signals.generator import Signal, SignalDirection, SignalGenerator, SignalStrength
@@ -67,9 +64,7 @@ class HoldingsScanner:
 
         logger.info("HoldingsScanner initialized")
 
-    def update_sector_trend(
-        self, etf_symbol: str, trend: SectorTrend, strength: int
-    ) -> None:
+    def update_sector_trend(self, etf_symbol: str, trend: SectorTrend, strength: int) -> None:
         """
         Update sector ETF trend state for filtering.
 
@@ -91,13 +86,9 @@ class HoldingsScanner:
         """
         self._etf_holdings = etf_holdings
         total_stocks = sum(len(holdings) for holdings in etf_holdings.values())
-        logger.info(
-            f"Holdings set: {len(etf_holdings)} ETFs, {total_stocks} total stocks"
-        )
+        logger.info(f"Holdings set: {len(etf_holdings)} ETFs, {total_stocks} total stocks")
 
-    async def scan_stock(
-        self, symbol: str, sector_etf: str
-    ) -> StockSignalContext | None:
+    async def scan_stock(self, symbol: str, sector_etf: str) -> StockSignalContext | None:
         """
         Scan individual stock for signals with sector context.
 
@@ -188,9 +179,7 @@ class HoldingsScanner:
             r for r in results if isinstance(r, StockSignalContext) and not r.filtered_by_sector
         ]
 
-        logger.info(
-            f"Found {len(valid_signals)} valid stock signals in {etf_symbol} holdings"
-        )
+        logger.info(f"Found {len(valid_signals)} valid stock signals in {etf_symbol} holdings")
         return valid_signals
 
     async def scan_all_holdings(

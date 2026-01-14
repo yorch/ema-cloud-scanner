@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "ema_cloud_lib" / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "ema_cloud_cli" / "src"))
@@ -29,7 +30,7 @@ from ema_cloud_lib.alerts import (
 def create_test_message(direction: str = "long") -> AlertMessage:
     """Create a test alert message"""
     return AlertMessage(
-        title=f"XLK Test Signal",
+        title="XLK Test Signal",
         body=f"{'Long' if direction == 'long' else 'Short'} signal test",
         symbol="XLK",
         signal_type="cloud_flip",
@@ -208,7 +209,7 @@ async def test_alert_manager():
     # Create manager
     recipients_str = os.getenv("EMA_EMAIL_RECIPIENTS")
     recipients = [r.strip() for r in recipients_str.split(",")] if recipients_str else []
-    
+
     config = {
         "console": {"enabled": True, "colors": True},
         "desktop": {"enabled": True, "sound": False},

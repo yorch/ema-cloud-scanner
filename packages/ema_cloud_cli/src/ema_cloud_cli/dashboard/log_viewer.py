@@ -4,7 +4,6 @@ Log viewer widget for displaying application logs.
 
 import logging
 from collections import deque
-from datetime import datetime
 
 from textual.widgets import RichLog
 
@@ -37,8 +36,7 @@ class TextualLogHandler(logging.Handler):
 
         # Set formatter for consistent log format
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%H:%M:%S'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
         )
         self.setFormatter(formatter)
 
@@ -68,7 +66,7 @@ class TextualLogHandler(logging.Handler):
             try:
                 if self.log_viewer:
                     self.log_viewer.write(styled_msg)
-            except Exception as e:
+            except Exception:
                 # Silently fail if widget is not ready
                 pass
 

@@ -1,14 +1,19 @@
 """Tests for holdings scanner functionality."""
 
-import pytest
-import pandas as pd
 from datetime import datetime
 
-from ema_cloud_lib.holdings import HoldingsScanner, SectorTrend, StockSignalContext
+import pandas as pd
+import pytest
+
 from ema_cloud_lib.config.settings import ScannerConfig
 from ema_cloud_lib.data_providers.base import DataProviderManager
+from ema_cloud_lib.holdings import HoldingsScanner, SectorTrend, StockSignalContext
 from ema_cloud_lib.indicators.ema_cloud import EMACloudIndicator
-from ema_cloud_lib.signals.generator import SignalGenerator, SignalDirection, SignalStrength, SignalType
+from ema_cloud_lib.signals.generator import (
+    SignalDirection,
+    SignalGenerator,
+    SignalStrength,
+)
 
 
 @pytest.fixture
@@ -28,14 +33,17 @@ def mock_data_manager(mocker):
 
     # Mock fetch_bars to return sample data
     async def mock_fetch_bars(symbol, timeframe, limit):
-        dates = pd.date_range(end=datetime.now(), periods=limit, freq='1H')
-        data = pd.DataFrame({
-            'open': [100 + i for i in range(limit)],
-            'high': [102 + i for i in range(limit)],
-            'low': [98 + i for i in range(limit)],
-            'close': [101 + i for i in range(limit)],
-            'volume': [1000000 + i * 1000 for i in range(limit)],
-        }, index=dates)
+        dates = pd.date_range(end=datetime.now(), periods=limit, freq="1H")
+        data = pd.DataFrame(
+            {
+                "open": [100 + i for i in range(limit)],
+                "high": [102 + i for i in range(limit)],
+                "low": [98 + i for i in range(limit)],
+                "close": [101 + i for i in range(limit)],
+                "volume": [1000000 + i * 1000 for i in range(limit)],
+            },
+            index=dates,
+        )
         return data
 
     manager.fetch_bars = mock_fetch_bars
@@ -147,6 +155,7 @@ def test_signal_strength_value_ordering(holdings_scanner):
 @pytest.mark.asyncio
 async def test_scan_stock_returns_none_for_no_data(holdings_scanner, mock_data_manager):
     """Test scanning stock returns None when no data available."""
+
     # Mock fetch_bars to return None
     async def mock_fetch_bars_none(symbol, timeframe, limit):
         return None
@@ -223,10 +232,12 @@ def test_get_sector_filter_stats(holdings_scanner):
     holdings_scanner.update_sector_trend("XLF", SectorTrend.BEARISH, 70)
     holdings_scanner.update_sector_trend("XLV", SectorTrend.NEUTRAL, 50)
 
-    holdings_scanner.set_holdings({
-        "XLK": ["AAPL", "MSFT", "NVDA"],
-        "XLF": ["JPM", "BAC"],
-    })
+    holdings_scanner.set_holdings(
+        {
+            "XLK": ["AAPL", "MSFT", "NVDA"],
+            "XLF": ["JPM", "BAC"],
+        }
+    )
 
     stats = holdings_scanner.get_sector_filter_stats()
 

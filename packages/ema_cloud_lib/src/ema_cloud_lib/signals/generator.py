@@ -47,7 +47,9 @@ class FilterResult(BaseModel):
 
 def count_bullish_clouds(clouds: dict[str, CloudData]) -> int:
     """Count clouds in bullish state (BULLISH or CROSSING_UP)"""
-    return sum(1 for c in clouds.values() if c.state in [CloudState.BULLISH, CloudState.CROSSING_UP])
+    return sum(
+        1 for c in clouds.values() if c.state in [CloudState.BULLISH, CloudState.CROSSING_UP]
+    )
 
 
 class SignalDirection(Enum):
@@ -264,7 +266,9 @@ class SignalFilter:
             return FilterResult(True, f"ADX {adx:.1f} shows strong trend", "adx")
         elif adx >= self.config.adx_min_strength:
             return FilterResult(True, f"ADX {adx:.1f} shows moderate trend", "adx")
-        return FilterResult(False, f"ADX {adx:.1f} too weak (min {self.config.adx_min_strength})", "adx")
+        return FilterResult(
+            False, f"ADX {adx:.1f} too weak (min {self.config.adx_min_strength})", "adx"
+        )
 
     def filter_vwap(self, row: pd.Series, direction: str) -> FilterResult:
         """Check price position relative to VWAP"""
@@ -280,7 +284,9 @@ class SignalFilter:
         if direction == "long":
             if price > vwap:
                 return FilterResult(True, f"Price ${price:.2f} above VWAP ${vwap:.2f}", "vwap")
-            return FilterResult(False, f"Price ${price:.2f} below VWAP ${vwap:.2f} for long", "vwap")
+            return FilterResult(
+                False, f"Price ${price:.2f} below VWAP ${vwap:.2f} for long", "vwap"
+            )
         # Short direction
         if price < vwap:
             return FilterResult(True, f"Price ${price:.2f} below VWAP ${vwap:.2f}", "vwap")
@@ -349,7 +355,9 @@ class SignalFilter:
 
         if current_time < buffer_start:
             return FilterResult(
-                False, f"Too early - avoiding first {self.config.avoid_first_minutes} minutes", "time"
+                False,
+                f"Too early - avoiding first {self.config.avoid_first_minutes} minutes",
+                "time",
             )
         elif current_time > buffer_end:
             return FilterResult(

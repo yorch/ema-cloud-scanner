@@ -16,8 +16,10 @@ Examples:
     python run.py backtest XLK --start-date 2023-01-01 --end-date 2023-12-31
     python run.py --help
 """
+
 import sys
 from pathlib import Path
+
 
 # Add package sources to path
 root = Path(__file__).parent
@@ -25,6 +27,7 @@ sys.path.insert(0, str(root / "packages/ema_cloud_lib/src"))
 sys.path.insert(0, str(root / "packages/ema_cloud_cli/src"))
 
 from ema_cloud_cli.cli import run
+
 
 if __name__ == "__main__":
     run()

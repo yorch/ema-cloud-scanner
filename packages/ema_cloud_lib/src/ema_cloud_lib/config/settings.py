@@ -274,7 +274,9 @@ class FilterConfig(BaseModel):
 
     # Volume filter
     volume_enabled: bool = Field(default=True, description="Enable volume filter")
-    volume_multiplier: float = Field(default=1.5, description="Volume multiplier threshold (e.g., 1.5x average)")
+    volume_multiplier: float = Field(
+        default=1.5, description="Volume multiplier threshold (e.g., 1.5x average)"
+    )
     volume_lookback: int = Field(default=20, description="Lookback period for average volume")
 
     # RSI filter
@@ -282,7 +284,9 @@ class FilterConfig(BaseModel):
     rsi_period: int = Field(default=14, description="RSI calculation period")
     rsi_overbought: float = Field(default=70.0, description="RSI overbought threshold")
     rsi_oversold: float = Field(default=30.0, description="RSI oversold threshold")
-    rsi_neutral_zone: tuple[float, float] = Field(default=(45.0, 55.0), description="RSI neutral zone range")
+    rsi_neutral_zone: tuple[float, float] = Field(
+        default=(45.0, 55.0), description="RSI neutral zone range"
+    )
 
     # ADX filter (trend strength)
     adx_enabled: bool = Field(default=True, description="Enable ADX filter")
@@ -292,13 +296,17 @@ class FilterConfig(BaseModel):
 
     # VWAP filter
     vwap_enabled: bool = Field(default=True, description="Enable VWAP filter")
-    vwap_confirmation: bool = Field(default=True, description="Require price on correct side of VWAP")
+    vwap_confirmation: bool = Field(
+        default=True, description="Require price on correct side of VWAP"
+    )
 
     # ATR filter (volatility)
     atr_enabled: bool = Field(default=True, description="Enable ATR filter")
     atr_period: int = Field(default=14, description="ATR calculation period")
     atr_min_threshold: float = Field(default=0.5, description="Minimum ATR as % of price")
-    atr_max_threshold: float = Field(default=5.0, description="Maximum ATR (avoid extreme volatility)")
+    atr_max_threshold: float = Field(
+        default=5.0, description="Maximum ATR (avoid extreme volatility)"
+    )
 
     # MACD confirmation
     macd_enabled: bool = Field(default=False, description="Enable MACD filter")
@@ -329,7 +337,13 @@ class FilterConfig(BaseModel):
             raise ValueError("rsi_overbought must be greater than rsi_oversold")
         return v
 
-    @field_validator("volume_multiplier", "adx_min_strength", "adx_strong_trend", "atr_min_threshold", "atr_max_threshold")
+    @field_validator(
+        "volume_multiplier",
+        "adx_min_strength",
+        "adx_strong_trend",
+        "atr_min_threshold",
+        "atr_max_threshold",
+    )
     @classmethod
     def validate_positive(cls, v: float) -> float:
         """Validate numeric thresholds are positive."""
@@ -352,63 +366,38 @@ class AlertConfig(BaseModel):
     # Telegram notifications
     telegram_enabled: bool = Field(default=False, description="Enable Telegram notifications")
     telegram_bot_token: str | None = Field(
-        default=None, 
-        description="Telegram bot token (from @BotFather)"
+        default=None, description="Telegram bot token (from @BotFather)"
     )
     telegram_chat_id: str | None = Field(
-        default=None, 
-        description="Telegram chat ID (user or group)"
+        default=None, description="Telegram chat ID (user or group)"
     )
 
     # Discord notifications
     discord_enabled: bool = Field(default=False, description="Enable Discord notifications")
-    discord_webhook_url: str | None = Field(
-        default=None, 
-        description="Discord webhook URL"
-    )
+    discord_webhook_url: str | None = Field(default=None, description="Discord webhook URL")
 
     # Email notifications
     email_enabled: bool = Field(default=False, description="Enable email notifications")
     email_smtp_server: str | None = Field(
-        default=None, 
-        description="SMTP server address (e.g., smtp.gmail.com)"
+        default=None, description="SMTP server address (e.g., smtp.gmail.com)"
     )
     email_smtp_port: int = Field(
-        default=587, 
-        description="SMTP server port (587 for TLS, 465 for SSL)"
+        default=587, description="SMTP server port (587 for TLS, 465 for SSL)"
     )
-    email_use_tls: bool = Field(
-        default=True, 
-        description="Use TLS encryption"
-    )
+    email_use_tls: bool = Field(default=True, description="Use TLS encryption")
     email_use_ssl: bool = Field(
-        default=False, 
-        description="Use SSL encryption (alternative to TLS)"
+        default=False, description="Use SSL encryption (alternative to TLS)"
     )
     email_username: str | None = Field(
-        default=None, 
-        description="SMTP username (usually email address)"
+        default=None, description="SMTP username (usually email address)"
     )
     email_password: str | None = Field(
-        default=None, 
-        description="SMTP password or app-specific password"
+        default=None, description="SMTP password or app-specific password"
     )
-    email_from_address: str | None = Field(
-        default=None, 
-        description="From email address"
-    )
-    email_from_name: str = Field(
-        default="EMA Cloud Scanner", 
-        description="From name"
-    )
-    email_recipients: list[str] = Field(
-        default_factory=list, 
-        description="Email recipients list"
-    )
-    email_subject_prefix: str = Field(
-        default="[EMA Signal]", 
-        description="Email subject prefix"
-    )
+    email_from_address: str | None = Field(default=None, description="From email address")
+    email_from_name: str = Field(default="EMA Cloud Scanner", description="From name")
+    email_recipients: list[str] = Field(default_factory=list, description="Email recipients list")
+    email_subject_prefix: str = Field(default="[EMA Signal]", description="Email subject prefix")
 
     @property
     def to_dict(self) -> dict:
@@ -483,7 +472,9 @@ class BacktestConfig(BaseModel):
     start_date: str | None = Field(default=None, description="Backtest start date (YYYY-MM-DD)")
     end_date: str | None = Field(default=None, description="Backtest end date (YYYY-MM-DD)")
     initial_capital: float = Field(default=100000.0, description="Initial capital for backtest")
-    position_size_pct: float = Field(default=10.0, description="Position size as % of capital per trade")
+    position_size_pct: float = Field(
+        default=10.0, description="Position size as % of capital per trade"
+    )
     commission_per_trade: float = Field(default=0.0, description="Commission per trade")
     slippage_pct: float = Field(default=0.05, description="Slippage as % of price")
 
@@ -508,54 +499,65 @@ class ScannerConfig(BaseModel):
     """Main scanner configuration"""
 
     # Trading style preset
-    trading_style: TradingStyle = Field(default=TradingStyle.INTRADAY, description="Trading style preset")
+    trading_style: TradingStyle = Field(
+        default=TradingStyle.INTRADAY, description="Trading style preset"
+    )
 
     # Sector configuration
     active_sectors: list[str] = Field(
         default_factory=lambda: ETF_SUBSETS["all_sectors"].copy(),
-        description="Active sector ETFs to scan"
+        description="Active sector ETFs to scan",
     )
     custom_symbols: list[str] = Field(
-        default_factory=list,
-        description="Additional symbols to scan"
+        default_factory=list, description="Additional symbols to scan"
     )
 
     # EMA Cloud settings
     ema_clouds: dict[str, EMACloudConfig] = Field(
-        default_factory=lambda: DEFAULT_EMA_CLOUDS.copy(),
-        description="EMA cloud configurations"
+        default_factory=lambda: DEFAULT_EMA_CLOUDS.copy(), description="EMA cloud configurations"
     )
 
     # Filter settings
-    filters: FilterConfig = Field(default_factory=FilterConfig, description="Signal filter configuration")
+    filters: FilterConfig = Field(
+        default_factory=FilterConfig, description="Signal filter configuration"
+    )
 
     # Alert settings
     alerts: AlertConfig = Field(default_factory=AlertConfig, description="Alert configuration")
 
     # Data provider settings
     data_provider: DataProviderConfig = Field(
-        default_factory=DataProviderConfig,
-        description="Data provider configuration"
+        default_factory=DataProviderConfig, description="Data provider configuration"
     )
 
     # Backtest settings
-    backtest: BacktestConfig = Field(default_factory=BacktestConfig, description="Backtest configuration")
+    backtest: BacktestConfig = Field(
+        default_factory=BacktestConfig, description="Backtest configuration"
+    )
 
     # Scan interval (seconds)
     scan_interval: int = Field(default=60, description="Scan interval in seconds")
 
     # Holdings settings
     fetch_holdings: bool = Field(default=True, description="Fetch ETF holdings data")
-    top_holdings_count: int = Field(default=10, description="Number of top holdings to track per ETF")
-    scan_holdings: bool = Field(default=False, description="Enable scanning individual stocks within sector holdings")
-    holdings_max_concurrent: int = Field(default=5, description="Maximum concurrent stock scans per ETF")
+    top_holdings_count: int = Field(
+        default=10, description="Number of top holdings to track per ETF"
+    )
+    scan_holdings: bool = Field(
+        default=False, description="Enable scanning individual stocks within sector holdings"
+    )
+    holdings_max_concurrent: int = Field(
+        default=5, description="Maximum concurrent stock scans per ETF"
+    )
 
     # Dashboard settings
     dashboard_refresh_rate: int = Field(default=5, description="Dashboard refresh rate in seconds")
     show_all_etfs: bool = Field(default=True, description="Show all ETFs in dashboard")
 
     # Signal cooldown (minutes)
-    signal_cooldown_minutes: int = Field(default=15, description="Signal cooldown period in minutes to avoid duplicate alerts")
+    signal_cooldown_minutes: int = Field(
+        default=15, description="Signal cooldown period in minutes to avoid duplicate alerts"
+    )
 
     @field_validator("scan_interval")
     @classmethod

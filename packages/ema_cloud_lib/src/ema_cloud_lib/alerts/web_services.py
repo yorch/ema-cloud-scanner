@@ -43,10 +43,14 @@ class TelegramAlertHandler(BaseAlertHandler):
                 return
 
             if not self.bot_token:
-                logger.warning("Telegram enabled but bot_token not provided. Disabling Telegram alerts.")
+                logger.warning(
+                    "Telegram enabled but bot_token not provided. Disabling Telegram alerts."
+                )
                 self.enabled = False
             elif not self.chat_id:
-                logger.warning("Telegram enabled but chat_id not provided. Disabling Telegram alerts.")
+                logger.warning(
+                    "Telegram enabled but chat_id not provided. Disabling Telegram alerts."
+                )
                 self.enabled = False
             else:
                 logger.info("Telegram alerts configured and enabled")
@@ -150,7 +154,9 @@ class DiscordAlertHandler(BaseAlertHandler):
                 return
 
             if not self.webhook_url:
-                logger.warning("Discord enabled but webhook_url not provided. Disabling Discord alerts.")
+                logger.warning(
+                    "Discord enabled but webhook_url not provided. Disabling Discord alerts."
+                )
                 self.enabled = False
             elif not self.webhook_url.startswith("https://discord.com/api/webhooks/"):
                 logger.warning("Discord webhook URL appears invalid. Disabling Discord alerts.")
@@ -173,7 +179,11 @@ class DiscordAlertHandler(BaseAlertHandler):
 
             # Build embed fields
             fields = [
-                {"name": "Type", "value": message.signal_type.replace("_", " ").title(), "inline": True},
+                {
+                    "name": "Type",
+                    "value": message.signal_type.replace("_", " ").title(),
+                    "inline": True,
+                },
                 {"name": "Direction", "value": message.direction.upper(), "inline": True},
                 {"name": "Price", "value": f"${message.price:.2f}", "inline": True},
                 {"name": "Strength", "value": message.strength, "inline": True},

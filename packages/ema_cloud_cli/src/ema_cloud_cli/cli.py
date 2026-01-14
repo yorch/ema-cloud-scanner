@@ -19,11 +19,11 @@ import os
 import re
 import signal
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from logging.handlers import RotatingFileHandler
 from platformdirs import user_cache_dir, user_log_dir
 from rich.console import Console
 from rich.table import Table
@@ -33,8 +33,8 @@ from ema_cloud_cli.constants import APP_NAME
 from ema_cloud_cli.dashboard import SimpleDashboard, TerminalDashboard
 from ema_cloud_cli.settings import get_cli_settings
 from ema_cloud_lib import EMACloudScanner, ScannerConfig, TradingStyle
+from ema_cloud_lib.backtesting.engine import Backtester
 from ema_cloud_lib.config.settings import ETF_SUBSETS, SYMBOL_TO_SECTOR
-from ema_cloud_lib.backtesting.engine import Backtester, BacktestResult
 from ema_cloud_lib.data_providers.base import DataProviderManager, api_call_tracker
 
 logger = logging.getLogger(__name__)
@@ -761,7 +761,7 @@ def backtest(
     """Run backtests on historical data."""
     setup_logging(verbose, use_dashboard=False)
 
-    console.print(f"\n[bold cyan]Running Backtest[/bold cyan]")
+    console.print("\n[bold cyan]Running Backtest[/bold cyan]")
     console.print(f"Period: {start_date} to {end_date}")
     console.print(f"Symbols: {', '.join(symbols)}")
     console.print(f"Capital: ${initial_capital:,.2f}\n")

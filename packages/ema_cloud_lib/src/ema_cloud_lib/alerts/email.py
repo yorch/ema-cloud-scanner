@@ -52,16 +52,24 @@ class EmailAlertHandler(BaseAlertHandler):
                 return
 
             if not self.smtp_server:
-                logger.warning("Email enabled but smtp_server not provided. Disabling email alerts.")
+                logger.warning(
+                    "Email enabled but smtp_server not provided. Disabling email alerts."
+                )
                 self.enabled = False
             elif not self.smtp_username or not self.smtp_password:
-                logger.warning("Email enabled but credentials not provided. Disabling email alerts.")
+                logger.warning(
+                    "Email enabled but credentials not provided. Disabling email alerts."
+                )
                 self.enabled = False
             elif not self.from_address:
-                logger.warning("Email enabled but from_address not provided. Disabling email alerts.")
+                logger.warning(
+                    "Email enabled but from_address not provided. Disabling email alerts."
+                )
                 self.enabled = False
             elif not self.to_addresses:
-                logger.warning("Email enabled but to_addresses not provided. Disabling email alerts.")
+                logger.warning(
+                    "Email enabled but to_addresses not provided. Disabling email alerts."
+                )
                 self.enabled = False
             else:
                 logger.info("Email alerts configured and enabled")
@@ -95,7 +103,7 @@ class EmailAlertHandler(BaseAlertHandler):
             <div class="content">
                 <div class="field">
                     <span class="label">Type:</span>
-                    <span class="value">{message.signal_type.replace('_', ' ').title()}</span>
+                    <span class="value">{message.signal_type.replace("_", " ").title()}</span>
                 </div>
                 <div class="field">
                     <span class="label">Direction:</span>
@@ -111,7 +119,7 @@ class EmailAlertHandler(BaseAlertHandler):
                 </div>
                 <div class="field">
                     <span class="label">Time:</span>
-                    <span class="value">{message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}</span>
+                    <span class="value">{message.timestamp.strftime("%Y-%m-%d %H:%M:%S")}</span>
                 </div>
         """
 
@@ -150,11 +158,11 @@ class EmailAlertHandler(BaseAlertHandler):
         arrow = "🟢 ↗️" if message.direction == "long" else "🔴 ↘️"
         text = f"""{arrow} {message.symbol} Signal
 
-Type: {message.signal_type.replace('_', ' ').title()}
+Type: {message.signal_type.replace("_", " ").title()}
 Direction: {message.direction.upper()}
 Price: ${message.price:.2f}
 Strength: {message.strength}
-Time: {message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
+Time: {message.timestamp.strftime("%Y-%m-%d %H:%M:%S")}
 """
 
         # Add extra data fields using shared formatter
