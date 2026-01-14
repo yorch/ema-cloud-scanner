@@ -9,17 +9,26 @@ Real-time sector ETF scanner based on **Ripster's EMA Cloud methodology**. Monit
 - **Signal Strength Ratings**: VERY_STRONG to VERY_WEAK with configurable filters
 - **Multiple Trading Styles**: Scalping, Intraday, Swing, Position, Long-term presets
 - **Confirmation Filters**: Volume, RSI, ADX, VWAP, ATR, MACD, time-of-day
-- **Alert System**: Console, desktop notifications, Telegram, Discord (extensible)
-- **Terminal Dashboard**: Rich-based real-time monitoring interface
+- **Alert System**: Console, desktop notifications, Telegram, Discord, Email
+- **Terminal Dashboard**: Textual-based real-time monitoring interface
 - **ETF Holdings**: Fetch and analyze top holdings for each sector
+- **Holdings Scanning**: Scan individual stocks within sector ETF holdings with sector trend filtering
 - **Backtesting**: Test strategies against historical data
 
 ## Package Structure
 
-This project is split into two packages:
+This is a **dual-package workspace** managed by `uv`:
 
-- **`ema-cloud-lib`**: Core library with all business logic (no CLI dependencies)
-- **`ema-cloud-cli`**: Command-line interface with Rich terminal dashboard
+```text
+ema_cloud_sector_scanner/
+├── packages/
+│   ├── ema_cloud_lib/     # Core library (no CLI dependencies)
+│   └── ema_cloud_cli/     # Command-line interface with Textual dashboard
+├── run.py                 # Development runner (no install needed)
+└── pyproject.toml         # Workspace config
+```
+
+**Key Principle**: `ema-cloud-lib` is framework-agnostic and uses dependency injection for UI integration.
 
 ## Quick Start
 
@@ -36,14 +45,9 @@ uv run python run.py --once
 # Or install packages for persistent use
 uv pip install -e packages/ema_cloud_lib
 uv pip install -e packages/ema_cloud_cli
-
-# Install with optional dependencies
-uv pip install -e "packages/ema_cloud_lib[all]"      # All optional providers
-uv pip install -e "packages/ema_cloud_lib[alpaca]"   # Alpaca data provider
-uv pip install -e "packages/ema_cloud_lib[notifications]" # Desktop notifications
 ```
 
-### Basic Usage (CLI)
+### Basic Usage
 
 ```bash
 # Run scanner with default settings (intraday style, all sector ETFs)
@@ -55,17 +59,17 @@ ema-scanner --style swing
 # Scan specific ETFs
 ema-scanner --etfs XLK XLF XLV
 
-# Scan a preset group
-ema-scanner --subset growth_sectors
-
 # Single scan (no continuous monitoring)
 ema-scanner --once
+
+# Enable holdings scanning (scan individual stocks within sector ETFs)
+ema-scanner --scan-holdings
 
 # Verbose logging
 ema-scanner -v
 ```
 
-### Python API (Library)
+### Python API
 
 ```python
 import asyncio
@@ -86,37 +90,11 @@ asyncio.run(scanner.run_scan_cycle())
 asyncio.run(scanner.run())
 ```
 
-### Custom Dashboard Integration
-
-The library uses dependency injection for dashboard integration:
-
-```python
-from ema_cloud_lib import EMACloudScanner, ScannerConfig, DashboardProtocol
-from ema_cloud_lib import ETFDisplayData, SignalDisplayData
-
-class MyCustomDashboard(DashboardProtocol):
-    def update_etf_data(self, data: ETFDisplayData) -> None:
-        # Handle ETF data updates
-        print(f"{data.symbol}: {data.trend} @ ${data.price:.2f}")
-
-    def add_signal(self, signal: SignalDisplayData) -> None:
-        # Handle new signals
-        print(f"Signal: {signal.symbol} {signal.direction}")
-
-    def stop(self) -> None:
-        pass
-
-# Use custom dashboard
-scanner = EMACloudScanner(ScannerConfig())
-scanner.set_dashboard(MyCustomDashboard())
-asyncio.run(scanner.run())
-```
-
 ## Ripster's EMA Cloud Strategy
 
-The scanner is based on Ripster's EMA Cloud methodology, a popular trading approach that uses multiple EMAs to identify trends and trading opportunities.
+The scanner is based on Ripster's EMA Cloud methodology, using multiple EMAs to identify trends and trading opportunities.
 
-### Key Clouds
+### Six EMA Clouds
 
 | Cloud                  | EMA Pair  | Purpose                                   |
 | ---------------------- | --------- | ----------------------------------------- |
@@ -127,7 +105,7 @@ The scanner is based on Ripster's EMA Cloud methodology, a popular trading appro
 | Long-term              | 72-89     | Longer-term trend confirmation            |
 | Major Trend            | 200-233   | Major market trend                        |
 
-### Golden Rule
+### The Golden Rule
 
 - **Price ABOVE 34-50 cloud** = Bullish environment (long bias)
 - **Price BELOW 34-50 cloud** = Bearish environment (short bias)
@@ -139,241 +117,90 @@ The scanner is based on Ripster's EMA Cloud methodology, a popular trading appro
 3. **Pullback Entry**: Price pulls back to cloud acting as support/resistance
 4. **Multi-Cloud Alignment**: Multiple clouds align in same direction
 
+## Advanced Features
+
+### Multi-Timeframe Analysis
+
+Analyze signals across multiple timeframes for confirmation. Supports custom primary timeframes and multiple confirmation timeframes to reduce false positives.
+
+**See**: [CLI_ADVANCED_FEATURES.md](docs/CLI_ADVANCED_FEATURES.md)
+
+### EMA Cloud Customization
+
+Control which of the 6 EMA clouds are active, adjust cloud thickness thresholds, and create custom combinations for different trading styles.
+
+**See**: [CLI_ADVANCED_FEATURES.md](docs/CLI_ADVANCED_FEATURES.md)
+
+### Holdings Scanning
+
+Scan individual stocks within sector ETF holdings. The sector's trend direction filters signals: bullish sectors allow only LONG signals for stocks, bearish sectors allow only SHORT signals.
+
+**See**: [HOLDINGS_SCANNING.md](docs/HOLDINGS_SCANNING.md)
+
+### Alert System
+
+Multiple alert channels for real-time notifications:
+
+- **Console** - Terminal output with color coding (enabled by default)
+- **Desktop** - Native OS notifications
+- **Telegram** - Bot messages to your phone
+- **Discord** - Webhook messages to Discord channels
+- **Email** - SMTP notifications via Gmail, Outlook, or custom servers
+
+**See**: [ALERTS.md](docs/ALERTS.md)
+
+### Backtesting
+
+Run historical backtests to evaluate strategy performance with complete trade statistics, risk metrics, and parameter optimization tools.
+
+**See**: [BACKTESTING.md](docs/BACKTESTING.md)
+
+### Data Providers
+
+Choose from multiple data sources:
+
+- **Yahoo Finance** (default, free)
+- **Alpaca** (real-time, requires API keys)
+- **Polygon.io** (professional)
+
+**See**: [CONFIGURATION_MANAGEMENT.md](docs/CONFIGURATION_MANAGEMENT.md) and [CLI_REFERENCE.md](docs/CLI_REFERENCE.md)
+
 ## Configuration
 
-### Trading Style Presets
+### Trading Styles
 
-| Style     | Timeframe | Primary Clouds        | Use Case                     |
-| --------- | --------- | --------------------- | ---------------------------- |
-| Scalping  | 1m        | 5-12, 8-9, 20-21      | Quick trades, high frequency |
-| Intraday  | 10m       | 8-9, 20-21, 34-50     | Day trading                  |
-| Swing     | 1h        | 20-21, 34-50, 72-89   | Multi-day positions          |
-| Position  | 4h        | 34-50, 72-89, 200-233 | Multi-week positions         |
-| Long-term | 1d        | 34-50, 72-89, 200-233 | Investment decisions         |
+Five preset configurations optimized for different timeframes:
 
-### Sector ETFs
+| Style     | Timeframe    | Clouds Used           | Confirmation |
+| --------- | ------------ | --------------------- | ------------ |
+| Scalping  | 1m-5m        | 5-12, 8-9, 20-21      | 1 bar        |
+| Intraday  | 5m-10m       | 8-9, 20-21, 34-50     | 2 bars       |
+| Swing     | 1h-4h        | 20-21, 34-50, 72-89   | 2-3 bars     |
+| Position  | Daily        | 34-50, 72-89, 200-233 | 3 bars       |
+| Long-term | Daily/Weekly | 72-89, 200-233        | 3-5 bars     |
 
-Default scans all 11 S&P sector ETFs:
+### Monitored ETFs
 
-- **XLK** - Technology
-- **XLF** - Financials
-- **XLV** - Health Care
-- **XLE** - Energy
-- **XLY** - Consumer Discretionary
-- **XLP** - Consumer Staples
-- **XLI** - Industrials
-- **XLB** - Materials
-- **XLU** - Utilities
-- **XLRE** - Real Estate
-- **XLC** - Communication Services
+Scans all 11 S&P sector ETFs by default:
 
-### ETF Subsets
+- **Technology** (XLK), **Financials** (XLF), **Healthcare** (XLV)
+- **Energy** (XLE), **Consumer Discretionary** (XLY), **Consumer Staples** (XLP)
+- **Industrials** (XLI), **Materials** (XLB), **Utilities** (XLU)
+- **Real Estate** (XLRE), **Communication Services** (XLC)
 
-```bash
-# Scan growth sectors only
-ema-scanner --subset growth_sectors  # XLK, XLY, XLC
+**Preset groups**: `growth_sectors`, `defensive_sectors`, `cyclical_sectors`, `rate_sensitive`, `commodity_linked`
 
-# Scan defensive sectors
-ema-scanner --subset defensive_sectors  # XLU, XLP, XLV
-
-# Scan cyclical sectors
-ema-scanner --subset cyclical_sectors  # XLI, XLB, XLE, XLF
-```
-
-### Filter Configuration
-
-```python
-from ema_cloud_lib import FilterConfig
-
-filters = FilterConfig()
-filters.volume_enabled = True
-filters.volume_multiplier = 1.5  # Require 1.5x average volume
-filters.rsi_enabled = True
-filters.rsi_period = 14
-filters.rsi_overbought = 70
-filters.rsi_oversold = 30
-filters.adx_enabled = True
-filters.adx_min = 20  # Require trending market
-```
-
-## Alerts
-
-### Console Output
-
-Signals are printed to console with color coding:
-
-- 🟢 Green: Long signals
-- 🔴 Red: Short signals
-
-### Desktop Notifications
-
-Requires `plyer` package:
-
-```bash
-uv pip install -e "packages/ema_cloud_lib[notifications]"
-```
-
-### Telegram
-
-Configure in settings:
-
-```python
-config.alerts.telegram_enabled = True
-config.alerts.telegram_bot_token = "your_bot_token"
-config.alerts.telegram_chat_id = "your_chat_id"
-```
-
-### Discord
-
-Configure webhook URL:
-
-```python
-config.alerts.discord_enabled = True
-config.alerts.discord_webhook = "your_webhook_url"
-```
-
-## Backtesting
-
-```python
-from ema_cloud_lib import Backtester, run_quick_backtest
-import yfinance as yf
-
-# Fetch historical data
-df = yf.download("XLK", period="1y", interval="1d")
-
-# Run quick backtest
-result = run_quick_backtest(df, "XLK", print_results=True)
-
-# Or with custom parameters
-backtester = Backtester(
-    initial_capital=100000,
-    position_size_pct=10,
-    commission=1.0,
-    slippage_pct=0.05
-)
-result = backtester.run(df, "XLK")
-```
-
-## Project Structure
-
-```text
-ema_cloud_sector_scanner/
-├── pyproject.toml              # Workspace configuration
-├── README.md
-└── packages/
-    ├── ema_cloud_lib/          # Core library (no CLI deps)
-    │   ├── pyproject.toml
-    │   └── src/ema_cloud_lib/
-    │       ├── __init__.py     # Public API exports
-    │       ├── scanner.py      # EMACloudScanner, MarketHours
-    │       ├── config/         # Settings, presets, constants
-    │       ├── indicators/     # EMA cloud calculations
-    │       ├── signals/        # Signal generation logic
-    │       ├── alerts/         # Alert delivery system
-    │       ├── holdings/       # ETF holdings management
-    │       ├── data_providers/ # Yahoo, Alpaca, Polygon
-    │       ├── backtesting/    # Backtesting engine
-    │       └── types/          # Display types, protocols
-    │
-    └── ema_cloud_cli/          # CLI application
-        ├── pyproject.toml
-        └── src/ema_cloud_cli/
-            ├── __init__.py
-            ├── cli.py          # Entry point, argparse
-            └── dashboard/      # Rich terminal UI
-```
-
-## CLI Options
-
-```text
-usage: ema-scanner [-h] [--style {scalping,intraday,swing,position,long_term}]
-                   [--etfs ETFS [ETFS ...]] [--subset SUBSET]
-                   [--interval INTERVAL] [--no-dashboard] [--all-hours]
-                   [--verbose] [--config CONFIG] [--once]
-
-EMA Cloud Sector Scanner - Real-time trading signal scanner
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --style, -s           Trading style preset (default: intraday)
-  --etfs, -e            Specific ETFs to scan
-  --subset              ETF subset to scan
-  --interval, -i        Scan interval in seconds (default: 60)
-  --no-dashboard        Disable terminal dashboard
-  --all-hours           Scan during extended hours
-  --verbose, -v         Enable verbose logging
-  --config, -c          Path to config JSON file
-  --once                Run a single scan and exit
-```
-
-## Logging
-
-The scanner uses intelligent logging that adapts based on the display mode:
-
-- **With dashboard** (default): Logs written to file, clean TUI interface
-  - Log file: `~/Library/Logs/ema-cloud-scanner/scanner.log` (macOS)
-  - Third-party logs suppressed for cleaner output
-  - Location displayed at startup
-
-- **Without dashboard** (`--no-dashboard`): Logs to console with formatted output
-
-For detailed logging information, see [packages/ema_cloud_cli/LOGGING.md](packages/ema_cloud_cli/LOGGING.md).
-
-## Data Providers
-
-### Yahoo Finance (Default)
-
-Free, no API key required. Suitable for most use cases.
-
-### Alpaca (Optional)
-
-Real-time data with API key:
-
-```bash
-uv pip install -e "packages/ema_cloud_lib[alpaca]"
-```
-
-Configure:
-
-```python
-config.data_provider.provider = 'alpaca'
-config.data_provider.api_key = 'your_key'
-config.data_provider.api_secret = 'your_secret'
-```
-
-### Polygon.io (Optional)
-
-Professional-grade data:
-
-```bash
-uv pip install -e "packages/ema_cloud_lib[polygon]"
-```
+**See**: [CONFIGURATION_MANAGEMENT.md](docs/CONFIGURATION_MANAGEMENT.md) for complete configuration options.
 
 ## Development
 
 ### Quick Start (No Installation Required)
-
-Use `run.py` to run directly from source:
 
 ```bash
 # Run scanner (uv handles dependencies automatically)
 uv run python run.py --help
 uv run python run.py --once
 uv run python run.py --style swing --etfs XLK XLF
-```
-
-### Installing Packages
-
-For a full installation:
-
-```bash
-# Install packages in editable mode
-uv pip install -e packages/ema_cloud_lib
-uv pip install -e packages/ema_cloud_cli
-
-# Or with dev dependencies
-uv pip install -e "packages/ema_cloud_lib[dev]"
-uv pip install -e "packages/ema_cloud_cli[dev]"
 ```
 
 ### Code Quality
@@ -391,6 +218,21 @@ mypy packages/
 # Run tests
 pytest
 ```
+
+**See**: [AGENTS.md](AGENTS.md) for comprehensive development guidelines and architecture patterns.
+
+## Documentation
+
+Comprehensive guides organized by topic:
+
+| Topic                 | Key Documents                                                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Getting Started**   | [CLI Reference](docs/CLI_REFERENCE.md), [CLI Settings](docs/CLI_SETTINGS.md)                                                       |
+| **Advanced Features** | [Multi-Timeframe & Cloud Config](docs/CLI_ADVANCED_FEATURES.md), [Holdings Scanning](docs/HOLDINGS_SCANNING.md)                    |
+| **Configuration**     | [Configuration Management](docs/CONFIGURATION_MANAGEMENT.md), [Alerts](docs/ALERTS.md), [Security](docs/SECURITY.md)               |
+| **Trading & Testing** | [Signal Management](docs/SIGNAL_MANAGEMENT.md), [Backtesting](docs/BACKTESTING.md), [Advanced Features](docs/ADVANCED_FEATURES.md) |
+| **Operations**        | [Monitoring](docs/MONITORING.md), [Logging](docs/LOGGING.md), [Interactive Features](docs/INTERACTIVE_FEATURES.md)                 |
+| **Development**       | [AGENTS.md](AGENTS.md) - Architecture patterns and development guide                                                               |
 
 ## License
 
