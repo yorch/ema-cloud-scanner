@@ -55,9 +55,9 @@ def holdings_scanner(scanner_config, mock_data_manager):
     """Create holdings scanner instance."""
     cloud_indicator = EMACloudIndicator(scanner_config.ema_clouds)
     signal_generator = SignalGenerator(
-        config=scanner_config,
-        ema_clouds=scanner_config.ema_clouds,
-        filters=scanner_config.filters,
+        clouds_config=scanner_config.ema_clouds,
+        filter_config=scanner_config.filters,
+        trading_style=scanner_config.trading_style,
     )
 
     return HoldingsScanner(
