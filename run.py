@@ -26,7 +26,7 @@ root = Path(__file__).parent
 sys.path.insert(0, str(root / "packages/ema_cloud_lib/src"))
 sys.path.insert(0, str(root / "packages/ema_cloud_cli/src"))
 
-from ema_cloud_cli.cli import run
+from ema_cloud_cli.cli import run  # noqa: E402
 
 
 if __name__ == "__main__":

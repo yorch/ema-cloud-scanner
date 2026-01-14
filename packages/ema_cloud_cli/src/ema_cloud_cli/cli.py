@@ -772,7 +772,7 @@ def backtest(
         end_dt = datetime.strptime(end_date, "%Y-%m-%d")
     except ValueError as e:
         console.print(f"[red]Error parsing dates: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     # Create backtester
     backtester = Backtester(
@@ -975,7 +975,7 @@ def config_save(
         console.print(f"Load with: --config {output_path}")
     except Exception as e:
         console.print(f"[red]Error saving config: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 def run():
