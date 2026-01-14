@@ -22,6 +22,7 @@ dependencies = [
     "yfinance>=1.0",
     "aiohttp>=3.13.3",
     "pydantic>=2.12.5",
+    "pandas-market-calendars>=4.4.1",
 ]
 
 [project.optional-dependencies]

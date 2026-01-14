@@ -2,12 +2,10 @@
 Market hours indicator widget for the dashboard.
 """
 
-from datetime import datetime
-
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from ema_cloud_lib.scanner import MarketHours
+from ema_cloud_lib.market_hours import MarketHours
 
 
 class MarketHoursIndicator(Static):

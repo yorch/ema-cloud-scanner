@@ -9,6 +9,7 @@ Real-time sector ETF scanner based on **Ripster's EMA Cloud methodology**. Monit
 - **Signal Strength Ratings**: VERY_STRONG to VERY_WEAK with configurable filters
 - **Multiple Trading Styles**: Scalping, Intraday, Swing, Position, Long-term presets
 - **Confirmation Filters**: Volume, RSI, ADX, VWAP, ATR, MACD, time-of-day
+- **Market Hours Detection**: Automatic NYSE/NASDAQ holiday and early close detection using official trading calendar
 - **Alert System**: Console, desktop notifications, Telegram, Discord, Email
 - **Terminal Dashboard**: Textual-based real-time monitoring interface
 - **ETF Holdings**: Fetch and analyze top holdings for each sector

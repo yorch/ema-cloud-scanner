@@ -7,7 +7,7 @@ Based on Ripster's EMA Cloud methodology.
 
 import asyncio
 import logging
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -21,6 +21,7 @@ from ema_cloud_lib.data_providers.base import DataProviderManager
 from ema_cloud_lib.holdings.holdings_scanner import HoldingsScanner, SectorTrend
 from ema_cloud_lib.holdings.manager import Holding, HoldingsManager
 from ema_cloud_lib.indicators.ema_cloud import EMACloudIndicator
+from ema_cloud_lib.market_hours import MarketHours
 from ema_cloud_lib.signals.generator import SectorTrendState, Signal, SignalGenerator
 from ema_cloud_lib.types.display import (
     ETFDisplayData,
@@ -31,201 +32,6 @@ from ema_cloud_lib.types.display import (
 from ema_cloud_lib.types.protocols import DashboardProtocol
 
 logger = logging.getLogger(__name__)
-
-
-class MarketHours:
-    """Market hours utilities"""
-
-    # US Market hours (Eastern Time)
-    MARKET_OPEN = time(9, 30)
-    MARKET_CLOSE = time(16, 0)
-    PRE_MARKET_OPEN = time(4, 0)
-    AFTER_HOURS_CLOSE = time(20, 0)
-
-    @classmethod
-    def is_market_open(cls, check_time: datetime | None = None) -> bool:
-        """Check if market is currently open"""
-        if check_time is None:
-            check_time = datetime.now()
-
-        # Check if weekday (Mon=0, Sun=6)
-        if check_time.weekday() >= 5:
-            return False
-
-        current_time = check_time.time()
-        return cls.MARKET_OPEN <= current_time <= cls.MARKET_CLOSE
-
-    @classmethod
-    def is_extended_hours(cls, check_time: datetime | None = None) -> bool:
-        """Check if in extended trading hours"""
-        if check_time is None:
-            check_time = datetime.now()
-
-        if check_time.weekday() >= 5:
-            return False
-
-        current_time = check_time.time()
-
-        # Pre-market or after-hours
-        pre_market = cls.PRE_MARKET_OPEN <= current_time < cls.MARKET_OPEN
-        after_hours = cls.MARKET_CLOSE < current_time <= cls.AFTER_HOURS_CLOSE
-
-        return pre_market or after_hours
-
-    @classmethod
-    def time_to_open(cls, check_time: datetime | None = None) -> timedelta | None:
-        """Get time until market opens"""
-        if check_time is None:
-            check_time = datetime.now()
-
-        if cls.is_market_open(check_time):
-            return timedelta(0)
-
-        # Find next market open
-        next_open = check_time.replace(
-            hour=cls.MARKET_OPEN.hour, minute=cls.MARKET_OPEN.minute, second=0, microsecond=0
-        )
-
-        # If past close, move to next day
-        if check_time.time() > cls.MARKET_CLOSE:
-            next_open += timedelta(days=1)
-
-        # Skip weekends
-        while next_open.weekday() >= 5:
-            next_open += timedelta(days=1)
-
-        return next_open - check_time
-
-    @classmethod
-    def time_to_close(cls, check_time: datetime | None = None) -> timedelta | None:
-        """Get time until market closes"""
-        if check_time is None:
-            check_time = datetime.now()
-
-        if not cls.is_market_open(check_time):
-            return None
-
-        # Calculate time to close today
-        close_time = check_time.replace(
-            hour=cls.MARKET_CLOSE.hour, minute=cls.MARKET_CLOSE.minute, second=0, microsecond=0
-        )
-
-        return close_time - check_time
-
-    @classmethod
-    def get_market_status(cls, check_time: datetime | None = None) -> dict[str, str | datetime | None]:
-        """
-        Get comprehensive market status information.
-        
-        Returns:
-            dict with keys:
-                - status: str ("OPEN", "CLOSED", "PRE_MARKET", "AFTER_HOURS")
-                - emoji: str (visual indicator)
-                - message: str (human-readable status)
-                - time_info: str (time until next event)
-                - next_event: datetime | None (next market open/close)
-        """
-        if check_time is None:
-            check_time = datetime.now()
-
-        # Check if weekend
-        if check_time.weekday() >= 5:
-            # Find next Monday
-            days_until_monday = (7 - check_time.weekday()) % 7
-            if days_until_monday == 0:
-                days_until_monday = 1
-            next_open = (check_time + timedelta(days=days_until_monday)).replace(
-                hour=cls.MARKET_OPEN.hour, minute=cls.MARKET_OPEN.minute, second=0, microsecond=0
-            )
-            return {
-                "status": "CLOSED",
-                "emoji": "🔴",
-                "message": "MARKET CLOSED",
-                "time_info": f"Next: {next_open.strftime('%a %I:%M %p')}",
-                "next_event": next_open,
-            }
-
-        current_time = check_time.time()
-
-        # Market open
-        if cls.MARKET_OPEN <= current_time <= cls.MARKET_CLOSE:
-            time_remaining = cls.time_to_close(check_time)
-            if time_remaining:
-                hours = int(time_remaining.total_seconds() // 3600)
-                minutes = int((time_remaining.total_seconds() % 3600) // 60)
-                time_str = f"{hours}h {minutes}m to close" if hours > 0 else f"{minutes}m to close"
-            else:
-                time_str = "closing soon"
-            
-            return {
-                "status": "OPEN",
-                "emoji": "🟢",
-                "message": "MARKET OPEN",
-                "time_info": time_str,
-                "next_event": check_time.replace(
-                    hour=cls.MARKET_CLOSE.hour, minute=cls.MARKET_CLOSE.minute, second=0, microsecond=0
-                ),
-            }
-
-        # Pre-market
-        if cls.PRE_MARKET_OPEN <= current_time < cls.MARKET_OPEN:
-            time_remaining = cls.time_to_open(check_time)
-            if time_remaining:
-                hours = int(time_remaining.total_seconds() // 3600)
-                minutes = int((time_remaining.total_seconds() % 3600) // 60)
-                time_str = f"{hours}h {minutes}m to open" if hours > 0 else f"{minutes}m to open"
-            else:
-                time_str = "opening soon"
-            
-            return {
-                "status": "PRE_MARKET",
-                "emoji": "🟡",
-                "message": "PRE-MARKET",
-                "time_info": time_str,
-                "next_event": check_time.replace(
-                    hour=cls.MARKET_OPEN.hour, minute=cls.MARKET_OPEN.minute, second=0, microsecond=0
-                ),
-            }
-
-        # After-hours
-        if cls.MARKET_CLOSE < current_time <= cls.AFTER_HOURS_CLOSE:
-            # Find next day's open
-            next_open = (check_time + timedelta(days=1)).replace(
-                hour=cls.MARKET_OPEN.hour, minute=cls.MARKET_OPEN.minute, second=0, microsecond=0
-            )
-            # Skip weekends
-            while next_open.weekday() >= 5:
-                next_open += timedelta(days=1)
-            
-            return {
-                "status": "AFTER_HOURS",
-                "emoji": "🟠",
-                "message": "AFTER-HOURS",
-                "time_info": f"Next: {next_open.strftime('%a %I:%M %p')}",
-                "next_event": next_open,
-            }
-
-        # Market closed (late night/early morning)
-        time_remaining = cls.time_to_open(check_time)
-        if time_remaining:
-            hours = int(time_remaining.total_seconds() // 3600)
-            if hours > 24:
-                days = hours // 24
-                next_open = check_time + time_remaining
-                time_str = f"Next: {next_open.strftime('%a %I:%M %p')}"
-            else:
-                minutes = int((time_remaining.total_seconds() % 3600) // 60)
-                time_str = f"{hours}h {minutes}m to open" if hours > 0 else f"{minutes}m to open"
-        else:
-            time_str = "closed"
-
-        return {
-            "status": "CLOSED",
-            "emoji": "🔴",
-            "message": "MARKET CLOSED",
-            "time_info": time_str,
-            "next_event": check_time + time_remaining if time_remaining else None,
-        }
 
 
 class EMACloudScanner:

@@ -66,7 +66,8 @@ class TestMarketHours:
 
     def test_get_market_status_weekend(self):
         """Test market status on weekend."""
-        # 11:00 AM on a Saturday
+        # 11:00 AM on a Saturday (Jan 13, 2024)
+        # Note: Monday Jan 15 is MLK Day (holiday), so next trading day is Tuesday
         test_time = datetime(2024, 1, 13, 11, 0, 0)  # Saturday
         status = MarketHours.get_market_status(test_time)
 
@@ -74,7 +75,7 @@ class TestMarketHours:
         assert status["emoji"] == "🔴"
         assert status["message"] == "MARKET CLOSED"
         assert "Next:" in status["time_info"]
-        assert "Mon" in status["time_info"]
+        assert "Tue" in status["time_info"]  # Tuesday (Mon is MLK Day)
 
     def test_get_market_status_late_night(self):
         """Test market status during late night/early morning."""
