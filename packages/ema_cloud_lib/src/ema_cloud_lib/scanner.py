@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from ema_cloud_lib.alerts import AlertManager, create_alert_from_signal
+from ema_cloud_lib.alerts import AlertManager, AlertMessage, create_alert_from_signal
 from ema_cloud_lib.config.settings import (
     SYMBOL_TO_SECTOR,
     ScannerConfig,
@@ -252,8 +252,8 @@ class EMACloudScanner:
                     "symbol": signal.symbol,
                     "sector_etf": context.sector_etf,
                     "sector_trend": context.sector_trend.value,
-                    "signal_type": signal.type.value,
-                    "direction": signal.direction.value,
+                    "signal_type": signal.signal_type.value,
+                    "direction": signal.direction,
                     "strength": signal.strength.value,
                     "price": signal.price,
                     "timestamp": signal.timestamp,
@@ -310,17 +310,17 @@ class EMACloudScanner:
             notes=notes,
         )
 
-    async def scan_all_etfs(self) -> list[dict]:
+    async def scan_all_etfs(self) -> list[dict]:  # type: ignore[type-arg]
         """Scan all configured ETFs"""
         etfs = self._get_etf_list()
-        results = []
+        results: list[dict] = []  # type: ignore[type-arg]
 
         # Fetch all data concurrently
         tasks = [self.analyze_etf(etf) for etf in etfs]
         analyses = await asyncio.gather(*tasks, return_exceptions=True)
 
         for etf, analysis in zip(etfs, analyses, strict=False):
-            if isinstance(analysis, Exception):
+            if isinstance(analysis, BaseException):
                 logger.error(f"Analysis failed for {etf}: {analysis}")
                 continue
             if analysis:
@@ -432,7 +432,7 @@ class EMACloudScanner:
         )
 
         for etf_symbol, holdings in zip(etf_symbols, holdings_results, strict=False):
-            if isinstance(holdings, Exception):
+            if isinstance(holdings, BaseException):
                 logger.warning(f"Holdings lookup failed for {etf_symbol}: {holdings}")
                 # Set empty defaults to prevent KeyError later
                 holdings_by_etf[etf_symbol] = []
@@ -577,15 +577,15 @@ class EMACloudScanner:
             )
         )
 
-    def _format_stock_signal_alert(self, signal_data: dict) -> str:
+    def _format_stock_signal_alert(self, signal_data: dict) -> AlertMessage:  # type: ignore[type-arg]
         """
-        Format stock signal as alert message.
+        Format stock signal as AlertMessage.
 
         Args:
             signal_data: Stock signal dictionary
 
         Returns:
-            Formatted alert message
+            AlertMessage for the alert system
         """
         symbol = signal_data["symbol"]
         sector_etf = signal_data["sector_etf"]
@@ -597,13 +597,21 @@ class EMACloudScanner:
 
         direction_arrow = "↑" if direction == "long" else "↓"
 
-        return (
-            f"🎯 HOLDINGS SIGNAL: {symbol} ({sector_etf})\n"
-            f"  Signal: {signal_type} {direction_arrow}\n"
-            f"  Strength: {strength.upper()}\n"
-            f"  Price: ${price:.2f}\n"
-            f"  Sector Trend: {sector_trend.upper()}\n"
-            f"  Filters: {signal_data['filters_passed']}"
+        return AlertMessage(
+            title=f"🎯 HOLDINGS SIGNAL: {symbol} ({sector_etf})",
+            body=(
+                f"Signal: {signal_type} {direction_arrow}\n"
+                f"Strength: {strength.upper()}\n"
+                f"Price: ${price:.2f}\n"
+                f"Sector Trend: {sector_trend.upper()}\n"
+                f"Filters: {signal_data['filters_passed']}"
+            ),
+            symbol=symbol,
+            signal_type=signal_type,
+            direction=direction,
+            strength=strength,
+            price=price,
+            timestamp=signal_data.get("timestamp", utc_now()),
         )
 
     async def run(

@@ -192,61 +192,61 @@ class TestSignalModel:
 
     def test_validate_good_signal_returns_empty(self):
         sig = _make_signal()
-        assert sig.validate() == []
+        assert sig.validate_signal() == []
 
     def test_validate_negative_price(self):
         sig = _make_signal(price=-10.0)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert any("Invalid price" in i for i in issues)
 
     def test_validate_zero_price(self):
         sig = _make_signal(price=0.0)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert any("Invalid price" in i for i in issues)
 
     def test_validate_invalid_direction(self):
         sig = _make_signal(direction="sideways")
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert any("Invalid direction" in i for i in issues)
 
     def test_validate_stop_above_entry_for_long(self):
         sig = _make_signal(direction="long", price=150.0, suggested_stop=155.0)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert any("Stop loss" in i and "above entry" in i for i in issues)
 
     def test_validate_stop_below_entry_for_short(self):
         sig = _make_signal(direction="short", price=150.0, suggested_stop=145.0)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert any("Stop loss" in i and "below entry" in i for i in issues)
 
     def test_validate_poor_risk_reward(self):
         sig = _make_signal(risk_reward_ratio=0.5)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert any("risk/reward" in i for i in issues)
 
     def test_validate_rsi_overbought_for_long(self):
         sig = _make_signal(direction="long", rsi=85.0)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert any("overbought" in i for i in issues)
 
     def test_validate_rsi_oversold_for_short(self):
         sig = _make_signal(direction="short", rsi=15.0)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert any("oversold" in i for i in issues)
 
     def test_validate_rsi_normal_no_issue(self):
         sig = _make_signal(direction="long", rsi=55.0)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert not any("RSI" in i for i in issues)
 
     def test_validate_includes_filter_failures(self):
         sig = _make_signal(filters_failed=["adx: too weak"])
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert "adx: too weak" in issues
 
     def test_validate_stop_none_no_issue(self):
         sig = _make_signal(suggested_stop=None)
-        issues = sig.validate()
+        issues = sig.validate_signal()
         assert not any("Stop loss" in i for i in issues)
 
     def test_is_actionable_valid_strong_good_rr(self):

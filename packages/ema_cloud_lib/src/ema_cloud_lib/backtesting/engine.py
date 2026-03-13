@@ -323,7 +323,7 @@ class Backtester:
                         exit_price = current_price
 
                 # Execute exit
-                if exit_reason:
+                if exit_reason and exit_price is not None:
                     # Apply slippage
                     if position.direction == "long":
                         exit_price = exit_price * (1 - self.slippage_pct / 100)
@@ -418,8 +418,8 @@ class Backtester:
             sharpe = 0
 
         # Get date range
-        start_date = df.index[0] if hasattr(df.index[0], "strftime") else None
-        end_date = df.index[-1] if hasattr(df.index[-1], "strftime") else None
+        start_date = df.index[0] if hasattr(df.index[0], "strftime") else datetime.now()
+        end_date = df.index[-1] if hasattr(df.index[-1], "strftime") else datetime.now()
 
         # Create result
         result = BacktestResult(

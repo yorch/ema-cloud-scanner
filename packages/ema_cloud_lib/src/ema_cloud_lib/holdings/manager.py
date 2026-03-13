@@ -351,14 +351,14 @@ class HoldingsManager:
                 data = json.loads(cache_file.read_text())
                 cache_date = datetime.fromisoformat(data["as_of_date"])
                 if datetime.now() - cache_date < self.cache_duration:
-                    holdings = self._parse_cached_holdings(data)
-                    self._cache[etf_symbol] = holdings
+                    cached_holdings = self._parse_cached_holdings(data)
+                    self._cache[etf_symbol] = cached_holdings
                     self._cache_times[etf_symbol] = cache_date
                     # Import here to avoid circular dependency
                     from ema_cloud_lib import api_call_tracker
 
                     api_call_tracker.record_cache_hit()
-                    return holdings
+                    return cached_holdings
             except (json.JSONDecodeError, KeyError, ValueError, OSError) as e:
                 logger.warning(f"Error reading cache for {etf_symbol}: {e}")
 
@@ -370,7 +370,7 @@ class HoldingsManager:
 
         for provider in self.providers:
             try:
-                holdings = await provider.get_holdings(etf_symbol)
+                holdings = await provider.get_holdings(etf_symbol)  # ETFHoldings | None
                 if holdings and holdings.holdings:
                     # Update caches
                     self._cache[etf_symbol] = holdings

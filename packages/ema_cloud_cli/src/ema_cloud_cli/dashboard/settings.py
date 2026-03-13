@@ -720,7 +720,7 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                 clouds[key]["color_bearish"] = self._read_input(f"cloud-{key}-color_bearish")
 
             new_config = ScannerConfig.model_validate(config_dict)
-            issues = new_config.validate()
+            issues = new_config.validate_config()
             if issues:
                 self.notify("Settings validation: " + "; ".join(issues), severity="error")
                 return

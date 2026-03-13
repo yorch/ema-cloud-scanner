@@ -106,13 +106,13 @@ class HoldingsScanner:
             timeframe = primary_tf.interval if primary_tf else "10m"
             limit = primary_tf.bars_to_fetch if primary_tf else 500
 
-            df = await self.data_manager.fetch_bars(symbol, timeframe, limit)
+            df = await self.data_manager.get_historical_data(symbol, timeframe, bars=limit)
             if df is None or df.empty:
                 logger.debug(f"No data for {symbol}")
                 return None
 
             # Calculate EMA clouds
-            df_with_clouds = self.cloud_indicator.calculate_all_clouds(df)
+            df_with_clouds = self.cloud_indicator.calculate(df)
 
             # Generate signals
             signals = self.signal_generator.generate_signals(symbol, df_with_clouds)
@@ -128,7 +128,7 @@ class HoldingsScanner:
             sector_strength = self._sector_strengths.get(sector_etf, 50)
 
             # Check if signal conflicts with sector trend
-            filtered = self._should_filter_signal(signal.direction, sector_trend)
+            filtered = self._should_filter_signal(SignalDirection(signal.direction), sector_trend)
 
             return StockSignalContext(
                 signal=signal,

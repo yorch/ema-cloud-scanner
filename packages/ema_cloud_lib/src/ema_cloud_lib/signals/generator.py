@@ -108,7 +108,7 @@ class Signal(BaseModel):
         """Check if signal passed all required filters"""
         return len(self.filters_failed) == 0
 
-    def validate(self) -> list[str]:
+    def validate_signal(self) -> list[str]:
         """
         Comprehensive signal validation returning list of issues.
         Returns empty list if signal is fully valid.
@@ -736,7 +736,7 @@ class SignalGenerator:
     ) -> SignalStrength:
         """Calculate signal strength based on multiple factors"""
 
-        score = 50
+        score: float = 50
 
         # Cloud alignment bonus (up to +20)
         bullish_count = count_bullish_clouds(clouds)

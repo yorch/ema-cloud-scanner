@@ -194,6 +194,12 @@ Time: {message.timestamp.strftime("%Y-%m-%d %H:%M:%S")}
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
 
+        # These are guaranteed non-None when enabled (checked in _validate_config)
+        assert self.smtp_server is not None
+        assert self.smtp_username is not None
+        assert self.smtp_password is not None
+        assert self.from_address is not None
+
         # Create message
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"{'🟢' if message.direction == 'long' else '🔴'} {message.symbol} Signal"

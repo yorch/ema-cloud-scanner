@@ -616,7 +616,7 @@ class ScannerConfig(BaseModel):
         symbols.extend(self.custom_symbols)
         return symbols
 
-    def validate(self) -> list[str]:
+    def validate_config(self) -> list[str]:
         """
         Validate configuration and return list of warnings (not errors).
         Pydantic handles hard validation errors automatically.
