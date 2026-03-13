@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from ..config.settings import ScannerConfig
@@ -14,7 +14,7 @@ from ..signals.generator import Signal, SignalDirection, SignalGenerator, Signal
 logger = logging.getLogger(__name__)
 
 
-class SectorTrend(str, Enum):
+class SectorTrend(StrEnum):
     """Sector ETF trend states."""
 
     BULLISH = "bullish"
