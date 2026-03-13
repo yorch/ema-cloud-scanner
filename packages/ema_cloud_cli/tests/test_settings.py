@@ -67,7 +67,7 @@ def test_get_config_path_default():
     config_path = settings.get_config_path()
 
     assert config_path.name == "config.json"
-    assert "ema_cloud_cli" in str(config_path)
+    assert "ema-cloud-scanner" in str(config_path)
 
 
 def test_get_config_path_custom():
