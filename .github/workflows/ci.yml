@@ -12,6 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
       - run: uv sync --extra dev
       - name: Ruff check
         run: uv run ruff check packages/
@@ -39,4 +41,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --extra dev
       - name: Build packages
-        run: uv build
+        run: |
+          cd packages/ema_cloud_lib && uv build
+          cd ../ema_cloud_cli && uv build
