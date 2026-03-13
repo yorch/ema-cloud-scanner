@@ -20,6 +20,17 @@ jobs:
       - name: Ruff format
         run: uv run ruff format --check packages/
 
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --extra dev
+      - name: Mypy type check
+        run: uv run mypy packages/ema_cloud_lib/src/ema_cloud_lib/ --ignore-missing-imports
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -31,8 +42,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --extra dev
-      - name: Run tests
-        run: uv run pytest tests/ -v
+      - name: Run tests with coverage
+        run: uv run pytest tests/ -v --tb=short
+      - name: Run CLI tests
+        run: uv run pytest packages/ema_cloud_cli/tests/ -v --tb=short
 
   build:
     runs-on: ubuntu-latest

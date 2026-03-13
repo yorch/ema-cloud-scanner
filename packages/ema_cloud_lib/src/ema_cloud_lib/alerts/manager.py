@@ -57,7 +57,7 @@ class AlertManager:
             if handler.enabled:
                 try:
                     results[name] = await handler.send_alert(message)
-                except Exception as e:
+                except (OSError, TimeoutError, ValueError, RuntimeError) as e:
                     logger.error(f"Handler {name} failed: {e}")
                     results[name] = False
 
@@ -81,7 +81,7 @@ class AlertManager:
             if handler.enabled:
                 try:
                     results[name] = await handler.send_batch(messages)
-                except Exception as e:
+                except (OSError, TimeoutError, ValueError, RuntimeError) as e:
                     logger.error(f"Handler {name} batch failed: {e}")
                     results[name] = 0
 

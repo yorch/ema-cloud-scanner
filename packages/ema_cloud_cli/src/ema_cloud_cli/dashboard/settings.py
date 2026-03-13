@@ -338,7 +338,9 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                         yield self._row(
                             "Telegram Bot Token",
                             Input(
-                                self._config.alerts.telegram_bot_token or "",
+                                self._config.alerts.telegram_bot_token.get_secret_value()
+                                if self._config.alerts.telegram_bot_token
+                                else "",
                                 id="telegram_bot_token",
                                 classes="form-control",
                                 password=True,
@@ -363,7 +365,9 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                         yield self._row(
                             "Discord Webhook",
                             Input(
-                                self._config.alerts.discord_webhook_url or "",
+                                self._config.alerts.discord_webhook_url.get_secret_value()
+                                if self._config.alerts.discord_webhook_url
+                                else "",
                                 id="discord_webhook_url",
                                 classes="form-control",
                             ),
@@ -409,7 +413,9 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                         yield self._row(
                             "Alpaca API Key",
                             Input(
-                                self._config.data_provider.alpaca_api_key or "",
+                                self._config.data_provider.alpaca_api_key.get_secret_value()
+                                if self._config.data_provider.alpaca_api_key
+                                else "",
                                 id="alpaca_api_key",
                                 classes="form-control",
                                 password=True,
@@ -418,7 +424,9 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                         yield self._row(
                             "Alpaca Secret",
                             Input(
-                                self._config.data_provider.alpaca_secret_key or "",
+                                self._config.data_provider.alpaca_secret_key.get_secret_value()
+                                if self._config.data_provider.alpaca_secret_key
+                                else "",
                                 id="alpaca_secret_key",
                                 classes="form-control",
                                 password=True,
@@ -442,7 +450,9 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                         yield self._row(
                             "Polygon API Key",
                             Input(
-                                self._config.data_provider.polygon_api_key or "",
+                                self._config.data_provider.polygon_api_key.get_secret_value()
+                                if self._config.data_provider.polygon_api_key
+                                else "",
                                 id="polygon_api_key",
                                 classes="form-control",
                                 password=True,
@@ -710,7 +720,7 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                 clouds[key]["color_bearish"] = self._read_input(f"cloud-{key}-color_bearish")
 
             new_config = ScannerConfig.model_validate(config_dict)
-            issues = new_config.validate()
+            issues = new_config.validate_config()
             if issues:
                 self.notify("Settings validation: " + "; ".join(issues), severity="error")
                 return

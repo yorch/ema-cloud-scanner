@@ -194,6 +194,12 @@ Time: {message.timestamp.strftime("%Y-%m-%d %H:%M:%S")}
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
 
+        # These are guaranteed non-None when enabled (checked in _validate_config)
+        assert self.smtp_server is not None
+        assert self.smtp_username is not None
+        assert self.smtp_password is not None
+        assert self.from_address is not None
+
         # Create message
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"{'🟢' if message.direction == 'long' else '🔴'} {message.symbol} Signal"
@@ -228,6 +234,9 @@ Time: {message.timestamp.strftime("%Y-%m-%d %H:%M:%S")}
             await asyncio.to_thread(self._send_smtp_sync, message)
             return True
 
-        except Exception as e:
+        except (OSError, TimeoutError) as e:
+            logger.error(f"Email alert network error: {e}")
+            return False
+        except (ValueError, RuntimeError) as e:
             logger.error(f"Email alert error: {e}")
             return False

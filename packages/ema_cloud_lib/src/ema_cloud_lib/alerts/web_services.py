@@ -122,8 +122,8 @@ class TelegramAlertHandler(BaseAlertHandler):
                         logger.error(f"Telegram API error {response.status}: {error_text}")
                         return False
 
-        except Exception as e:
-            logger.error(f"Telegram alert error: {e}")
+        except (OSError, TimeoutError) as e:
+            logger.error(f"Telegram alert network error: {e}")
             return False
 
 
@@ -235,6 +235,6 @@ class DiscordAlertHandler(BaseAlertHandler):
                         logger.error(f"Discord webhook error {response.status}: {error_text}")
                         return False
 
-        except Exception as e:
-            logger.error(f"Discord alert error: {e}")
+        except (OSError, TimeoutError) as e:
+            logger.error(f"Discord alert network error: {e}")
             return False

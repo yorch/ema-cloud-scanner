@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
 class TradingStyle(Enum):
@@ -365,7 +365,7 @@ class AlertConfig(BaseModel):
 
     # Telegram notifications
     telegram_enabled: bool = Field(default=False, description="Enable Telegram notifications")
-    telegram_bot_token: str | None = Field(
+    telegram_bot_token: SecretStr | None = Field(
         default=None, description="Telegram bot token (from @BotFather)"
     )
     telegram_chat_id: str | None = Field(
@@ -374,7 +374,7 @@ class AlertConfig(BaseModel):
 
     # Discord notifications
     discord_enabled: bool = Field(default=False, description="Enable Discord notifications")
-    discord_webhook_url: str | None = Field(default=None, description="Discord webhook URL")
+    discord_webhook_url: SecretStr | None = Field(default=None, description="Discord webhook URL")
 
     # Email notifications
     email_enabled: bool = Field(default=False, description="Enable email notifications")
@@ -391,7 +391,7 @@ class AlertConfig(BaseModel):
     email_username: str | None = Field(
         default=None, description="SMTP username (usually email address)"
     )
-    email_password: str | None = Field(
+    email_password: SecretStr | None = Field(
         default=None, description="SMTP password or app-specific password"
     )
     email_from_address: str | None = Field(default=None, description="From email address")
@@ -401,7 +401,7 @@ class AlertConfig(BaseModel):
 
     @property
     def to_dict(self) -> dict:
-        """Convert to dictionary for AlertManager"""
+        """Convert to dictionary for AlertManager (extracts secret values for runtime use)"""
         return {
             "console": {
                 "enabled": self.console_enabled,
@@ -413,12 +413,16 @@ class AlertConfig(BaseModel):
             },
             "telegram": {
                 "enabled": self.telegram_enabled,
-                "bot_token": self.telegram_bot_token,
+                "bot_token": self.telegram_bot_token.get_secret_value()
+                if self.telegram_bot_token
+                else None,
                 "chat_id": self.telegram_chat_id,
             },
             "discord": {
                 "enabled": self.discord_enabled,
-                "webhook_url": self.discord_webhook_url,
+                "webhook_url": self.discord_webhook_url.get_secret_value()
+                if self.discord_webhook_url
+                else None,
             },
             "email": {
                 "enabled": self.email_enabled,
@@ -427,7 +431,7 @@ class AlertConfig(BaseModel):
                 "use_tls": self.email_use_tls,
                 "use_ssl": self.email_use_ssl,
                 "username": self.email_username,
-                "password": self.email_password,
+                "password": self.email_password.get_secret_value() if self.email_password else None,
                 "from_address": self.email_from_address,
                 "from_name": self.email_from_name,
                 "recipients": self.email_recipients,
@@ -444,13 +448,13 @@ class DataProviderConfig(BaseModel):
 
     # Alpaca
     alpaca_enabled: bool = Field(default=False, description="Enable Alpaca data provider")
-    alpaca_api_key: str | None = Field(default=None, description="Alpaca API key")
-    alpaca_secret_key: str | None = Field(default=None, description="Alpaca secret key")
+    alpaca_api_key: SecretStr | None = Field(default=None, description="Alpaca API key")
+    alpaca_secret_key: SecretStr | None = Field(default=None, description="Alpaca secret key")
     alpaca_paper: bool = Field(default=True, description="Use Alpaca paper trading endpoint")
 
     # Polygon.io
     polygon_enabled: bool = Field(default=False, description="Enable Polygon.io data provider")
-    polygon_api_key: str | None = Field(default=None, description="Polygon.io API key")
+    polygon_api_key: SecretStr | None = Field(default=None, description="Polygon.io API key")
 
     # Rate limiting
     request_delay_ms: int = Field(default=100, description="Delay between requests (ms)")
@@ -612,7 +616,7 @@ class ScannerConfig(BaseModel):
         symbols.extend(self.custom_symbols)
         return symbols
 
-    def validate(self) -> list[str]:
+    def validate_config(self) -> list[str]:
         """
         Validate configuration and return list of warnings (not errors).
         Pydantic handles hard validation errors automatically.
