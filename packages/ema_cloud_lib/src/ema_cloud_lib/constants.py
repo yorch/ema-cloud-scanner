@@ -2,10 +2,10 @@
 Shared constants and enums for the EMA Cloud library.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class TrendDirection(str, Enum):
+class TrendDirection(StrEnum):
     """Trend direction classification."""
 
     BULLISH = "bullish"
