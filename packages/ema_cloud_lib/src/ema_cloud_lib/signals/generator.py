@@ -218,121 +218,181 @@ class SignalFilter:
     def filter_volume(self, row: pd.Series) -> FilterResult:
         """Check if volume meets minimum threshold"""
         if not self.config.volume_enabled:
-            return FilterResult(True, "Volume filter disabled", "volume")
+            return FilterResult(passed=True, reason="Volume filter disabled", filter_name="volume")
 
         volume_ratio = row.get("volume_ratio", 1.0)
         if pd.isna(volume_ratio):
-            return FilterResult(True, "Volume ratio not available", "volume")
+            return FilterResult(
+                passed=True, reason="Volume ratio not available", filter_name="volume"
+            )
         if volume_ratio >= self.config.volume_multiplier:
-            return FilterResult(True, f"Volume ratio {volume_ratio:.2f}x meets threshold", "volume")
+            return FilterResult(
+                passed=True,
+                reason=f"Volume ratio {volume_ratio:.2f}x meets threshold",
+                filter_name="volume",
+            )
         return FilterResult(
-            False,
-            f"Volume ratio {volume_ratio:.2f}x below {self.config.volume_multiplier}x threshold",
-            "volume",
+            passed=False,
+            reason=f"Volume ratio {volume_ratio:.2f}x below {self.config.volume_multiplier}x threshold",
+            filter_name="volume",
         )
 
     def filter_rsi(self, row: pd.Series, direction: str) -> FilterResult:
         """Check RSI for overbought/oversold conditions"""
         if not self.config.rsi_enabled:
-            return FilterResult(True, "RSI filter disabled", "rsi")
+            return FilterResult(passed=True, reason="RSI filter disabled", filter_name="rsi")
 
         rsi = row.get("rsi")
         if rsi is None or pd.isna(rsi):
-            return FilterResult(True, "RSI not available", "rsi")
+            return FilterResult(passed=True, reason="RSI not available", filter_name="rsi")
 
         if direction == "long":
             if rsi > self.config.rsi_overbought:
-                return FilterResult(False, f"RSI {rsi:.1f} overbought for long entry", "rsi")
+                return FilterResult(
+                    passed=False,
+                    reason=f"RSI {rsi:.1f} overbought for long entry",
+                    filter_name="rsi",
+                )
             elif rsi < self.config.rsi_neutral_zone[0]:
-                return FilterResult(True, f"RSI {rsi:.1f} showing potential upward momentum", "rsi")
-            return FilterResult(True, f"RSI {rsi:.1f} in neutral zone", "rsi")
+                return FilterResult(
+                    passed=True,
+                    reason=f"RSI {rsi:.1f} showing potential upward momentum",
+                    filter_name="rsi",
+                )
+            return FilterResult(
+                passed=True, reason=f"RSI {rsi:.1f} in neutral zone", filter_name="rsi"
+            )
         # Short direction
         if rsi < self.config.rsi_oversold:
-            return FilterResult(False, f"RSI {rsi:.1f} oversold for short entry", "rsi")
+            return FilterResult(
+                passed=False, reason=f"RSI {rsi:.1f} oversold for short entry", filter_name="rsi"
+            )
         elif rsi > self.config.rsi_neutral_zone[1]:
-            return FilterResult(True, f"RSI {rsi:.1f} showing potential downward momentum", "rsi")
-        return FilterResult(True, f"RSI {rsi:.1f} in neutral zone", "rsi")
+            return FilterResult(
+                passed=True,
+                reason=f"RSI {rsi:.1f} showing potential downward momentum",
+                filter_name="rsi",
+            )
+        return FilterResult(passed=True, reason=f"RSI {rsi:.1f} in neutral zone", filter_name="rsi")
 
     def filter_adx(self, row: pd.Series) -> FilterResult:
         """Check ADX for trend strength"""
         if not self.config.adx_enabled:
-            return FilterResult(True, "ADX filter disabled", "adx")
+            return FilterResult(passed=True, reason="ADX filter disabled", filter_name="adx")
 
         adx = row.get("adx")
         if adx is None or pd.isna(adx):
-            return FilterResult(True, "ADX not available", "adx")
+            return FilterResult(passed=True, reason="ADX not available", filter_name="adx")
 
         if adx >= self.config.adx_strong_trend:
-            return FilterResult(True, f"ADX {adx:.1f} shows strong trend", "adx")
+            return FilterResult(
+                passed=True, reason=f"ADX {adx:.1f} shows strong trend", filter_name="adx"
+            )
         elif adx >= self.config.adx_min_strength:
-            return FilterResult(True, f"ADX {adx:.1f} shows moderate trend", "adx")
+            return FilterResult(
+                passed=True, reason=f"ADX {adx:.1f} shows moderate trend", filter_name="adx"
+            )
         return FilterResult(
-            False, f"ADX {adx:.1f} too weak (min {self.config.adx_min_strength})", "adx"
+            passed=False,
+            reason=f"ADX {adx:.1f} too weak (min {self.config.adx_min_strength})",
+            filter_name="adx",
         )
 
     def filter_vwap(self, row: pd.Series, direction: str) -> FilterResult:
         """Check price position relative to VWAP"""
         if not self.config.vwap_enabled:
-            return FilterResult(True, "VWAP filter disabled", "vwap")
+            return FilterResult(passed=True, reason="VWAP filter disabled", filter_name="vwap")
 
         vwap = row.get("vwap")
         price = row.get("close")
 
         if vwap is None or price is None or pd.isna(vwap) or pd.isna(price):
-            return FilterResult(True, "VWAP not available", "vwap")
+            return FilterResult(passed=True, reason="VWAP not available", filter_name="vwap")
 
         if direction == "long":
             if price > vwap:
-                return FilterResult(True, f"Price ${price:.2f} above VWAP ${vwap:.2f}", "vwap")
+                return FilterResult(
+                    passed=True,
+                    reason=f"Price ${price:.2f} above VWAP ${vwap:.2f}",
+                    filter_name="vwap",
+                )
             return FilterResult(
-                False, f"Price ${price:.2f} below VWAP ${vwap:.2f} for long", "vwap"
+                passed=False,
+                reason=f"Price ${price:.2f} below VWAP ${vwap:.2f} for long",
+                filter_name="vwap",
             )
         # Short direction
         if price < vwap:
-            return FilterResult(True, f"Price ${price:.2f} below VWAP ${vwap:.2f}", "vwap")
-        return FilterResult(False, f"Price ${price:.2f} above VWAP ${vwap:.2f} for short", "vwap")
+            return FilterResult(
+                passed=True, reason=f"Price ${price:.2f} below VWAP ${vwap:.2f}", filter_name="vwap"
+            )
+        return FilterResult(
+            passed=False,
+            reason=f"Price ${price:.2f} above VWAP ${vwap:.2f} for short",
+            filter_name="vwap",
+        )
 
     def filter_atr(self, row: pd.Series) -> FilterResult:
         """Check ATR for volatility conditions"""
         if not self.config.atr_enabled:
-            return FilterResult(True, "ATR filter disabled", "atr")
+            return FilterResult(passed=True, reason="ATR filter disabled", filter_name="atr")
 
         atr_pct = row.get("atr_pct")
         if atr_pct is None or pd.isna(atr_pct):
-            return FilterResult(True, "ATR not available", "atr")
+            return FilterResult(passed=True, reason="ATR not available", filter_name="atr")
 
         if atr_pct < self.config.atr_min_threshold:
             return FilterResult(
-                False, f"ATR {atr_pct:.2f}% too low (min {self.config.atr_min_threshold}%)", "atr"
+                passed=False,
+                reason=f"ATR {atr_pct:.2f}% too low (min {self.config.atr_min_threshold}%)",
+                filter_name="atr",
             )
         elif atr_pct > self.config.atr_max_threshold:
             return FilterResult(
-                False, f"ATR {atr_pct:.2f}% too high (max {self.config.atr_max_threshold}%)", "atr"
+                passed=False,
+                reason=f"ATR {atr_pct:.2f}% too high (max {self.config.atr_max_threshold}%)",
+                filter_name="atr",
             )
-        return FilterResult(True, f"ATR {atr_pct:.2f}% within acceptable range", "atr")
+        return FilterResult(
+            passed=True, reason=f"ATR {atr_pct:.2f}% within acceptable range", filter_name="atr"
+        )
 
     def filter_macd(self, row: pd.Series, direction: str) -> FilterResult:
         """Check MACD for momentum confirmation"""
         if not self.config.macd_enabled:
-            return FilterResult(True, "MACD filter disabled", "macd")
+            return FilterResult(passed=True, reason="MACD filter disabled", filter_name="macd")
 
         macd_hist = row.get("macd_histogram")
         if macd_hist is None or pd.isna(macd_hist):
-            return FilterResult(True, "MACD not available", "macd")
+            return FilterResult(passed=True, reason="MACD not available", filter_name="macd")
 
         if direction == "long":
             if macd_hist > 0:
-                return FilterResult(True, f"MACD histogram {macd_hist:.4f} positive", "macd")
-            return FilterResult(False, f"MACD histogram {macd_hist:.4f} negative for long", "macd")
+                return FilterResult(
+                    passed=True,
+                    reason=f"MACD histogram {macd_hist:.4f} positive",
+                    filter_name="macd",
+                )
+            return FilterResult(
+                passed=False,
+                reason=f"MACD histogram {macd_hist:.4f} negative for long",
+                filter_name="macd",
+            )
         # Short direction
         if macd_hist < 0:
-            return FilterResult(True, f"MACD histogram {macd_hist:.4f} negative", "macd")
-        return FilterResult(False, f"MACD histogram {macd_hist:.4f} positive for short", "macd")
+            return FilterResult(
+                passed=True, reason=f"MACD histogram {macd_hist:.4f} negative", filter_name="macd"
+            )
+        return FilterResult(
+            passed=False,
+            reason=f"MACD histogram {macd_hist:.4f} positive for short",
+            filter_name="macd",
+        )
 
     def filter_time_of_day(self, timestamp: datetime) -> FilterResult:
         """Check if within valid trading hours"""
         if not self.config.time_filter_enabled:
-            return FilterResult(True, "Time filter disabled", "time")
+            return FilterResult(passed=True, reason="Time filter disabled", filter_name="time")
 
         current_time = timestamp.time()
 
@@ -355,15 +415,17 @@ class SignalFilter:
 
         if current_time < buffer_start:
             return FilterResult(
-                False,
-                f"Too early - avoiding first {self.config.avoid_first_minutes} minutes",
-                "time",
+                passed=False,
+                reason=f"Too early - avoiding first {self.config.avoid_first_minutes} minutes",
+                filter_name="time",
             )
         elif current_time > buffer_end:
             return FilterResult(
-                False, f"Too late - avoiding last {self.config.avoid_last_minutes} minutes", "time"
+                passed=False,
+                reason=f"Too late - avoiding last {self.config.avoid_last_minutes} minutes",
+                filter_name="time",
             )
-        return FilterResult(True, "Within valid trading hours", "time")
+        return FilterResult(passed=True, reason="Within valid trading hours", filter_name="time")
 
     def apply_all_filters(
         self, row: pd.Series, direction: str, timestamp: datetime

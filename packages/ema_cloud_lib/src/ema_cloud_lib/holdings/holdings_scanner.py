@@ -138,8 +138,11 @@ class HoldingsScanner:
                 sector_strength=sector_strength,
             )
 
-        except Exception as e:
-            logger.error(f"Error scanning {symbol}: {e}")
+        except (ValueError, KeyError, IndexError) as e:
+            logger.error(f"Data processing error scanning {symbol}: {e}")
+            return None
+        except OSError as e:
+            logger.error(f"Network error scanning {symbol}: {e}")
             return None
 
     async def scan_holdings(

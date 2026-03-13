@@ -12,7 +12,7 @@ Each provider must implement the BaseDataProvider interface.
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -430,9 +430,16 @@ class YahooFinanceProvider(BaseDataProvider):
 
             return df
 
-        except Exception as e:
-            logger.error(f"Error fetching {symbol} from Yahoo Finance: {e}")
-            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}")
+        except InvalidSymbolError:
+            raise
+        except (ValueError, KeyError, TypeError) as e:
+            api_call_tracker.record_call(failed=True)
+            logger.error(f"Data error fetching {symbol} from Yahoo Finance: {e}")
+            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
+        except OSError as e:
+            api_call_tracker.record_call(failed=True)
+            logger.error(f"Network error fetching {symbol} from Yahoo Finance: {e}")
+            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
 
     async def get_quote(self, symbol: str) -> Quote:
         """Get current quote from Yahoo Finance"""
@@ -451,11 +458,16 @@ class YahooFinanceProvider(BaseDataProvider):
                 ask=info.get("ask", fast_info.get("lastPrice", 0)),
                 last=fast_info.get("lastPrice", info.get("regularMarketPrice", 0)),
                 volume=fast_info.get("lastVolume", info.get("volume", 0)),
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
             )
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
+            api_call_tracker.record_call(failed=True)
             logger.error(f"Error getting quote for {symbol}: {e}")
-            raise DataProviderError(f"Failed to get quote for {symbol}: {e}")
+            raise DataProviderError(f"Failed to get quote for {symbol}: {e}") from e
+        except OSError as e:
+            api_call_tracker.record_call(failed=True)
+            logger.error(f"Network error getting quote for {symbol}: {e}")
+            raise DataProviderError(f"Failed to get quote for {symbol}: {e}") from e
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
         """Get quotes for multiple symbols (parallel fetching)"""
@@ -463,7 +475,7 @@ class YahooFinanceProvider(BaseDataProvider):
         async def fetch_quote(symbol: str) -> tuple[str, Quote | None]:
             try:
                 return symbol, await self.get_quote(symbol)
-            except Exception as e:
+            except DataProviderError as e:
                 logger.warning(f"Failed to get quote for {symbol}: {e}")
                 return symbol, None
 
@@ -542,7 +554,7 @@ class AlpacaProvider(BaseDataProvider):
 
             # Default time range if not specified
             if end is None:
-                end = datetime.now()
+                end = datetime.now(UTC)
             if start is None:
                 # Estimate start based on bars and interval
                 minutes = INTERVAL_MINUTES.get(interval, 1440)
@@ -567,9 +579,12 @@ class AlpacaProvider(BaseDataProvider):
 
         except ImportError:
             raise DataProviderError("alpaca-py package not installed. Run: pip install alpaca-py")
-        except Exception as e:
+        except DataProviderError:
+            raise
+        except (ValueError, KeyError, TypeError, OSError) as e:
+            api_call_tracker.record_call(failed=True)
             logger.error(f"Error fetching {symbol} from Alpaca: {e}")
-            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}")
+            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
 
     async def get_quote(self, symbol: str) -> Quote:
         """Get real-time quote from Alpaca"""
@@ -591,9 +606,11 @@ class AlpacaProvider(BaseDataProvider):
                 volume=0,  # Alpaca quote doesn't include volume
                 timestamp=quote_data.timestamp,
             )
-        except Exception as e:
+        except DataProviderError:
+            raise
+        except (ValueError, KeyError, TypeError, OSError) as e:
             logger.error(f"Error getting quote for {symbol}: {e}")
-            raise DataProviderError(f"Failed to get quote for {symbol}: {e}")
+            raise DataProviderError(f"Failed to get quote for {symbol}: {e}") from e
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
         """Get quotes for multiple symbols from Alpaca"""
@@ -617,9 +634,11 @@ class AlpacaProvider(BaseDataProvider):
                     timestamp=quote_data.timestamp,
                 )
             return quotes
-        except Exception as e:
+        except DataProviderError:
+            raise
+        except (ValueError, KeyError, TypeError, OSError) as e:
             logger.error(f"Error getting quotes: {e}")
-            raise DataProviderError(f"Failed to get quotes: {e}")
+            raise DataProviderError(f"Failed to get quotes: {e}") from e
 
 
 class PolygonProvider(BaseDataProvider):
@@ -686,7 +705,7 @@ class PolygonProvider(BaseDataProvider):
             client = self._get_client()
 
             if end is None:
-                end = datetime.now()
+                end = datetime.now(UTC)
             if start is None:
                 # Estimate start based on bars and interval
                 minutes = INTERVAL_MINUTES.get(interval, 1440)
@@ -725,9 +744,12 @@ class PolygonProvider(BaseDataProvider):
             raise DataProviderError(
                 "polygon-api-client package not installed. Run: pip install polygon-api-client"
             )
-        except Exception as e:
+        except DataProviderError:
+            raise
+        except (ValueError, KeyError, TypeError, OSError) as e:
+            api_call_tracker.record_call(failed=True)
             logger.error(f"Error fetching {symbol} from Polygon: {e}")
-            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}")
+            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
 
     async def get_quote(self, symbol: str) -> Quote:
         """Get real-time quote from Polygon"""
@@ -743,11 +765,13 @@ class PolygonProvider(BaseDataProvider):
                 ask=quote.ask_price if hasattr(quote, "ask_price") else 0,
                 last=quote.last_price if hasattr(quote, "last_price") else 0,
                 volume=0,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
             )
-        except Exception as e:
+        except DataProviderError:
+            raise
+        except (ValueError, KeyError, TypeError, OSError) as e:
             logger.error(f"Error getting quote for {symbol}: {e}")
-            raise DataProviderError(f"Failed to get quote for {symbol}: {e}")
+            raise DataProviderError(f"Failed to get quote for {symbol}: {e}") from e
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
         """Get quotes for multiple symbols (parallel fetching)"""
@@ -755,7 +779,7 @@ class PolygonProvider(BaseDataProvider):
         async def fetch_quote(symbol: str) -> tuple[str, Quote | None]:
             try:
                 return symbol, await self.get_quote(symbol)
-            except Exception as e:
+            except DataProviderError as e:
                 logger.warning(f"Failed to get quote for {symbol}: {e}")
                 return symbol, None
 
@@ -766,13 +790,20 @@ class PolygonProvider(BaseDataProvider):
 class DataProviderManager:
     """
     Manager class for handling multiple data providers.
-    Provides fallback and load balancing capabilities.
+    Provides fallback, retry with exponential backoff, and load balancing capabilities.
     """
 
-    def __init__(self, config: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        config: dict[str, Any] | None = None,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+    ):
         self.config = config or {}
         self.providers: dict[str, BaseDataProvider] = {}
         self.primary_provider: BaseDataProvider | None = None
+        self.max_retries = max_retries
+        self.base_delay = base_delay
         self._initialize_providers()
 
     def _initialize_providers(self):
@@ -831,14 +862,23 @@ class DataProviderManager:
         else:
             providers_to_try = list(self.providers.values())
 
-        last_error = None
+        last_error: DataProviderError | None = None
         for prov in providers_to_try:
-            try:
-                return await prov.get_historical_data(symbol, interval, start, end, bars)
-            except Exception as e:
-                last_error = e
-                logger.warning(f"Provider {prov.name} failed for {symbol}: {e}")
-                continue
+            for attempt in range(self.max_retries):
+                try:
+                    return await prov.get_historical_data(symbol, interval, start, end, bars)
+                except DataProviderError as e:
+                    last_error = e
+                    if attempt < self.max_retries - 1:
+                        delay = self.base_delay * (2**attempt)
+                        logger.warning(
+                            f"Provider {prov.name} failed for {symbol} "
+                            f"(attempt {attempt + 1}/{self.max_retries}): {e}. "
+                            f"Retrying in {delay:.1f}s..."
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.warning(f"Provider {prov.name} exhausted retries for {symbol}: {e}")
 
         raise DataProviderError(f"All providers failed for {symbol}: {last_error}")
 
@@ -855,10 +895,19 @@ class DataProviderManager:
                     providers_to_try.append(self.providers[name])
 
         for prov in providers_to_try:
-            try:
-                return await prov.get_quotes(symbols)
-            except Exception as e:
-                logger.warning(f"Provider {prov.name} failed for quotes: {e}")
-                continue
+            for attempt in range(self.max_retries):
+                try:
+                    return await prov.get_quotes(symbols)
+                except DataProviderError as e:
+                    if attempt < self.max_retries - 1:
+                        delay = self.base_delay * (2**attempt)
+                        logger.warning(
+                            f"Provider {prov.name} failed for quotes "
+                            f"(attempt {attempt + 1}/{self.max_retries}): {e}. "
+                            f"Retrying in {delay:.1f}s..."
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.warning(f"Provider {prov.name} exhausted retries for quotes: {e}")
 
         raise DataProviderError("All providers failed for quotes")

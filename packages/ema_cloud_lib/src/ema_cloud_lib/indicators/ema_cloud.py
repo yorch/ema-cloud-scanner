@@ -171,13 +171,24 @@ def calculate_vwap(
 ) -> pd.Series:
     """
     Calculate Volume Weighted Average Price.
-    Resets at the start of each day.
+    Resets at the start of each trading day for intraday data.
+    For daily or longer timeframes, uses a rolling cumulative calculation.
     """
     typical_price = (high + low + close) / 3
-    cumulative_tp_volume = (typical_price * volume).cumsum()
-    cumulative_volume = volume.cumsum()
+    tp_volume = typical_price * volume
 
-    return cumulative_tp_volume / cumulative_volume
+    # Detect if data is intraday by checking if multiple bars share the same date
+    if hasattr(high.index, "date"):
+        dates = pd.Series(high.index.date, index=high.index)
+        # Group by date and cumsum within each day
+        cumulative_tp_volume = tp_volume.groupby(dates).cumsum()
+        cumulative_volume = volume.groupby(dates).cumsum()
+    else:
+        # Fallback: no date info, use simple cumulative
+        cumulative_tp_volume = tp_volume.cumsum()
+        cumulative_volume = volume.cumsum()
+
+    return cumulative_tp_volume / cumulative_volume.replace(0, np.nan)
 
 
 def calculate_macd(

@@ -147,36 +147,51 @@ class BacktestResult(BaseModel):
             "avg_bars_held": self.avg_bars_held,
         }
 
-    def print_summary(self):
-        """Print a formatted summary of results"""
-        print(f"\n{'=' * 60}")
-        print(f"BACKTEST RESULTS: {self.symbol}")
-        print(f"{'=' * 60}")
+    def format_summary(self) -> str:
+        """Format a summary of results as a string."""
+        lines = [
+            f"\n{'=' * 60}",
+            f"BACKTEST RESULTS: {self.symbol}",
+            f"{'=' * 60}",
+        ]
         if self.start_date and self.end_date:
-            print(
+            lines.append(
                 f"Period: {self.start_date.strftime('%Y-%m-%d')} to {self.end_date.strftime('%Y-%m-%d')}"
             )
-        print(f"Initial Capital: ${self.initial_capital:,.2f}")
-        print(f"Final Capital: ${self.final_capital:,.2f}")
-        print(f"Total Return: ${self.total_return:,.2f} ({self.total_return_pct:+.2f}%)")
-        print(f"\n{'-' * 60}")
-        print("TRADE STATISTICS")
-        print(f"{'-' * 60}")
-        print(f"Total Trades: {self.total_trades}")
-        print(f"Winning Trades: {self.winning_trades} ({self.win_rate:.1f}%)")
-        print(f"Losing Trades: {self.losing_trades}")
-        print(f"Average Win: ${self.avg_win:.2f}")
-        print(f"Average Loss: ${self.avg_loss:.2f}")
+        lines.extend(
+            [
+                f"Initial Capital: ${self.initial_capital:,.2f}",
+                f"Final Capital: ${self.final_capital:,.2f}",
+                f"Total Return: ${self.total_return:,.2f} ({self.total_return_pct:+.2f}%)",
+                f"\n{'-' * 60}",
+                "TRADE STATISTICS",
+                f"{'-' * 60}",
+                f"Total Trades: {self.total_trades}",
+                f"Winning Trades: {self.winning_trades} ({self.win_rate:.1f}%)",
+                f"Losing Trades: {self.losing_trades}",
+                f"Average Win: ${self.avg_win:.2f}",
+                f"Average Loss: ${self.avg_loss:.2f}",
+            ]
+        )
         pf_str = f"{self.profit_factor:.2f}" if self.profit_factor != float("inf") else "∞"
-        print(f"Profit Factor: {pf_str}")
-        print(f"Expectancy: ${self.expectancy:.2f}")
-        print(f"\n{'-' * 60}")
-        print("RISK METRICS")
-        print(f"{'-' * 60}")
-        print(f"Max Drawdown: ${self.max_drawdown:,.2f} ({self.max_drawdown_pct:.2f}%)")
-        print(f"Sharpe Ratio: {self.sharpe_ratio:.2f}")
-        print(f"Avg Bars Held: {self.avg_bars_held:.1f}")
-        print(f"{'=' * 60}\n")
+        lines.extend(
+            [
+                f"Profit Factor: {pf_str}",
+                f"Expectancy: ${self.expectancy:.2f}",
+                f"\n{'-' * 60}",
+                "RISK METRICS",
+                f"{'-' * 60}",
+                f"Max Drawdown: ${self.max_drawdown:,.2f} ({self.max_drawdown_pct:.2f}%)",
+                f"Sharpe Ratio: {self.sharpe_ratio:.2f}",
+                f"Avg Bars Held: {self.avg_bars_held:.1f}",
+                f"{'=' * 60}\n",
+            ]
+        )
+        return "\n".join(lines)
+
+    def print_summary(self):
+        """Log a formatted summary of results."""
+        logger.info(self.format_summary())
 
 
 class Backtester:
@@ -184,17 +199,33 @@ class Backtester:
     Backtesting engine for EMA Cloud strategy.
     """
 
+    # Annualization factors for Sharpe ratio by timeframe
+    ANNUALIZATION_FACTORS = {
+        "1m": 252 * 390,  # Trading minutes per year
+        "5m": 252 * 78,
+        "10m": 252 * 39,
+        "15m": 252 * 26,
+        "30m": 252 * 13,
+        "1h": 252 * 6.5,
+        "4h": 252 * 1.625,
+        "1d": 252,
+        "1wk": 52,
+        "1mo": 12,
+    }
+
     def __init__(
         self,
         initial_capital: float = 100000.0,
         position_size_pct: float = 10.0,
         commission: float = 0.0,
         slippage_pct: float = 0.05,
+        timeframe: str = "1d",
     ):
         self.initial_capital = initial_capital
         self.position_size_pct = position_size_pct
         self.commission = commission
         self.slippage_pct = slippage_pct
+        self.timeframe = timeframe
 
     def run(
         self,
@@ -378,10 +409,11 @@ class Backtester:
             else 0
         )
 
-        # Calculate Sharpe Ratio (simplified - annualized)
+        # Calculate Sharpe Ratio (annualized by timeframe)
         returns = equity_series.pct_change().dropna()
+        annualization_factor = self.ANNUALIZATION_FACTORS.get(self.timeframe, 252)
         if len(returns) > 1 and returns.std() > 0:
-            sharpe = (returns.mean() / returns.std()) * np.sqrt(252)
+            sharpe = (returns.mean() / returns.std()) * np.sqrt(annualization_factor)
         else:
             sharpe = 0
 
@@ -476,7 +508,7 @@ class Backtester:
         for symbol, df in data_dict.items():
             try:
                 results[symbol] = self.run(df, symbol, **kwargs)
-            except Exception as e:
+            except (ValueError, KeyError, IndexError) as e:
                 logger.error(f"Backtest failed for {symbol}: {e}")
 
         return results
@@ -508,12 +540,16 @@ class Backtester:
 
 
 def run_quick_backtest(
-    df: pd.DataFrame, symbol: str, initial_capital: float = 100000.0, print_results: bool = True
+    df: pd.DataFrame,
+    symbol: str,
+    initial_capital: float = 100000.0,
+    print_results: bool = True,
+    timeframe: str = "1d",
 ) -> BacktestResult:
     """
     Convenience function to run a quick backtest.
     """
-    backtester = Backtester(initial_capital=initial_capital)
+    backtester = Backtester(initial_capital=initial_capital, timeframe=timeframe)
     result = backtester.run(df, symbol)
 
     if print_results:

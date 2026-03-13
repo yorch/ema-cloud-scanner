@@ -228,6 +228,9 @@ Time: {message.timestamp.strftime("%Y-%m-%d %H:%M:%S")}
             await asyncio.to_thread(self._send_smtp_sync, message)
             return True
 
-        except Exception as e:
+        except (OSError, TimeoutError) as e:
+            logger.error(f"Email alert network error: {e}")
+            return False
+        except (ValueError, RuntimeError) as e:
             logger.error(f"Email alert error: {e}")
             return False

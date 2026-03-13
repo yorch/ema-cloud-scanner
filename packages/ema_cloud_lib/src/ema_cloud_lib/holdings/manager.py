@@ -95,7 +95,7 @@ class YahooHoldingsProvider(HoldingsProvider):
                         total_holdings=len(holdings),
                         holdings=holdings,
                     )
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 logger.debug(f"Could not get holdings via get_holdings(): {e}")
 
             # Fallback: try institutional holders
@@ -120,13 +120,13 @@ class YahooHoldingsProvider(HoldingsProvider):
                         total_holdings=len(holdings),
                         holdings=holdings,
                     )
-            except Exception as e:
+            except (KeyError, ValueError, TypeError) as e:
                 logger.debug(f"Could not get holdings from info: {e}")
 
             logger.warning(f"No holdings data available for {etf_symbol}")
             return None
 
-        except Exception as e:
+        except (ValueError, KeyError, OSError) as e:
             logger.error(f"Error fetching holdings for {etf_symbol}: {e}")
             return None
 
@@ -359,7 +359,7 @@ class HoldingsManager:
 
                     api_call_tracker.record_cache_hit()
                     return holdings
-            except Exception as e:
+            except (json.JSONDecodeError, KeyError, ValueError, OSError) as e:
                 logger.warning(f"Error reading cache for {etf_symbol}: {e}")
 
         # Fetch from providers
@@ -378,12 +378,12 @@ class HoldingsManager:
 
                     # Save to file cache
                     try:
-                        cache_file.write_text(json.dumps(holdings.to_dict(), indent=2))
-                    except Exception as e:
+                        cache_file.write_text(json.dumps(holdings.to_dict(), indent=2, default=str))
+                    except (OSError, TypeError) as e:
                         logger.warning(f"Error writing cache for {etf_symbol}: {e}")
 
                     return holdings
-            except Exception as e:
+            except (ValueError, KeyError, OSError) as e:
                 logger.warning(f"Provider {type(provider).__name__} failed for {etf_symbol}: {e}")
                 continue
 

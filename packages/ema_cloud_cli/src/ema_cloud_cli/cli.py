@@ -25,6 +25,7 @@ from typing import Annotated
 
 import typer
 from platformdirs import user_cache_dir, user_log_dir
+from pydantic import SecretStr
 from rich.console import Console
 from rich.table import Table
 
@@ -648,8 +649,8 @@ def main(
                 raise typer.Exit(1)
             scanner_config.data_provider.yahoo_enabled = False
             scanner_config.data_provider.alpaca_enabled = True
-            scanner_config.data_provider.alpaca_api_key = alpaca_key
-            scanner_config.data_provider.alpaca_secret_key = alpaca_secret
+            scanner_config.data_provider.alpaca_api_key = SecretStr(alpaca_key)
+            scanner_config.data_provider.alpaca_secret_key = SecretStr(alpaca_secret)
             scanner_config.data_provider.alpaca_paper = alpaca_paper
             typer.echo(f"Data provider: Alpaca ({'paper' if alpaca_paper else 'live'})")
         elif provider_lower == "polygon":
@@ -658,7 +659,7 @@ def main(
                 raise typer.Exit(1)
             scanner_config.data_provider.yahoo_enabled = False
             scanner_config.data_provider.polygon_enabled = True
-            scanner_config.data_provider.polygon_api_key = polygon_key
+            scanner_config.data_provider.polygon_api_key = SecretStr(polygon_key)
             typer.echo("Data provider: Polygon.io")
 
     # Apply filter settings
@@ -694,7 +695,7 @@ def main(
         scanner_config.alerts.email_smtp_server = email_smtp_server
         scanner_config.alerts.email_smtp_port = email_smtp_port or 587
         scanner_config.alerts.email_username = email_username
-        scanner_config.alerts.email_password = email_password
+        scanner_config.alerts.email_password = SecretStr(email_password)
         scanner_config.alerts.email_from_address = email_from
         scanner_config.alerts.email_recipients = list(email_to)
         typer.echo(f"Email alerts enabled: {', '.join(email_to)}")

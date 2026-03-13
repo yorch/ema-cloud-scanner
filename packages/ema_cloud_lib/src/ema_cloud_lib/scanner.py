@@ -16,7 +16,7 @@ from ema_cloud_lib.config.settings import (
     SYMBOL_TO_SECTOR,
     ScannerConfig,
 )
-from ema_cloud_lib.constants import TrendDirection
+from ema_cloud_lib.constants import TrendDirection, utc_now
 from ema_cloud_lib.data_providers.base import DataProviderManager
 from ema_cloud_lib.holdings.holdings_scanner import HoldingsScanner, SectorTrend
 from ema_cloud_lib.holdings.manager import Holding, HoldingsManager
@@ -91,38 +91,23 @@ class EMACloudScanner:
         self._dashboard = dashboard
 
     def _alert_config_dict(self) -> dict[str, dict]:
-        return {
-            "console": {
-                "enabled": self.config.alerts.console_enabled,
-                "colors": self.config.alerts.console_colors,
-            },
-            "desktop": {
-                "enabled": self.config.alerts.desktop_enabled,
-                "sound": self.config.alerts.desktop_sound,
-            },
-            "telegram": {
-                "enabled": self.config.alerts.telegram_enabled,
-                "bot_token": self.config.alerts.telegram_bot_token,
-                "chat_id": self.config.alerts.telegram_chat_id,
-            },
-            "discord": {
-                "enabled": self.config.alerts.discord_enabled,
-                "webhook_url": self.config.alerts.discord_webhook_url,
-            },
-        }
+        return self.config.alerts.to_dict
 
     def _data_provider_config_dict(self) -> dict[str, dict]:
+        dp = self.config.data_provider
         return {
-            "yahoo": {"enabled": self.config.data_provider.yahoo_enabled},
+            "yahoo": {"enabled": dp.yahoo_enabled},
             "alpaca": {
-                "enabled": self.config.data_provider.alpaca_enabled,
-                "api_key": self.config.data_provider.alpaca_api_key,
-                "secret_key": self.config.data_provider.alpaca_secret_key,
-                "paper": self.config.data_provider.alpaca_paper,
+                "enabled": dp.alpaca_enabled,
+                "api_key": dp.alpaca_api_key.get_secret_value() if dp.alpaca_api_key else None,
+                "secret_key": dp.alpaca_secret_key.get_secret_value()
+                if dp.alpaca_secret_key
+                else None,
+                "paper": dp.alpaca_paper,
             },
             "polygon": {
-                "enabled": self.config.data_provider.polygon_enabled,
-                "api_key": self.config.data_provider.polygon_api_key,
+                "enabled": dp.polygon_enabled,
+                "api_key": dp.polygon_api_key.get_secret_value() if dp.polygon_api_key else None,
             },
         }
 
@@ -166,14 +151,19 @@ class EMACloudScanner:
         self, symbol: str, interval: str = "10m", lookback_days: int = 5
     ) -> pd.DataFrame | None:
         """Fetch historical data for a symbol"""
+        from ema_cloud_lib.data_providers.base import DataProviderError
+
         try:
-            start = datetime.now() - timedelta(days=lookback_days)
+            start = utc_now() - timedelta(days=lookback_days)
             df = await self.data_manager.get_historical_data(
                 symbol=symbol, interval=interval, start=start
             )
             return df
-        except Exception as e:
-            logger.error(f"Error fetching data for {symbol}: {e}")
+        except DataProviderError as e:
+            logger.error(f"Data provider error for {symbol}: {e}")
+            return None
+        except (ValueError, KeyError) as e:
+            logger.error(f"Data processing error for {symbol}: {e}")
             return None
 
     async def analyze_etf(self, symbol: str) -> dict | None:
@@ -344,12 +334,12 @@ class EMACloudScanner:
 
         last_alert = self._signal_cooldown.get(key)
         if last_alert:
-            elapsed = datetime.now() - last_alert
+            elapsed = utc_now() - last_alert
             if elapsed.total_seconds() < self.signal_cooldown_minutes * 60:
                 return False
 
         # Update cooldown
-        self._signal_cooldown[key] = datetime.now()
+        self._signal_cooldown[key] = utc_now()
         return True
 
     async def process_signals(self, analyses: list[dict]):
