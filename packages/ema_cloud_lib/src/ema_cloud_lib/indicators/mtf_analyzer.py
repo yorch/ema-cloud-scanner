@@ -212,7 +212,7 @@ class MultiTimeframeAnalyzer:
                 timestamp=timestamp,
             )
 
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError, IndexError) as e:
             logger.error(f"Error analyzing {symbol} on {tf}: {e}")
             return None
 

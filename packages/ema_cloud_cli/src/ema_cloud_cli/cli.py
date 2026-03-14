@@ -212,7 +212,7 @@ async def async_main(
                 on_quit=request_shutdown,
                 on_config_update=scanner.apply_config,
             )
-        except Exception:
+        except (RuntimeError, ImportError, AttributeError, OSError):
             dashboard = SimpleDashboard()
 
         scanner.set_dashboard(dashboard)
@@ -977,7 +977,7 @@ def config_save(
         config.save(str(output_path))
         console.print(f"[green]Configuration saved to {output_path}[/green]")
         console.print(f"Load with: --config {output_path}")
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         console.print(f"[red]Error saving config: {e}[/red]")
         raise typer.Exit(1) from None
 

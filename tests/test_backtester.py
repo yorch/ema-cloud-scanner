@@ -918,8 +918,8 @@ class TestRunMultiple:
 
     def test_returns_results_keyed_by_symbol(self):
         data = {
-            "XLK": _make_ohlcv(n=120, trend=0.1, seed=200),
-            "XLF": _make_ohlcv(n=120, trend=-0.1, seed=201),
+            "XLK": _make_ohlcv(n=300, trend=0.1, seed=200),
+            "XLF": _make_ohlcv(n=300, trend=-0.1, seed=201),
         }
         results = Backtester().run_multiple(data)
         assert "XLK" in results
@@ -929,12 +929,12 @@ class TestRunMultiple:
     def test_error_skips_bad_symbol_key_error(self):
         """A DataFrame missing required columns raises KeyError, which is caught.
 
-        The DataFrame needs >= 50 rows to get past the length guard, so the
+        The DataFrame needs >= 234 rows to get past the length guard, so the
         engine actually tries to access the 'close' column and fails.
         """
-        bad_df = pd.DataFrame({"not_close": list(range(60))})
+        bad_df = pd.DataFrame({"not_close": list(range(250))})
         data = {
-            "GOOD": _make_ohlcv(n=120, seed=210),
+            "GOOD": _make_ohlcv(n=300, seed=210),
             "BAD": bad_df,
         }
         results = Backtester().run_multiple(data)
@@ -944,7 +944,7 @@ class TestRunMultiple:
     def test_error_skips_empty_dataframe(self):
         """An empty DataFrame causes an error that is caught."""
         data = {
-            "GOOD": _make_ohlcv(n=120, seed=220),
+            "GOOD": _make_ohlcv(n=300, seed=220),
             "EMPTY": pd.DataFrame(),
         }
         results = Backtester().run_multiple(data)

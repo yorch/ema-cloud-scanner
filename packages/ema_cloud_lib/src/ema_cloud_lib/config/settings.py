@@ -7,7 +7,7 @@ All settings are configurable and support presets for different trading styles.
 
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field, SecretStr, ValidationInfo, field_validator
 
@@ -685,10 +685,30 @@ class ScannerConfig(BaseModel):
             if name in enabled_names and cloud.enabled
         }
 
+    # Fields containing credentials that must never be serialized to disk
+    _SECRET_FIELDS: ClassVar[set[str]] = {
+        "telegram_bot_token",
+        "discord_webhook_url",
+        "email_password",
+        "alpaca_api_key",
+        "alpaca_secret_key",
+        "polygon_api_key",
+    }
+
     def save(self, filepath: str):
-        """Save configuration to JSON file using Pydantic serialization"""
-        config_json = self.model_dump_json(indent=2, exclude_none=False)
-        Path(filepath).write_text(config_json)
+        """Save configuration to JSON file, excluding credential fields."""
+        config_dict = self.model_dump(mode="json", exclude_none=False)
+
+        # Strip secret fields from nested config sections
+        for section in ("alerts", "data_provider"):
+            if section in config_dict and isinstance(config_dict[section], dict):
+                for key in list(config_dict[section]):
+                    if key in self._SECRET_FIELDS:
+                        del config_dict[section][key]
+
+        import json
+
+        Path(filepath).write_text(json.dumps(config_dict, indent=2))
 
     @classmethod
     def load(cls, filepath: str) -> "ScannerConfig":
