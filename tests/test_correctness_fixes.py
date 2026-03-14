@@ -78,14 +78,14 @@ class TestRSIDivisionByZero:
     def test_rsi_no_nans_in_output(self):
         """RSI output should never contain NaN after the initial warmup."""
         # Mix of flat and trending periods
-        prices = pd.Series(
-            [100.0] * 20 + [100.0 + i * 0.1 for i in range(30)]
-        )
+        prices = pd.Series([100.0] * 20 + [100.0 + i * 0.1 for i in range(30)])
         rsi = calculate_rsi(prices, period=14)
 
         # After period+1 bars, no NaN should exist
         valid_rsi = rsi.iloc[15:]
-        assert not valid_rsi.isna().any(), f"RSI contains NaN values: {valid_rsi[valid_rsi.isna()].index.tolist()}"
+        assert not valid_rsi.isna().any(), (
+            f"RSI contains NaN values: {valid_rsi[valid_rsi.isna()].index.tolist()}"
+        )
 
     def test_rsi_normal_case_unchanged(self):
         """Normal RSI calculation should still work correctly."""
@@ -119,7 +119,9 @@ class TestADXDivisionByZero:
         # DX should be 0 (no directional movement), not some arbitrary value
         # ADX (smoothed DX) should also be 0
         assert not pd.isna(result["adx"].iloc[-1]), "ADX should not be NaN"
-        assert result["adx"].iloc[-1] == 0.0, f"ADX should be 0 for flat market, got {result['adx'].iloc[-1]}"
+        assert result["adx"].iloc[-1] == 0.0, (
+            f"ADX should be 0 for flat market, got {result['adx'].iloc[-1]}"
+        )
 
     def test_adx_no_nans(self):
         """ADX should not produce NaN values after warmup."""
@@ -191,17 +193,44 @@ class TestVWAPDailyReset:
         assert vwap.iloc[0] == pytest.approx(vwap.iloc[-1], rel=1e-6)
 
     def test_vwap_isinstance_check_not_hasattr(self):
-        """Verify VWAP uses isinstance(index, DatetimeIndex), not hasattr."""
-        # Create a RangeIndex (has no .date attribute) — should use cumulative path
-        n = 10
-        high = pd.Series([101.0] * n)
-        low = pd.Series([99.0] * n)
-        close = pd.Series([100.0] * n)
-        volume = pd.Series([1000.0] * n)
+        """Verify VWAP uses isinstance(index, DatetimeIndex), not hasattr.
 
-        # Should not raise any error
+        Attaches a .date array to a RangeIndex so it passes a hasattr check
+        but is NOT a DatetimeIndex. The .date values split bars into separate
+        groups, causing incorrect daily-reset VWAP. Under the old
+        hasattr(index, "date") guard, the code enters the date-grouping
+        branch and produces wrong results. The isinstance check correctly
+        routes to the cumulative fallback.
+        """
+        n = 10
+        idx = pd.RangeIndex(n)
+        # Monkey-patch .date with per-bar values that create spurious groups.
+        # Each bar gets a unique "date", so groupby resets cumsum per bar,
+        # making VWAP = typical_price at each bar instead of a running average.
+        idx.date = list(range(n))  # type: ignore[attr-defined]
+
+        assert hasattr(idx, "date"), "Test setup: index must have .date for this regression test"
+        assert not isinstance(idx, pd.DatetimeIndex)
+
+        # Use varying prices so cumulative VWAP differs from per-bar VWAP
+        high = pd.Series([100.0 + i for i in range(n)], index=idx)
+        low = pd.Series([98.0 + i for i in range(n)], index=idx)
+        close = pd.Series([99.0 + i for i in range(n)], index=idx)
+        volume = pd.Series([1000.0 + i * 100 for i in range(n)], index=idx)
+
         vwap = calculate_vwap(high, low, close, volume)
         assert not vwap.isna().any(), "VWAP should not be NaN"
+
+        # With cumulative VWAP over trending prices, later values should
+        # differ from the simple per-bar typical price (99 + i).
+        # If the hasattr branch incorrectly groups by unique dates, each bar's
+        # VWAP equals its own typical price — verify that doesn't happen.
+        typical_price = (high + low + close) / 3
+        # Last bar: cumulative average should lag behind the latest typical price
+        assert vwap.iloc[-1] < typical_price.iloc[-1], (
+            "Cumulative VWAP should lag behind latest typical price for "
+            "trending data — indicates correct cumulative (not per-bar) calc"
+        )
 
 
 # ===========================================================================
@@ -220,7 +249,9 @@ class TestDSTHandling:
 
         if early_close is not None:
             # Should be 1:00 PM ET (not miscalculated due to DST)
-            assert early_close.hour == 13, f"Christmas Eve early close should be 1 PM ET, got {early_close}"
+            assert early_close.hour == 13, (
+                f"Christmas Eve early close should be 1 PM ET, got {early_close}"
+            )
 
     def test_early_close_during_edt(self):
         """Early close detection during EDT (summer) should work correctly."""
@@ -229,7 +260,9 @@ class TestDSTHandling:
         early_close = MarketHours.get_early_close_time(july_3)
 
         if early_close is not None:
-            assert early_close.hour == 13, f"July 3rd early close should be 1 PM ET, got {early_close}"
+            assert early_close.hour == 13, (
+                f"July 3rd early close should be 1 PM ET, got {early_close}"
+            )
 
     def test_regular_day_no_early_close(self):
         """Regular trading days should not have early close."""
@@ -275,20 +308,22 @@ class TestSignalDirectionParsing:
         )
 
     def _make_row(self, close=105.0, atr=1.0):
-        return pd.Series({
-            "close": close,
-            "open": close - 0.5,
-            "high": close + 1.0,
-            "low": close - 1.0,
-            "volume": 1_000_000,
-            "rsi": 55.0,
-            "adx": 25.0,
-            "atr": atr,
-            "atr_pct": atr / close * 100,
-            "vwap": close - 1.0,
-            "volume_ratio": 2.0,
-            "macd_histogram": 0.1,
-        })
+        return pd.Series(
+            {
+                "close": close,
+                "open": close - 0.5,
+                "high": close + 1.0,
+                "low": close - 1.0,
+                "volume": 1_000_000,
+                "rsi": 55.0,
+                "adx": 25.0,
+                "atr": atr,
+                "atr_pct": atr / close * 100,
+                "vwap": close - 1.0,
+                "volume_ratio": 2.0,
+                "macd_histogram": 0.1,
+            }
+        )
 
     def test_bullish_trend_flip_detected(self):
         gen = SignalGenerator()
@@ -297,8 +332,13 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal=RawSignal("TREND_FLIP", "bullish", "trend_confirmation", "34-50 cloud turned green"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            raw_signal=RawSignal(
+                "TREND_FLIP", "bullish", "trend_confirmation", "34-50 cloud turned green"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "long"
@@ -311,8 +351,13 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal=RawSignal("TREND_FLIP", "bearish", "trend_confirmation", "34-50 cloud turned red"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            raw_signal=RawSignal(
+                "TREND_FLIP", "bearish", "trend_confirmation", "34-50 cloud turned red"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "short"
@@ -325,8 +370,13 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal=RawSignal("BREAKOUT", "bullish", "trend_confirmation", "Price crossed above 34-50 cloud"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            raw_signal=RawSignal(
+                "BREAKOUT", "bullish", "trend_confirmation", "Price crossed above 34-50 cloud"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "long"
@@ -339,8 +389,13 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal=RawSignal("BREAKDOWN", "bearish", "trend_confirmation", "Price crossed below 34-50 cloud"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            raw_signal=RawSignal(
+                "BREAKDOWN", "bearish", "trend_confirmation", "Price crossed below 34-50 cloud"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "short"
@@ -353,8 +408,13 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal=RawSignal("PULLBACK_ENTRY", "bullish", "pullback", "Price at 8-9 cloud support in uptrend"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            raw_signal=RawSignal(
+                "PULLBACK_ENTRY", "bullish", "pullback", "Price at 8-9 cloud support in uptrend"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "long"
@@ -366,8 +426,16 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal=RawSignal("PULLBACK_ENTRY", "bearish", "pullback", "Price at 8-9 cloud resistance in downtrend"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            raw_signal=RawSignal(
+                "PULLBACK_ENTRY",
+                "bearish",
+                "pullback",
+                "Price at 8-9 cloud resistance in downtrend",
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "short"
@@ -380,7 +448,10 @@ class TestSignalDirectionParsing:
 
         sig = gen._process_raw_signal(
             raw_signal=RawSignal("STRONG_ALIGNMENT", "bullish", "all", "All clouds bullish"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "long"
@@ -393,7 +464,10 @@ class TestSignalDirectionParsing:
 
         sig = gen._process_raw_signal(
             raw_signal=RawSignal("STRONG_ALIGNMENT", "bearish", "all", "All clouds bearish"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "short"
@@ -407,7 +481,10 @@ class TestSignalDirectionParsing:
 
         sig = gen._process_raw_signal(
             raw_signal=RawSignal("SOME_UNKNOWN", "bearish", "unknown", "custom"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "short"
@@ -421,7 +498,10 @@ class TestSignalDirectionParsing:
 
         sig = gen._process_raw_signal(
             raw_signal=RawSignal("TREND_FLIP", "bullish", "trend_confirmation", "test"),
-            row=row, clouds=clouds, symbol="XLK", timestamp=ts,
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "long"
