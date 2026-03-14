@@ -27,6 +27,7 @@ from ema_cloud_lib.indicators.ema_cloud import (
     CloudState,
     EMACloudIndicator,
     PriceRelation,
+    RawSignal,
     TechnicalIndicators,
     TrendAnalysis,
 )
@@ -537,8 +538,9 @@ class SignalGenerator:
         # Get technical indicator analysis
         indicators = self.tech_indicators.get_analysis(df, idx)
 
-        # Detect signals
-        signals = self.cloud_indicator.detect_signals(df, idx)
+        # Detect signals (convert to display strings for TrendAnalysis)
+        raw_signals = self.cloud_indicator.detect_signals(df, idx)
+        signals = [s.message for s in raw_signals]
 
         # Determine overall trend
         bullish_clouds = count_bullish_clouds(clouds)
@@ -639,10 +641,10 @@ class SignalGenerator:
             if not raw_signals:
                 continue
 
-            # Process each raw signal
-            for raw_signal in raw_signals:
+            # Process each structured signal
+            for raw_sig in raw_signals:
                 signal = self._process_raw_signal(
-                    raw_signal=raw_signal,
+                    raw_signal=raw_sig,
                     row=row,
                     clouds=clouds,
                     symbol=symbol,
@@ -657,9 +659,23 @@ class SignalGenerator:
 
         return signals
 
+    # Mapping from (RawSignal.signal_type, direction) to SignalType enum
+    _SIGNAL_TYPE_MAP: dict[tuple[str, str], SignalType] = {
+        ("TREND_FLIP", "bullish"): SignalType.CLOUD_FLIP_BULLISH,
+        ("TREND_FLIP", "bearish"): SignalType.CLOUD_FLIP_BEARISH,
+        ("BREAKOUT", "bullish"): SignalType.PRICE_CROSS_ABOVE,
+        ("BREAKDOWN", "bearish"): SignalType.PRICE_CROSS_BELOW,
+        ("SHORT_TERM", "bullish"): SignalType.CLOUD_FLIP_BULLISH,
+        ("SHORT_TERM", "bearish"): SignalType.CLOUD_FLIP_BEARISH,
+        ("PULLBACK_ENTRY", "bullish"): SignalType.PULLBACK_ENTRY,
+        ("PULLBACK_ENTRY", "bearish"): SignalType.PULLBACK_ENTRY,
+        ("STRONG_ALIGNMENT", "bullish"): SignalType.TREND_CONFIRMATION,
+        ("STRONG_ALIGNMENT", "bearish"): SignalType.TREND_CONFIRMATION,
+    }
+
     def _process_raw_signal(
         self,
-        raw_signal: str,
+        raw_signal: RawSignal,
         row: pd.Series,
         clouds: dict[str, CloudData],
         symbol: str,
@@ -667,37 +683,16 @@ class SignalGenerator:
         sector: str | None = None,
         etf_symbol: str | None = None,
     ) -> Signal | None:
-        """Process a raw signal string into a Signal object"""
+        """Process a structured RawSignal into a Signal object."""
 
-        # Determine direction from structured signal keywords
-        raw_upper = raw_signal.upper()
-        bullish_keywords = (
-            "TREND_FLIP_BULLISH",
-            "BREAKOUT",
-            "SHORT_TERM_BULLISH",
-            "PULLBACK_ENTRY: PRICE AT 8-9 CLOUD SUPPORT IN UPTREND",
-            "STRONG_ALIGNMENT: ALL CLOUDS BULLISH",
-        )
-        is_bullish = any(kw in raw_upper for kw in bullish_keywords)
+        # Direction and signal type come directly from the structured signal
+        is_bullish = raw_signal.direction == "bullish"
         direction = "long" if is_bullish else "short"
 
-        # Map raw signal to SignalType
-        if "TREND_FLIP" in raw_signal:
-            signal_type = (
-                SignalType.CLOUD_FLIP_BULLISH if is_bullish else SignalType.CLOUD_FLIP_BEARISH
-            )
-        elif "BREAKOUT" in raw_signal:
-            signal_type = SignalType.PRICE_CROSS_ABOVE
-        elif "BREAKDOWN" in raw_signal:
-            signal_type = SignalType.PRICE_CROSS_BELOW
-        elif "PULLBACK" in raw_signal:
-            signal_type = SignalType.PULLBACK_ENTRY
-        elif "ALIGNMENT" in raw_signal:
-            signal_type = SignalType.TREND_CONFIRMATION
-        else:
-            signal_type = (
-                SignalType.CLOUD_FLIP_BULLISH if is_bullish else SignalType.CLOUD_FLIP_BEARISH
-            )
+        signal_type = self._SIGNAL_TYPE_MAP.get(
+            (raw_signal.signal_type, raw_signal.direction),
+            SignalType.CLOUD_FLIP_BULLISH if is_bullish else SignalType.CLOUD_FLIP_BEARISH,
+        )
 
         # Get primary cloud state (34-50)
         primary_cloud = clouds.get(
@@ -758,7 +753,7 @@ class SignalGenerator:
             filters_failed=failed_filters,
             sector=sector,
             etf_symbol=etf_symbol,
-            notes=[raw_signal],
+            notes=[raw_signal.message],
         )
 
     def _calculate_signal_strength(

@@ -14,6 +14,7 @@ Additional indicators for signal filtering:
 """
 
 import logging
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -41,6 +42,21 @@ class PriceRelation(Enum):
     INSIDE = "inside"  # Price inside cloud
     TOUCHING_TOP = "touching_top"  # Price at top of cloud
     TOUCHING_BOTTOM = "touching_bottom"  # Price at bottom of cloud
+
+
+@dataclass(frozen=True)
+class RawSignal:
+    """Structured signal emitted by detect_signals().
+
+    Carries the signal_type, direction, originating cloud, and a
+    human-readable message so downstream consumers never have to
+    reverse-engineer semantics from display text.
+    """
+
+    signal_type: str  # e.g. "TREND_FLIP", "BREAKOUT", "BREAKDOWN", "SHORT_TERM", "PULLBACK_ENTRY", "STRONG_ALIGNMENT"
+    direction: str  # "bullish" or "bearish"
+    cloud_name: str  # e.g. "trend_confirmation", "trend_line", "pullback"
+    message: str  # human-readable description (display only)
 
 
 class CloudData(BaseModel):
@@ -398,9 +414,12 @@ class EMACloudIndicator:
 
         return clouds
 
-    def detect_signals(self, df: pd.DataFrame, idx: int = -1) -> list[str]:
+    def detect_signals(self, df: pd.DataFrame, idx: int = -1) -> list[RawSignal]:
         """
         Detect trading signals based on cloud analysis.
+
+        Returns structured RawSignal objects with signal_type, direction,
+        cloud_name, and a human-readable message.
 
         Signals detected:
         - Cloud flip (color change)
@@ -408,7 +427,7 @@ class EMACloudIndicator:
         - Cloud bounce
         - Multiple cloud alignment
         """
-        signals = []
+        signals: list[RawSignal] = []
         clouds = self.analyze_single(df, idx)
 
         # Key cloud for trend confirmation (34-50)
@@ -417,9 +436,19 @@ class EMACloudIndicator:
 
             # Cloud flip signals
             if tc.state == CloudState.CROSSING_UP:
-                signals.append("🟢 TREND_FLIP_BULLISH: 34-50 cloud turned green")
+                signals.append(RawSignal(
+                    signal_type="TREND_FLIP",
+                    direction="bullish",
+                    cloud_name="trend_confirmation",
+                    message="34-50 cloud turned green",
+                ))
             elif tc.state == CloudState.CROSSING_DOWN:
-                signals.append("🔴 TREND_FLIP_BEARISH: 34-50 cloud turned red")
+                signals.append(RawSignal(
+                    signal_type="TREND_FLIP",
+                    direction="bearish",
+                    cloud_name="trend_confirmation",
+                    message="34-50 cloud turned red",
+                ))
 
             # Price crossing cloud
             if tc.price_relation == PriceRelation.ABOVE and tc.state == CloudState.BULLISH:
@@ -427,22 +456,42 @@ class EMACloudIndicator:
                     prev_row = df.iloc[idx - 1]
                     prev_top = prev_row["trend_confirmation_cloud_top"]
                     if prev_row["close"] <= prev_top:
-                        signals.append("🟢 BREAKOUT: Price crossed above 34-50 cloud")
+                        signals.append(RawSignal(
+                            signal_type="BREAKOUT",
+                            direction="bullish",
+                            cloud_name="trend_confirmation",
+                            message="Price crossed above 34-50 cloud",
+                        ))
             elif tc.price_relation == PriceRelation.BELOW and tc.state == CloudState.BEARISH:
                 if idx > 0:
                     prev_row = df.iloc[idx - 1]
                     prev_bottom = prev_row["trend_confirmation_cloud_bottom"]
                     if prev_row["close"] >= prev_bottom:
-                        signals.append("🔴 BREAKDOWN: Price crossed below 34-50 cloud")
+                        signals.append(RawSignal(
+                            signal_type="BREAKDOWN",
+                            direction="bearish",
+                            cloud_name="trend_confirmation",
+                            message="Price crossed below 34-50 cloud",
+                        ))
 
         # Trend line cloud (5-12) signals
         if "trend_line" in clouds:
             tl = clouds["trend_line"]
 
             if tl.state == CloudState.CROSSING_UP:
-                signals.append("🟢 SHORT_TERM_BULLISH: 5-12 cloud turned green")
+                signals.append(RawSignal(
+                    signal_type="SHORT_TERM",
+                    direction="bullish",
+                    cloud_name="trend_line",
+                    message="5-12 cloud turned green",
+                ))
             elif tl.state == CloudState.CROSSING_DOWN:
-                signals.append("🔴 SHORT_TERM_BEARISH: 5-12 cloud turned red")
+                signals.append(RawSignal(
+                    signal_type="SHORT_TERM",
+                    direction="bearish",
+                    cloud_name="trend_line",
+                    message="5-12 cloud turned red",
+                ))
 
         # Pullback level (8-9) signals
         if "pullback" in clouds:
@@ -453,13 +502,23 @@ class EMACloudIndicator:
                     "trend_confirmation" in clouds
                     and clouds["trend_confirmation"].state == CloudState.BULLISH
                 ):
-                    signals.append("🟢 PULLBACK_ENTRY: Price at 8-9 cloud support in uptrend")
+                    signals.append(RawSignal(
+                        signal_type="PULLBACK_ENTRY",
+                        direction="bullish",
+                        cloud_name="pullback",
+                        message="Price at 8-9 cloud support in uptrend",
+                    ))
             elif pb.price_relation == PriceRelation.TOUCHING_TOP:
                 if (
                     "trend_confirmation" in clouds
                     and clouds["trend_confirmation"].state == CloudState.BEARISH
                 ):
-                    signals.append("🔴 PULLBACK_ENTRY: Price at 8-9 cloud resistance in downtrend")
+                    signals.append(RawSignal(
+                        signal_type="PULLBACK_ENTRY",
+                        direction="bearish",
+                        cloud_name="pullback",
+                        message="Price at 8-9 cloud resistance in downtrend",
+                    ))
 
         # Multi-cloud alignment
         bullish_count = sum(
@@ -470,9 +529,19 @@ class EMACloudIndicator:
         )
 
         if bullish_count == len(clouds) and len(clouds) >= 3:
-            signals.append("🟢 STRONG_ALIGNMENT: All clouds bullish")
+            signals.append(RawSignal(
+                signal_type="STRONG_ALIGNMENT",
+                direction="bullish",
+                cloud_name="all",
+                message="All clouds bullish",
+            ))
         elif bearish_count == len(clouds) and len(clouds) >= 3:
-            signals.append("🔴 STRONG_ALIGNMENT: All clouds bearish")
+            signals.append(RawSignal(
+                signal_type="STRONG_ALIGNMENT",
+                direction="bearish",
+                cloud_name="all",
+                message="All clouds bearish",
+            ))
 
         return signals
 

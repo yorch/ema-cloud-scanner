@@ -67,6 +67,7 @@ from ema_cloud_lib.indicators.ema_cloud import (
     CloudState,
     EMACloudIndicator,
     PriceRelation,
+    RawSignal,
     TechnicalIndicators,
     TrendAnalysis,
 )
@@ -126,6 +127,7 @@ __all__ = [
     "CloudData",
     "CloudState",
     "PriceRelation",
+    "RawSignal",
     "TrendAnalysis",
     # Signals
     "SignalGenerator",

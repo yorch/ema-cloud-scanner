@@ -25,6 +25,7 @@ from ema_cloud_lib.indicators.ema_cloud import (
     CloudData,
     CloudState,
     PriceRelation,
+    RawSignal,
     calculate_adx,
     calculate_rsi,
     calculate_vwap,
@@ -296,7 +297,7 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="🟢 TREND_FLIP_BULLISH: 34-50 cloud turned green",
+            raw_signal=RawSignal("TREND_FLIP", "bullish", "trend_confirmation", "34-50 cloud turned green"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
@@ -310,7 +311,7 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="🔴 TREND_FLIP_BEARISH: 34-50 cloud turned red",
+            raw_signal=RawSignal("TREND_FLIP", "bearish", "trend_confirmation", "34-50 cloud turned red"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
@@ -324,7 +325,7 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="🟢 BREAKOUT: Price crossed above 34-50 cloud",
+            raw_signal=RawSignal("BREAKOUT", "bullish", "trend_confirmation", "Price crossed above 34-50 cloud"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
@@ -338,7 +339,7 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="🔴 BREAKDOWN: Price crossed below 34-50 cloud",
+            raw_signal=RawSignal("BREAKDOWN", "bearish", "trend_confirmation", "Price crossed below 34-50 cloud"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
@@ -352,7 +353,7 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="🟢 PULLBACK_ENTRY: Price at 8-9 cloud support in uptrend",
+            raw_signal=RawSignal("PULLBACK_ENTRY", "bullish", "pullback", "Price at 8-9 cloud support in uptrend"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
@@ -365,7 +366,7 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="🔴 PULLBACK_ENTRY: Price at 8-9 cloud resistance in downtrend",
+            raw_signal=RawSignal("PULLBACK_ENTRY", "bearish", "pullback", "Price at 8-9 cloud resistance in downtrend"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
@@ -378,7 +379,7 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="🟢 STRONG_ALIGNMENT: All clouds bullish",
+            raw_signal=RawSignal("STRONG_ALIGNMENT", "bullish", "all", "All clouds bullish"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
@@ -391,36 +392,35 @@ class TestSignalDirectionParsing:
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="🔴 STRONG_ALIGNMENT: All clouds bearish",
+            raw_signal=RawSignal("STRONG_ALIGNMENT", "bearish", "all", "All clouds bearish"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "short"
 
     def test_unknown_signal_defaults_to_bearish(self):
-        """Unknown signals without bullish keywords default to bearish/short."""
+        """Unknown signals with bearish direction map to bearish/short."""
         gen = SignalGenerator()
         clouds = {"trend_confirmation": self._make_cloud_data()}
         row = self._make_row()
         ts = datetime(2025, 6, 10, 11, 0)
 
         sig = gen._process_raw_signal(
-            raw_signal="SOME_UNKNOWN_SIGNAL: custom",
+            raw_signal=RawSignal("SOME_UNKNOWN", "bearish", "unknown", "custom"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
         assert sig.direction == "short"
 
-    def test_no_emoji_dependency(self):
-        """Direction should work without any emoji in the raw signal."""
+    def test_direction_comes_from_struct_not_message(self):
+        """Direction is read from the RawSignal.direction field, not parsed from message text."""
         gen = SignalGenerator()
         clouds = {"trend_confirmation": self._make_cloud_data()}
         row = self._make_row()
         ts = datetime(2025, 6, 10, 11, 0)
 
-        # No emoji, just keyword
         sig = gen._process_raw_signal(
-            raw_signal="TREND_FLIP_BULLISH: test",
+            raw_signal=RawSignal("TREND_FLIP", "bullish", "trend_confirmation", "test"),
             row=row, clouds=clouds, symbol="XLK", timestamp=ts,
         )
         assert sig is not None
