@@ -7,6 +7,7 @@ Uses pandas_market_calendars for accurate holiday and early close handling.
 
 import logging
 from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas_market_calendars as mcal
 
@@ -92,22 +93,15 @@ class MarketHours:
         # Regular close: 4:00 PM ET = 20:00 UTC (EDT) or 21:00 UTC (EST)
         # We check if close is before either, accounting for DST
         market_close_utc = schedule.iloc[0]["market_close"]
-        close_hour_utc = market_close_utc.hour
 
-        # Check if it's an early close (before regular 4 PM ET)
-        # Regular close is 20:00 UTC (during EDT) or 21:00 UTC (during EST)
-        is_early_close = close_hour_utc < 20  # Earlier than 4 PM ET
+        # Convert UTC close time to Eastern Time using proper timezone handling
+        et_tz = ZoneInfo("America/New_York")
+        close_et = market_close_utc.to_pydatetime().astimezone(et_tz)
+        close_time_et = close_et.time().replace(second=0, microsecond=0)
 
-        if is_early_close:
-            # Convert UTC hour to approximate ET hour for return value
-            # EDT: UTC - 4, EST: UTC - 5
-            # During EDT (March-November): subtract 4
-            # During EST (November-March): subtract 5
-            month = check_time.month
-            is_edt = 3 <= month <= 10  # Approximate DST period
-            et_hour = close_hour_utc - (4 if is_edt else 5)
-
-            return time(et_hour, 0)
+        # Regular close is 4:00 PM ET; anything earlier is an early close
+        if close_time_et < cls.MARKET_CLOSE:
+            return close_time_et
 
         return None
 

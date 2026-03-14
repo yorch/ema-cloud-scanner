@@ -117,8 +117,13 @@ def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
     avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
 
-    rs = avg_gain / avg_loss.replace(0, np.inf)
+    # When avg_loss is 0 (no losses), RSI should be 100 (fully overbought).
+    # When avg_gain is 0 (no gains), RSI should be 0 (fully oversold).
+    rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
+    # Handle division by zero: avg_loss==0 → rs==inf → RSI=100
+    # Handle 0/0 case: avg_gain==0 and avg_loss==0 → rs==NaN → RSI=NaN, fill with 50 (neutral)
+    rsi = rsi.fillna(50.0)
 
     return rsi
 
@@ -154,7 +159,10 @@ def calculate_adx(
     minus_di = 100 * (minus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr)
 
     # ADX
-    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di).replace(0, 1)
+    # When plus_di + minus_di == 0, there is no directional movement; DX should be 0
+    di_sum = plus_di + minus_di
+    dx = 100 * abs(plus_di - minus_di) / di_sum.replace(0, np.nan)
+    dx = dx.fillna(0.0)
     adx = dx.ewm(alpha=1 / period, adjust=False).mean()
 
     return pd.DataFrame({"plus_di": plus_di, "minus_di": minus_di, "adx": adx})
@@ -178,7 +186,7 @@ def calculate_vwap(
     tp_volume = typical_price * volume
 
     # Detect if data is intraday by checking if multiple bars share the same date
-    if hasattr(high.index, "date"):
+    if isinstance(high.index, pd.DatetimeIndex):
         dates = pd.Series(high.index.date, index=high.index)
         # Group by date and cumsum within each day
         cumulative_tp_volume = tp_volume.groupby(dates).cumsum()

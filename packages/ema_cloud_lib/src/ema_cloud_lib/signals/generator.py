@@ -669,8 +669,16 @@ class SignalGenerator:
     ) -> Signal | None:
         """Process a raw signal string into a Signal object"""
 
-        # Determine direction and signal type
-        is_bullish = "🟢" in raw_signal or "BULLISH" in raw_signal.upper()
+        # Determine direction from structured signal keywords
+        raw_upper = raw_signal.upper()
+        bullish_keywords = (
+            "TREND_FLIP_BULLISH",
+            "BREAKOUT",
+            "SHORT_TERM_BULLISH",
+            "PULLBACK_ENTRY: PRICE AT 8-9 CLOUD SUPPORT IN UPTREND",
+            "STRONG_ALIGNMENT: ALL CLOUDS BULLISH",
+        )
+        is_bullish = any(kw in raw_upper for kw in bullish_keywords)
         direction = "long" if is_bullish else "short"
 
         # Map raw signal to SignalType
@@ -920,15 +928,18 @@ class SignalGenerator:
                 return False, f"Sector {sector_state.sector_name} bearish - avoid long entries"
             else:
                 return True, f"Sector {sector_state.sector_name} neutral - use other confirmations"
-        elif sector_state.is_bearish():
-            if sector_state.trend_strength >= 50:
-                return True, f"Sector {sector_state.sector_name} confirms bearish bias"
+        elif signal.direction == "short":
+            if sector_state.is_bearish():
+                if sector_state.trend_strength >= 50:
+                    return True, f"Sector {sector_state.sector_name} confirms bearish bias"
+                else:
+                    return (
+                        True,
+                        f"Sector {sector_state.sector_name} weak bearish - proceed with caution",
+                    )
+            elif sector_state.is_bullish():
+                return False, f"Sector {sector_state.sector_name} bullish - avoid short entries"
             else:
-                return (
-                    True,
-                    f"Sector {sector_state.sector_name} weak bearish - proceed with caution",
-                )
-        elif sector_state.is_bullish():
-            return False, f"Sector {sector_state.sector_name} bullish - avoid short entries"
+                return True, f"Sector {sector_state.sector_name} neutral - use other confirmations"
         else:
-            return True, f"Sector {sector_state.sector_name} neutral - use other confirmations"
+            return False, f"Unknown signal direction: {signal.direction}"

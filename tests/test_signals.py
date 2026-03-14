@@ -1082,8 +1082,26 @@ class TestMultiCloudAlignment:
         clouds = {"trend_confirmation": _make_cloud_data(state=CloudState.BULLISH)}
         row = _make_row(close=105.0, atr=1.0)
         ts = datetime(2025, 6, 10, 11, 0, 0)
+        # Unknown signal without a recognized bullish keyword defaults to bearish
         sig = gen._process_raw_signal(
-            raw_signal="🟢 SOME_UNKNOWN_SIGNAL: custom signal",
+            raw_signal="SOME_UNKNOWN_SIGNAL: custom signal",
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.signal_type == SignalType.CLOUD_FLIP_BEARISH
+        assert sig.direction == "short"
+
+    def test_unknown_bullish_signal_defaults_to_cloud_flip_bullish(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": _make_cloud_data(state=CloudState.BULLISH)}
+        row = _make_row(close=105.0, atr=1.0)
+        ts = datetime(2025, 6, 10, 11, 0, 0)
+        # Signal containing a recognized bullish keyword should be bullish
+        sig = gen._process_raw_signal(
+            raw_signal="TREND_FLIP_BULLISH: custom signal",
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1091,6 +1109,7 @@ class TestMultiCloudAlignment:
         )
         assert sig is not None
         assert sig.signal_type == SignalType.CLOUD_FLIP_BULLISH
+        assert sig.direction == "long"
 
 
 # ===========================================================================
