@@ -261,7 +261,9 @@ class SignalFilter:
         if direction == "long":
             return FilterResult(passed=long_condition, reason=long_message, filter_name=filter_name)
         else:  # short direction
-            return FilterResult(passed=short_condition, reason=short_message, filter_name=filter_name)
+            return FilterResult(
+                passed=short_condition, reason=short_message, filter_name=filter_name
+            )
 
     def filter_rsi(self, row: pd.Series, direction: str) -> FilterResult:
         """Check RSI for overbought/oversold conditions"""
