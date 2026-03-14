@@ -18,15 +18,16 @@ The EMA Cloud Sector Scanner is a real-time trading scanner monitoring sector ET
 
 | Metric | Value |
 |--------|-------|
-| Total Python Files | 42 |
-| Library Code (ema_cloud_lib) | ~6,800 lines |
-| Dashboard Code (ema_cloud_cli) | ~1,200 lines |
-| Test Code | ~5,000 lines |
+| Total Python Files | 44 |
+| Library Code (ema_cloud_lib) | ~7,500 lines |
+| Dashboard Code (ema_cloud_cli) | ~3,900 lines |
+| Test Code | ~6,000 lines |
+| Tests Passing | 486 |
 | Documentation | ~6,800 lines (13 files) |
 | Python Version | >=3.11 (tested on 3.11, 3.12, 3.13) |
 | License | MIT |
-| Last Commit | 2026-03-13 |
-| Estimated Test Coverage | 15-20% |
+| Last Updated | 2026-03-14 |
+| Estimated Test Coverage | ~25% |
 
 ### PRD Feature Completeness
 
@@ -44,6 +45,7 @@ The EMA Cloud Sector Scanner is a real-time trading scanner monitoring sector ET
 | Backtesting | Done | Basic implementation |
 | Telegram/Discord Alerts | Done | Ahead of v1.1 roadmap |
 | Email Alerts | Done | Bonus feature |
+| Multi-timeframe Analysis | Done | MTF analyzer with confidence scoring |
 | Web Dashboard | Not started | v2.0 roadmap |
 
 ---
@@ -78,7 +80,17 @@ Faithful implementation of Ripster's EMA Cloud methodology:
 - Clean config hierarchy: CLI > env vars > file > defaults
 - JSON serialization for persistence
 
-### 4. Modern Tooling (Grade: A-)
+### 4. Multi-Timeframe Analysis (Grade: A-)
+
+Recently added MTF module (`indicators/mtf_analyzer.py`) provides:
+
+- Analyze multiple timeframes (e.g. daily + 4h + 1h) to confirm trade direction
+- Confidence scoring (`very_high`, `high`, `moderate`, `low`) based on cross-timeframe alignment
+- Configurable via `MTFConfig` with `require_alignment` option
+- Dashboard modal (`mtf_modal.py`) for interactive MTF visualization
+- Comprehensive test coverage (2 test files, ~740 lines)
+
+### 5. Modern Tooling (Grade: A-)
 
 - `uv` workspace for package management
 - `Ruff` for linting/formatting
@@ -86,7 +98,7 @@ Faithful implementation of Ripster's EMA Cloud methodology:
 - GitHub Actions CI with Python 3.11/3.12/3.13 matrix
 - Async-first design with `aiohttp` and `asyncio.gather()`
 
-### 5. Documentation (Grade: A-)
+### 6. Documentation (Grade: A-)
 
 13 doc files covering alerts, backtesting, configuration, holdings, security, CLI reference, and more. AGENTS.md is thorough for AI-assisted development.
 
@@ -159,16 +171,18 @@ Signal direction was determined by checking `"🟢" in raw_signal or "BULLISH" i
 
 ## What Needs Improvement
 
-### 1. Test Coverage (Grade: D+)
+### 1. Test Coverage (Grade: C)
 
-Estimated 15-20% coverage. The tested components (signals, indicators, backtesting, market hours) have good tests. But three critical modules have **zero tests**:
+Estimated ~25% coverage. Recent additions (signal tests, MTF tests, correctness fix regression tests) have improved the situation significantly. Still, several critical modules have **zero tests**:
 
 | Component | Lines | Tests |
 |-----------|-------|-------|
 | EMACloudScanner | 670 | None |
 | DataProviders | 864 | None |
 | Alert System | 958 | None |
-| Dashboard | 1,217 | None |
+| Dashboard | 3,900 | None |
+
+Well-tested modules: signals/generator (~1,600 lines of tests), MTF analyzer (~740 lines), market hours, settings, backtester, correctness fixes (38 regression tests).
 
 ### 2. Error Handling (Grade: C+)
 
@@ -221,14 +235,15 @@ Estimated 15-20% coverage. The tested components (signals, indicators, backtesti
 12. Add timezone-aware datetimes throughout
 
 ### Tier 3 — Feature Enhancements
-13. Cloud stacking order / waterfall detection
-14. Weighted filter scoring for signal strength
-15. Data quality validation post-fetch
-16. Walk-forward backtesting
-17. Config schema migration support
+13. ~~Multi-timeframe confirmation~~ ✅ (MTF analyzer added)
+14. Cloud stacking order / waterfall detection
+15. Weighted filter scoring for signal strength
+16. Data quality validation post-fetch
+17. Walk-forward backtesting
+18. Config schema migration support
 
 ---
 
 ## Conclusion
 
-This is a **well-architected, domain-faithful trading scanner** with strong fundamentals. The dual-package design, signal pipeline, and configuration system are genuinely well done. The main risk is **reliability**: low test coverage on critical paths, correctness bugs in indicators (now fixed), and no resilience in data fetching. The architecture supports growth — the gaps are in hardening, not in design.
+This is a **well-architected, domain-faithful trading scanner** with strong fundamentals. The dual-package design, signal pipeline, and configuration system are genuinely well done. Recent improvements — 6 correctness bug fixes with 38 regression tests, multi-timeframe analysis, and performance/security refactoring — have meaningfully advanced the project. The main remaining risk is **reliability**: test coverage gaps on scanner/data-providers/alerts, and no resilience in data fetching. The architecture supports growth — the gaps are in hardening, not in design.
