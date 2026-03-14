@@ -153,6 +153,7 @@ def setup_logging(verbose: int = 0, use_dashboard: bool = True):
         log_file = log_dir / cli_settings.log_filename
         max_bytes = _parse_log_rotation(cli_settings.log_rotation)
         backup_count = _parse_log_retention(cli_settings.log_retention) or 0
+        handler: logging.Handler
         if max_bytes:
             handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
         else:
@@ -191,7 +192,7 @@ async def async_main(
     scanner = EMACloudScanner(scanner_config)
 
     # Initialize dashboard if requested
-    dashboard = None
+    dashboard: TerminalDashboard | SimpleDashboard | None = None
     dashboard_task = None
     scanner_task = None
     shutdown_event = asyncio.Event()
@@ -695,10 +696,10 @@ def main(
         scanner_config.alerts.email_smtp_server = email_smtp_server
         scanner_config.alerts.email_smtp_port = email_smtp_port or 587
         scanner_config.alerts.email_username = email_username
-        scanner_config.alerts.email_password = SecretStr(email_password)
+        scanner_config.alerts.email_password = SecretStr(email_password) if email_password else None
         scanner_config.alerts.email_from_address = email_from
-        scanner_config.alerts.email_recipients = list(email_to)
-        typer.echo(f"Email alerts enabled: {', '.join(email_to)}")
+        scanner_config.alerts.email_recipients = list(email_to) if email_to else []
+        typer.echo(f"Email alerts enabled: {', '.join(email_to or [])}")
 
     # Apply signal cooldown
     if signal_cooldown is not None:
@@ -915,10 +916,12 @@ def config_show(
             raise typer.Exit(1)
         config = load_config_from_path(str(config_path))
     else:
-        config = load_user_config()
-        if not config:
+        config_or_none = load_user_config()
+        if not config_or_none:
             console.print("[yellow]No user config found. Using defaults.[/yellow]")
             config = ScannerConfig()
+        else:
+            config = config_or_none
 
     # Display as formatted JSON (mode='json' serializes enums to their values)
     config_dict = config.model_dump(mode="json", exclude_none=True)

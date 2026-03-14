@@ -2,6 +2,8 @@
 Terminal dashboard application and helpers.
 """
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
 from datetime import datetime
@@ -10,6 +12,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
+from textual.timer import Timer
 from textual.widgets import DataTable, Footer, Header, Static
 
 from ema_cloud_cli.dashboard.log_viewer import LogViewer, TextualLogHandler
@@ -64,12 +67,12 @@ class TerminalDashboard(App):
         self._etf_data: dict[str, ETFDisplayData] = {}
         self._signals: list[SignalDisplayData] = []
         self._max_signals = MAX_SIGNALS_DISPLAY
-        self._update_timer = None
+        self._update_timer: Timer | None = None
         self._is_mounted = False
         self._on_quit = on_quit
         self._config = config or ScannerConfig()
         self._on_config_update = on_config_update
-        self._log_handler = None
+        self._log_handler: TextualLogHandler | None = None
         self._logs_visible = False
         self._holdings_visible = False
         self._holdings_data: dict[str, HoldingsETFDisplayData] = {}
@@ -262,7 +265,7 @@ class TerminalDashboard(App):
         except NoMatches:
             pass
 
-    def action_quit(self) -> None:
+    def action_quit(self) -> None:  # type: ignore[override]
         """Quit the dashboard and signal shutdown."""
         if self._on_quit:
             self._on_quit()
@@ -286,7 +289,7 @@ class TerminalDashboard(App):
         if self._is_mounted:
             self._update_timer = self.set_interval(self.refresh_rate, self._refresh_display)
 
-    async def run_async(self) -> None:
+    async def run_async(self) -> None:  # type: ignore[override]
         """Run the dashboard within an existing async context."""
         await super().run_async()
 

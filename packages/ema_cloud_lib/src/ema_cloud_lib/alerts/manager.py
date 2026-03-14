@@ -52,7 +52,7 @@ class AlertManager:
         Returns:
             Dict mapping handler name to success status
         """
-        results = {}
+        results: dict[str, bool] = {}
 
         # Collect enabled handlers for parallel execution
         enabled_handlers = [
@@ -94,7 +94,7 @@ class AlertManager:
         Returns:
             Dict mapping handler name to success count
         """
-        results = {}
+        results: dict[str, int] = {}
 
         # Collect enabled handlers for parallel execution
         enabled_handlers = [

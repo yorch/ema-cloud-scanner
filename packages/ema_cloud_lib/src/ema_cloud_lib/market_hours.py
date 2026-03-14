@@ -97,7 +97,7 @@ class MarketHours:
         # Convert UTC close time to Eastern Time using proper timezone handling
         et_tz = ZoneInfo("America/New_York")
         close_et = market_close_utc.to_pydatetime().astimezone(et_tz)
-        close_time_et = close_et.time().replace(second=0, microsecond=0)
+        close_time_et: time = close_et.time().replace(second=0, microsecond=0)
 
         # Regular close is 4:00 PM ET; anything earlier is an early close
         if close_time_et < cls.MARKET_CLOSE:

@@ -591,7 +591,7 @@ class EMACloudScanner:
             holdings_results = []
 
         for etf_symbol, holdings in zip(symbols_to_fetch, holdings_results, strict=False):
-            if isinstance(holdings, Exception):
+            if isinstance(holdings, BaseException):
                 logger.warning(f"Holdings lookup failed for {etf_symbol}: {holdings}")
                 # Set empty defaults to prevent KeyError later
                 holdings_by_etf[etf_symbol] = []
