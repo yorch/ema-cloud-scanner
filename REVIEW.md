@@ -19,10 +19,11 @@ The EMA Cloud Sector Scanner is a real-time trading scanner monitoring sector ET
 | Metric | Value |
 |--------|-------|
 | Total Python Files | 44 |
-| Library Code (ema_cloud_lib) | ~7,500 lines |
+| Library Code (ema_cloud_lib) | ~7,600 lines |
 | Dashboard Code (ema_cloud_cli) | ~3,900 lines |
-| Test Code | ~6,000 lines |
+| Test Code | ~6,100 lines |
 | Tests Passing | 486 |
+| Mypy Errors | 0 |
 | Documentation | ~6,800 lines (13 files) |
 | Python Version | >=3.11 (tested on 3.11, 3.12, 3.13) |
 | License | MIT |
@@ -108,12 +109,12 @@ Recently added MTF module (`indicators/mtf_analyzer.py`) provides:
 
 ### Bug 1: VWAP Daily Reset (FIXED)
 
-**File:** `indicators/ema_cloud.py:169-191`
+**File:** `indicators/ema_cloud.py:205`
 **Severity:** HIGH
 
-The VWAP calculation used `hasattr(high.index, "date")` which is unreliable — many index types have a `.date` attribute even when they're not datetime-based. The check should use `isinstance(high.index, pd.DatetimeIndex)` for proper type verification.
+The VWAP calculation used `hasattr(high.index, "date")` which is unreliable — any index type with a monkey-patched or inherited `.date` attribute would incorrectly enter the date-grouping branch, producing wrong VWAP values (per-bar reset instead of cumulative).
 
-**Fix:** Changed to `isinstance` check for reliable datetime index detection and proper daily reset grouping.
+**Fix:** Changed to `isinstance(high.index, pd.DatetimeIndex)` for reliable type verification. Regression test uses a monkey-patched `RangeIndex` with a `.date` attribute that creates spurious groups — the old `hasattr` code produces wrong results while the `isinstance` check correctly routes to the cumulative fallback.
 
 ### Bug 2: Division-by-Zero in RSI and ADX (FIXED)
 
@@ -149,14 +150,14 @@ When a short signal was received, the code fell through from the `if signal.dire
 
 **Fix:** Added explicit `elif signal.direction == "short":` check before evaluating sector state for short signals.
 
-### Bug 5: Emoji-Based Signal Parsing (FIXED)
+### Bug 5: Brittle String-Based Signal Parsing (FIXED — Refactored to Structured Type)
 
-**File:** `signals/generator.py:646-666`
+**File:** `indicators/ema_cloud.py`, `signals/generator.py`
 **Severity:** MEDIUM
 
-Signal direction was determined by checking `"🟢" in raw_signal or "BULLISH" in raw_signal.upper()`, which is fragile — depends on emoji encoding, could match substrings unintentionally, and couples the signal processor to the exact emoji used in `detect_signals()`.
+`detect_signals()` returned `list[str]` with emoji-prefixed messages like `"🟢 TREND_FLIP_BULLISH: 34-50 cloud turned green"`. The consumer `_process_raw_signal()` had to reverse-engineer direction, signal type, and cloud name by parsing these strings with keyword matching — fragile, encoding-dependent, and tightly coupled.
 
-**Fix:** Replaced emoji matching with structured keyword matching using explicit signal type prefixes (`TREND_FLIP_BULLISH`, `BREAKOUT`, `PULLBACK_ENTRY...uptrend`, `STRONG_ALIGNMENT...bullish`). The direction is now determined by the signal type keywords that are already present in the raw signal strings.
+**Fix:** Introduced a `RawSignal` dataclass with structured fields (`signal_type`, `direction`, `cloud_name`, `description`). `detect_signals()` now returns `list[RawSignal]`, and `_process_raw_signal()` reads fields directly instead of parsing strings. `SignalDirection` enum consolidated in `config/settings.py` and shared by both layers. All ~40 test call sites updated across 3 test files.
 
 ### Bug 6: Symbol Deduplication in Settings (FIXED)
 
@@ -182,7 +183,7 @@ Estimated ~25% coverage. Recent additions (signal tests, MTF tests, correctness 
 | Alert System | 958 | None |
 | Dashboard | 3,900 | None |
 
-Well-tested modules: signals/generator (~1,600 lines of tests), MTF analyzer (~740 lines), market hours, settings, backtester, correctness fixes (38 regression tests).
+Well-tested modules: signals/generator (~1,600 lines of tests), MTF analyzer (~740 lines), market hours, settings, backtester, correctness fixes (38 regression tests). All regression tests validate actual behavioral differences (not just smoke tests).
 
 ### 2. Error Handling (Grade: C+)
 
@@ -210,7 +211,7 @@ Well-tested modules: signals/generator (~1,600 lines of tests), MTF analyzer (~7
 ### 5. CI/CD Gaps (Grade: B)
 
 - No coverage reporting or threshold enforcement
-- Mypy doesn't check CLI package
+- Mypy passes cleanly (0 errors) on the lib package but doesn't check CLI package
 - No pre-commit configuration file
 - No integration/slow test separation
 
@@ -246,4 +247,4 @@ Well-tested modules: signals/generator (~1,600 lines of tests), MTF analyzer (~7
 
 ## Conclusion
 
-This is a **well-architected, domain-faithful trading scanner** with strong fundamentals. The dual-package design, signal pipeline, and configuration system are genuinely well done. Recent improvements — 6 correctness bug fixes with 38 regression tests, multi-timeframe analysis, and performance/security refactoring — have meaningfully advanced the project. The main remaining risk is **reliability**: test coverage gaps on scanner/data-providers/alerts, and no resilience in data fetching. The architecture supports growth — the gaps are in hardening, not in design.
+This is a **well-architected, domain-faithful trading scanner** with strong fundamentals. The dual-package design, signal pipeline, and configuration system are genuinely well done. Recent improvements — 6 correctness bug fixes with 38 regression tests, multi-timeframe analysis, structured `RawSignal` refactoring, and a clean mypy pass (0 errors) — have meaningfully advanced the project. The main remaining risk is **reliability**: test coverage gaps on scanner/data-providers/alerts, and no resilience in data fetching. The architecture supports growth — the gaps are in hardening, not in design.
