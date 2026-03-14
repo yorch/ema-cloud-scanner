@@ -1,14 +1,21 @@
 {
   "permissions": {
     "allow": [
+      "Bash(git add:*)",
+      "Bash(git fetch:*)",
+      "Bash(ls:*)",
+      "Bash(pip index:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(ruff check:*)",
+      "Bash(tree:*)",
+      "Bash(uv:*)",
       "mcp__context7",
       "mcp__git",
       "mcp__memory",
       "mcp__sequential-thinking",
       "mcp__serena",
-      "Bash(ls:*)",
-      "Bash(tree:*)",
-      "Bash(uv:*)",
       "WebFetch",
       "WebSearch"
     ]
