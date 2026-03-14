@@ -31,7 +31,7 @@ class TextualLogHandler(logging.Handler):
     def __init__(self, log_viewer: LogViewer):
         super().__init__()
         self.log_viewer = log_viewer
-        self._log_buffer = deque(maxlen=100)
+        self._log_buffer: deque[str] = deque(maxlen=100)
         self._is_active = True
 
         # Set formatter for consistent log format

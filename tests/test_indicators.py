@@ -835,7 +835,7 @@ class TestEMACloudIndicator:
         df = indicator.calculate(make_trending_up(100, step=2.0))
         signals = indicator.detect_signals(df, idx=-1)
         alignment_signals = [
-            s for s in signals if "STRONG_ALIGNMENT" in s and "bullish" in s.lower()
+            s for s in signals if s.signal_type == "STRONG_ALIGNMENT" and s.direction == "bullish"
         ]
         assert len(alignment_signals) > 0
 
@@ -845,7 +845,7 @@ class TestEMACloudIndicator:
         df = indicator.calculate(make_trending_down(100, step=2.0))
         signals = indicator.detect_signals(df, idx=-1)
         alignment_signals = [
-            s for s in signals if "STRONG_ALIGNMENT" in s and "bearish" in s.lower()
+            s for s in signals if s.signal_type == "STRONG_ALIGNMENT" and s.direction == "bearish"
         ]
         assert len(alignment_signals) > 0
 
@@ -870,7 +870,9 @@ class TestEMACloudIndicator:
 
         if flip_idx is not None:
             signals = indicator.detect_signals(df, idx=flip_idx)
-            flip_signals = [s for s in signals if "TREND_FLIP_BULLISH" in s]
+            flip_signals = [
+                s for s in signals if s.signal_type == "TREND_FLIP" and s.direction == "bullish"
+            ]
             assert len(flip_signals) > 0
 
     def test_detect_signals_trend_flip_bearish(self):
@@ -894,7 +896,9 @@ class TestEMACloudIndicator:
 
         if flip_idx is not None:
             signals = indicator.detect_signals(df, idx=flip_idx)
-            flip_signals = [s for s in signals if "TREND_FLIP_BEARISH" in s]
+            flip_signals = [
+                s for s in signals if s.signal_type == "TREND_FLIP" and s.direction == "bearish"
+            ]
             assert len(flip_signals) > 0
 
     def test_detect_signals_no_crash_on_ranging_data(self):

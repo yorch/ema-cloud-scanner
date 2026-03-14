@@ -166,10 +166,13 @@ class MTFModal(ModalScreen):
         confidence_class = self._get_confidence_class(mtf.confidence)
         bias_class = self._get_bias_class(mtf.bias)
 
+        alignment_text = (mtf.alignment or "unknown").replace("_", " ").title()
+        confidence_text = (mtf.confidence or "unknown").replace("_", " ").title()
+        bias_text = (mtf.bias or "neutral").upper()
         overview_content = (
-            f"  [dim]Alignment:[/dim]      [{alignment_class}]{mtf.alignment.replace('_', ' ').title()}[/{alignment_class}]\n"
-            f"  [dim]Confidence:[/dim]     [{confidence_class}]{mtf.confidence.replace('_', ' ').title()}[/{confidence_class}]\n"
-            f"  [dim]Trading Bias:[/dim]   [{bias_class}]{mtf.bias.upper()}[/{bias_class}]\n"
+            f"  [dim]Alignment:[/dim]      [{alignment_class}]{alignment_text}[/{alignment_class}]\n"
+            f"  [dim]Confidence:[/dim]     [{confidence_class}]{confidence_text}[/{confidence_class}]\n"
+            f"  [dim]Trading Bias:[/dim]   [{bias_class}]{bias_text}[/{bias_class}]\n"
             f"  [dim]Alignment %:[/dim]    [bold]{mtf.alignment_pct:.1f}%[/bold]\n"
         )
         overview_widget.update(overview_content)

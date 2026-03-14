@@ -196,9 +196,7 @@ class EMACloudScanner:
                 timeframes=self.config.mtf.timeframes,
                 cloud_configs=self.config.ema_clouds,
             )
-            logger.info(
-                f"MTF analyzer reinitialized for: {', '.join(self.config.mtf.timeframes)}"
-            )
+            logger.info(f"MTF analyzer reinitialized for: {', '.join(self.config.mtf.timeframes)}")
         else:
             self.mtf_analyzer = None
             logger.info("MTF analyzer disabled")
@@ -290,9 +288,7 @@ class EMACloudScanner:
             "mtf_result": mtf_result,
         }
 
-    async def _fetch_mtf_data(
-        self, symbol: str, timeframe: str, limit: int
-    ) -> pd.DataFrame | None:
+    async def _fetch_mtf_data(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame | None:
         """
         Fetch data for multi-timeframe analysis.
 
@@ -591,7 +587,7 @@ class EMACloudScanner:
             holdings_results = []
 
         for etf_symbol, holdings in zip(symbols_to_fetch, holdings_results, strict=False):
-            if isinstance(holdings, Exception):
+            if isinstance(holdings, BaseException):
                 logger.warning(f"Holdings lookup failed for {etf_symbol}: {holdings}")
                 # Set empty defaults to prevent KeyError later
                 holdings_by_etf[etf_symbol] = []

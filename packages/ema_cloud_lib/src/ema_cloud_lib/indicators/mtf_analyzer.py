@@ -149,8 +149,7 @@ class MultiTimeframeAnalyzer:
             MTFAnalysisResult with complete analysis
         """
         tasks = [
-            self._analyze_single_tf(symbol, tf, data_fetcher, bars_per_tf)
-            for tf in self.timeframes
+            self._analyze_single_tf(symbol, tf, data_fetcher, bars_per_tf) for tf in self.timeframes
         ]
         tf_results = await asyncio.gather(*tasks)
         results = [r for r in tf_results if r is not None]

@@ -172,7 +172,7 @@ def get_cli_settings() -> CLISettings:
         else:
             config_dir = CLISettings._get_default_config_dir()
         env_file = config_dir / ".env"
-        _settings = CLISettings(_env_file=env_file)
+        _settings = CLISettings(_env_file=env_file)  # type: ignore[call-arg]
     return _settings
 
 

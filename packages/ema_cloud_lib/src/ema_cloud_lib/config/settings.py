@@ -654,10 +654,10 @@ class ScannerConfig(BaseModel):
         return TRADING_PRESETS[self.trading_style]
 
     def get_active_etf_symbols(self) -> list[str]:
-        """Get list of active ETF symbols"""
+        """Get list of active ETF symbols (deduplicated, order-preserving)"""
         symbols = [SECTOR_ETFS[sector]["symbol"] for sector in self.active_sectors]
         symbols.extend(self.custom_symbols)
-        return symbols
+        return list(dict.fromkeys(symbols))
 
     def validate_config(self) -> list[str]:
         """

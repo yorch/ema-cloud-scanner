@@ -26,7 +26,7 @@ import pandas as pd
 import pytest
 
 from ema_cloud_lib.config.settings import FilterConfig, SignalType, TradingStyle
-from ema_cloud_lib.indicators.ema_cloud import CloudData, CloudState, PriceRelation
+from ema_cloud_lib.indicators.ema_cloud import CloudData, CloudState, PriceRelation, RawSignal
 from ema_cloud_lib.signals.generator import (
     FilterResult,
     SectorTrendState,
@@ -36,6 +36,53 @@ from ema_cloud_lib.signals.generator import (
     SignalGenerator,
     SignalStrength,
     count_bullish_clouds,
+)
+
+
+# ---------------------------------------------------------------------------
+# RawSignal test helpers
+# ---------------------------------------------------------------------------
+
+# Pre-built RawSignal instances matching the old string-based signals
+_RAW_TREND_FLIP_BULLISH = RawSignal(
+    signal_type="TREND_FLIP", direction="bullish",
+    cloud_name="trend_confirmation", message="34-50 cloud turned green",
+)
+_RAW_TREND_FLIP_BEARISH = RawSignal(
+    signal_type="TREND_FLIP", direction="bearish",
+    cloud_name="trend_confirmation", message="34-50 cloud turned red",
+)
+_RAW_SHORT_TERM_BULLISH = RawSignal(
+    signal_type="SHORT_TERM", direction="bullish",
+    cloud_name="trend_line", message="5-12 cloud turned green",
+)
+_RAW_BREAKOUT = RawSignal(
+    signal_type="BREAKOUT", direction="bullish",
+    cloud_name="trend_confirmation", message="Price crossed above 34-50 cloud",
+)
+_RAW_BREAKDOWN = RawSignal(
+    signal_type="BREAKDOWN", direction="bearish",
+    cloud_name="trend_confirmation", message="Price crossed below 34-50 cloud",
+)
+_RAW_PULLBACK_BULLISH = RawSignal(
+    signal_type="PULLBACK_ENTRY", direction="bullish",
+    cloud_name="pullback", message="Price at 8-9 cloud support in uptrend",
+)
+_RAW_PULLBACK_BEARISH = RawSignal(
+    signal_type="PULLBACK_ENTRY", direction="bearish",
+    cloud_name="pullback", message="Price at 8-9 cloud resistance in downtrend",
+)
+_RAW_ALIGNMENT_BULLISH = RawSignal(
+    signal_type="STRONG_ALIGNMENT", direction="bullish",
+    cloud_name="all", message="All clouds bullish",
+)
+_RAW_ALIGNMENT_BEARISH = RawSignal(
+    signal_type="STRONG_ALIGNMENT", direction="bearish",
+    cloud_name="all", message="All clouds bearish",
+)
+_RAW_UNKNOWN_BEARISH = RawSignal(
+    signal_type="SOME_UNKNOWN", direction="bearish",
+    cloud_name="unknown", message="custom signal",
 )
 
 
@@ -888,7 +935,7 @@ class TestCloudFlipDetection:
         clouds = {"trend_confirmation": _make_cloud_data(state=CloudState.CROSSING_UP)}
         row = _make_row(close=105.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            raw_signal="🟢 TREND_FLIP_BULLISH: 34-50 cloud turned green",
+            raw_signal=_RAW_TREND_FLIP_BULLISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -906,7 +953,7 @@ class TestCloudFlipDetection:
         }
         row = _make_row(close=95.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            raw_signal="🔴 TREND_FLIP_BEARISH: 34-50 cloud turned red",
+            raw_signal=_RAW_TREND_FLIP_BEARISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -920,7 +967,7 @@ class TestCloudFlipDetection:
         clouds = {"trend_confirmation": _make_cloud_data(state=CloudState.BULLISH)}
         row = _make_row(close=105.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            raw_signal="🟢 SHORT_TERM_BULLISH: 5-12 cloud turned green",
+            raw_signal=_RAW_SHORT_TERM_BULLISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -948,7 +995,7 @@ class TestPriceCrossDetection:
         }
         row = _make_row(close=105.0, atr=1.0, vwap=100.0, macd_histogram=0.3)
         sig = self.gen._process_raw_signal(
-            raw_signal="🟢 BREAKOUT: Price crossed above 34-50 cloud",
+            raw_signal=_RAW_BREAKOUT,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -969,7 +1016,7 @@ class TestPriceCrossDetection:
         }
         row = _make_row(close=95.0, atr=1.0, vwap=100.0, macd_histogram=-0.3)
         sig = self.gen._process_raw_signal(
-            raw_signal="🔴 BREAKDOWN: Price crossed below 34-50 cloud",
+            raw_signal=_RAW_BREAKDOWN,
             row=row,
             clouds=clouds,
             symbol="XLF",
@@ -997,7 +1044,7 @@ class TestPullbackEntryDetection:
         row = _make_row(close=102.0, rsi=45.0, adx=22.0, atr=1.0, vwap=100.0)
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🟢 PULLBACK_ENTRY: Price at 8-9 cloud support in uptrend",
+            raw_signal=_RAW_PULLBACK_BULLISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1020,7 +1067,7 @@ class TestPullbackEntryDetection:
         row = _make_row(close=98.0, rsi=55.0, adx=22.0, atr=1.0, vwap=100.0)
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🔴 PULLBACK_ENTRY: Price at 8-9 cloud resistance in downtrend",
+            raw_signal=_RAW_PULLBACK_BEARISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1045,7 +1092,7 @@ class TestMultiCloudAlignment:
         )
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🟢 STRONG_ALIGNMENT: All clouds bullish",
+            raw_signal=_RAW_ALIGNMENT_BULLISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1067,7 +1114,7 @@ class TestMultiCloudAlignment:
         )
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🔴 STRONG_ALIGNMENT: All clouds bearish",
+            raw_signal=_RAW_ALIGNMENT_BEARISH,
             row=row,
             clouds=clouds,
             symbol="XLE",
@@ -1082,8 +1129,26 @@ class TestMultiCloudAlignment:
         clouds = {"trend_confirmation": _make_cloud_data(state=CloudState.BULLISH)}
         row = _make_row(close=105.0, atr=1.0)
         ts = datetime(2025, 6, 10, 11, 0, 0)
+        # Unknown signal without a recognized bullish keyword defaults to bearish
         sig = gen._process_raw_signal(
-            raw_signal="🟢 SOME_UNKNOWN_SIGNAL: custom signal",
+            raw_signal=_RAW_UNKNOWN_BEARISH,
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.signal_type == SignalType.CLOUD_FLIP_BEARISH
+        assert sig.direction == "short"
+
+    def test_unknown_bullish_signal_defaults_to_cloud_flip_bullish(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": _make_cloud_data(state=CloudState.BULLISH)}
+        row = _make_row(close=105.0, atr=1.0)
+        ts = datetime(2025, 6, 10, 11, 0, 0)
+        # Signal containing a recognized bullish keyword should be bullish
+        sig = gen._process_raw_signal(
+            raw_signal=_RAW_TREND_FLIP_BULLISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1091,6 +1156,7 @@ class TestMultiCloudAlignment:
         )
         assert sig is not None
         assert sig.signal_type == SignalType.CLOUD_FLIP_BULLISH
+        assert sig.direction == "long"
 
 
 # ===========================================================================
@@ -1109,7 +1175,7 @@ class TestRiskManagement:
         row = _make_row(close=105.0, atr=1.0, vwap=103.0, macd_histogram=0.2)
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🟢 TREND_FLIP_BULLISH: 34-50 cloud turned green",
+            raw_signal=_RAW_TREND_FLIP_BULLISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1131,7 +1197,7 @@ class TestRiskManagement:
         row = _make_row(close=95.0, atr=1.0, vwap=98.0, macd_histogram=-0.2)
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🔴 TREND_FLIP_BEARISH: 34-50 cloud turned red",
+            raw_signal=_RAW_TREND_FLIP_BEARISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1152,7 +1218,7 @@ class TestRiskManagement:
         row = _make_row(close=105.0, atr=1.0, vwap=103.0, macd_histogram=0.2)
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🟢 TREND_FLIP_BULLISH: cloud green",
+            raw_signal=_RAW_TREND_FLIP_BULLISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1171,7 +1237,7 @@ class TestRiskManagement:
         row = _make_row(close=100.0, atr=np.nan, vwap=98.0, macd_histogram=0.1)
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🟢 TREND_FLIP_BULLISH: cloud green",
+            raw_signal=_RAW_TREND_FLIP_BULLISH,
             row=row,
             clouds=clouds,
             symbol="XLK",
@@ -1186,7 +1252,7 @@ class TestRiskManagement:
         row = _make_row(close=105.0, atr=1.0)
         ts = datetime(2025, 6, 10, 11, 0, 0)
         sig = gen._process_raw_signal(
-            raw_signal="🟢 TREND_FLIP_BULLISH: cloud green",
+            raw_signal=_RAW_TREND_FLIP_BULLISH,
             row=row,
             clouds={},
             symbol="XLK",
@@ -1486,7 +1552,7 @@ class TestProcessRawSignalDetails:
     def test_bullish_emoji_detected_as_long(self):
         row = _make_row(close=105.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1502,7 +1568,7 @@ class TestProcessRawSignalDetails:
         }
         row = _make_row(close=95.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🔴 TREND_FLIP_BEARISH: test",
+            _RAW_TREND_FLIP_BEARISH,
             row,
             clouds,
             "XLK",
@@ -1513,7 +1579,7 @@ class TestProcessRawSignalDetails:
     def test_rsi_propagated(self):
         row = _make_row(close=105.0, rsi=62.5, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1524,7 +1590,7 @@ class TestProcessRawSignalDetails:
     def test_adx_propagated(self):
         row = _make_row(close=105.0, adx=31.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1535,7 +1601,7 @@ class TestProcessRawSignalDetails:
     def test_volume_ratio_propagated(self):
         row = _make_row(close=105.0, volume_ratio=2.3, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1546,7 +1612,7 @@ class TestProcessRawSignalDetails:
     def test_vwap_confirmed_long(self):
         row = _make_row(close=105.0, vwap=100.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1557,7 +1623,7 @@ class TestProcessRawSignalDetails:
     def test_vwap_not_confirmed_long(self):
         row = _make_row(close=95.0, vwap=100.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1568,7 +1634,7 @@ class TestProcessRawSignalDetails:
     def test_macd_confirmed_long(self):
         row = _make_row(close=105.0, macd_histogram=0.5, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1576,16 +1642,17 @@ class TestProcessRawSignalDetails:
         )
         assert sig.macd_confirmed is True
 
-    def test_raw_signal_stored_in_notes(self):
+    def test_raw_signal_message_stored_in_notes(self):
         row = _make_row(close=105.0, atr=1.0)
-        raw = "🟢 TREND_FLIP_BULLISH: test note"
-        sig = self.gen._process_raw_signal(raw, row, self.clouds, "XLK", self.ts)
-        assert raw in sig.notes
+        sig = self.gen._process_raw_signal(
+            _RAW_TREND_FLIP_BULLISH, row, self.clouds, "XLK", self.ts
+        )
+        assert _RAW_TREND_FLIP_BULLISH.message in sig.notes
 
     def test_sector_and_etf_propagated(self):
         row = _make_row(close=105.0, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1599,7 +1666,7 @@ class TestProcessRawSignalDetails:
     def test_nan_rsi_becomes_none(self):
         row = _make_row(close=105.0, rsi=np.nan, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",
@@ -1610,7 +1677,7 @@ class TestProcessRawSignalDetails:
     def test_nan_adx_becomes_none(self):
         row = _make_row(close=105.0, adx=np.nan, atr=1.0)
         sig = self.gen._process_raw_signal(
-            "🟢 TREND_FLIP_BULLISH: test",
+            _RAW_TREND_FLIP_BULLISH,
             row,
             self.clouds,
             "XLK",

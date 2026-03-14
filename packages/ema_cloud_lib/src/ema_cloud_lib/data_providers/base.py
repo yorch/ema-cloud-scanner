@@ -515,8 +515,8 @@ class AlpacaProvider(BaseDataProvider):
             self._client = StockHistoricalDataClient(self.api_key, self.secret_key)
         return self._client
 
-    def _convert_interval(self, interval: str) -> str:
-        """Convert to Alpaca timeframe"""
+    def _convert_interval(self, interval: str):  # type: ignore[no-untyped-def]
+        """Convert to Alpaca timeframe. Returns a TimeFrame object."""
         from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
         mapping = {
