@@ -80,6 +80,50 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                                 classes="form-control",
                             ),
                         )
+                with TabPane("MTF Analysis", id="tab-mtf"):
+                    with VerticalScroll(classes="settings-tab"):
+                        yield Static("Multi-Timeframe Analysis", classes="section-title")
+                        yield self._row(
+                            "MTF Enabled",
+                            Switch(value=self._config.mtf.enabled, id="mtf_enabled"),
+                        )
+                        yield self._row(
+                            "Timeframes (comma-separated)",
+                            Input(
+                                ", ".join(self._config.mtf.timeframes),
+                                id="mtf_timeframes",
+                                classes="form-control",
+                                placeholder="1d, 4h, 1h",
+                            ),
+                        )
+                        yield self._row(
+                            "Minimum Confidence",
+                            Select(
+                                [
+                                    ("Very High", "very_high"),
+                                    ("High", "high"),
+                                    ("Moderate", "moderate"),
+                                    ("Low", "low"),
+                                ],
+                                value=self._config.mtf.min_confidence,
+                                id="mtf_min_confidence",
+                            ),
+                        )
+                        yield self._row(
+                            "Require Alignment",
+                            Switch(
+                                value=self._config.mtf.require_alignment,
+                                id="mtf_require_alignment",
+                            ),
+                        )
+                        yield self._row(
+                            "Bars per Timeframe",
+                            Input(
+                                str(self._config.mtf.bars_per_timeframe),
+                                id="mtf_bars_per_timeframe",
+                                classes="form-control",
+                            ),
+                        )
                 with TabPane("Sectors", id="tab-sectors"):
                     with VerticalScroll(classes="settings-tab"):
                         selections = [
@@ -641,6 +685,14 @@ class SettingsScreen(ModalScreen[ScannerConfig]):
                 s.strip().upper() for s in symbols_raw.replace(",", " ").split() if s.strip()
             ]
             config_dict["custom_symbols"] = symbols
+
+            mtf = config_dict["mtf"]
+            mtf["enabled"] = self._read_switch("mtf_enabled")
+            timeframes_raw = self._read_input("mtf_timeframes")
+            mtf["timeframes"] = [tf.strip() for tf in timeframes_raw.split(",") if tf.strip()]
+            mtf["min_confidence"] = self.query_one("#mtf_min_confidence", Select).value
+            mtf["require_alignment"] = self._read_switch("mtf_require_alignment")
+            mtf["bars_per_timeframe"] = self._read_int("mtf_bars_per_timeframe")
 
             filters = config_dict["filters"]
             filters["volume_enabled"] = self._read_switch("volume_enabled")

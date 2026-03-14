@@ -20,6 +20,7 @@ def setup_etf_table(app) -> None:
     table.add_column("Change", key="change", width=9)
     table.add_column("Trend", key="trend", width=10)
     table.add_column("Strength", key="strength", width=9)
+    table.add_column("MTF", key="mtf", width=12)
     table.add_column("RSI", key="rsi", width=7)
     table.add_column("ADX", key="adx", width=7)
     table.add_column("Sigs", key="signals", width=5)
@@ -73,6 +74,19 @@ def update_etf_table(app, etf_data: dict[str, ETFDisplayData]) -> None:
 
         change_text = f"{etf.change_pct:+.2f}%"
         strength_text = f"{etf.trend_strength:.0f}%"
+
+        # MTF column formatting
+        if etf.mtf and etf.mtf.enabled:
+            bias_symbol = (
+                "🟢" if etf.mtf.bias == "long" else "🔴" if etf.mtf.bias == "short" else "⚪"
+            )
+            confidence_short = (
+                etf.mtf.confidence.replace("_", "")[:4].upper() if etf.mtf.confidence else "---"
+            )
+            mtf_text = f"{bias_symbol} {confidence_short}"
+        else:
+            mtf_text = "-"
+
         rsi_text = f"{etf.rsi:.1f}" if etf.rsi is not None else "-"
         adx_text = f"{etf.adx:.1f}" if etf.adx is not None else "-"
         signals_text = str(etf.signals_count)
@@ -84,6 +98,7 @@ def update_etf_table(app, etf_data: dict[str, ETFDisplayData]) -> None:
             change_text,
             trend_text,
             strength_text,
+            mtf_text,
             rsi_text,
             adx_text,
             signals_text,

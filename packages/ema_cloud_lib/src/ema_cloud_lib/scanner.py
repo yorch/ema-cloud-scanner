@@ -28,12 +28,14 @@ from ema_cloud_lib.data_providers.base import DataProviderManager
 from ema_cloud_lib.holdings.holdings_scanner import HoldingsScanner, SectorTrend
 from ema_cloud_lib.holdings.manager import Holding, HoldingsManager
 from ema_cloud_lib.indicators.ema_cloud import EMACloudIndicator
+from ema_cloud_lib.indicators.mtf_analyzer import MTFAnalysisResult, MultiTimeframeAnalyzer
 from ema_cloud_lib.market_hours import MarketHours
 from ema_cloud_lib.signals.generator import SectorTrendState, Signal, SignalGenerator
 from ema_cloud_lib.types.display import (
     ETFDisplayData,
     HoldingDisplayData,
     HoldingsETFDisplayData,
+    MTFDisplayData,
     SignalDisplayData,
 )
 from ema_cloud_lib.types.protocols import DashboardProtocol
@@ -71,6 +73,16 @@ class EMACloudScanner:
             )
             logger.info("Holdings scanner enabled")
 
+        # Multi-timeframe analyzer (initialized if enabled)
+        self.mtf_analyzer: MultiTimeframeAnalyzer | None = None
+        if self.config.mtf.enabled:
+            self.mtf_analyzer = MultiTimeframeAnalyzer(
+                timeframes=self.config.mtf.timeframes, cloud_configs=self.config.ema_clouds
+            )
+            logger.info(
+                f"Multi-timeframe analyzer enabled for: {', '.join(self.config.mtf.timeframes)}"
+            )
+
         # Dashboard (optional, set via set_dashboard())
         self._dashboard: DashboardProtocol | None = None
 
@@ -79,6 +91,7 @@ class EMACloudScanner:
         self._sector_states: dict[str, SectorTrendState] = {}
         self._recent_signals: dict[str, Signal] = {}
         self._signal_cooldown: dict[str, datetime] = {}
+        self._mtf_results: dict[str, MTFAnalysisResult] = {}  # symbol -> MTF result
 
         # Holdings cache (symbol -> (timestamp, holdings))
         self._holdings_cache: dict[str, tuple[datetime, list[Holding]]] = {}
@@ -177,6 +190,19 @@ class EMACloudScanner:
             self.holdings_scanner = None
             logger.info("Holdings scanner disabled")
 
+        # Reinitialize MTF analyzer if enabled
+        if self.config.mtf.enabled:
+            self.mtf_analyzer = MultiTimeframeAnalyzer(
+                timeframes=self.config.mtf.timeframes,
+                cloud_configs=self.config.ema_clouds,
+            )
+            logger.info(
+                f"MTF analyzer reinitialized for: {', '.join(self.config.mtf.timeframes)}"
+            )
+        else:
+            self.mtf_analyzer = None
+            logger.info("MTF analyzer disabled")
+
     def _get_etf_list(self) -> list[str]:
         """Get list of ETFs to scan based on config"""
         return self.config.get_active_etf_symbols()
@@ -231,6 +257,20 @@ class EMACloudScanner:
             prepared_df, symbol, sector_name
         )
 
+        # Multi-timeframe analysis (if enabled)
+        mtf_result = None
+        if self.mtf_analyzer:
+            try:
+                mtf_result = await self.mtf_analyzer.analyze(
+                    symbol=symbol,
+                    data_fetcher=self._fetch_mtf_data,
+                    bars_per_tf=self.config.mtf.bars_per_timeframe,
+                )
+                self._mtf_results[symbol] = mtf_result
+                logger.debug(f"MTF analysis for {symbol}: {mtf_result.summary}")
+            except Exception as e:
+                logger.error(f"MTF analysis failed for {symbol}: {e}")
+
         # Get latest row for display
         latest = prepared_df.iloc[-1]
         prev_close = prepared_df.iloc[-2]["close"] if len(prepared_df) > 1 else latest["close"]
@@ -247,7 +287,49 @@ class EMACloudScanner:
             "rsi": latest.get("rsi"),
             "adx": latest.get("adx"),
             "volume_ratio": latest.get("volume_ratio"),
+            "mtf_result": mtf_result,
         }
+
+    async def _fetch_mtf_data(
+        self, symbol: str, timeframe: str, limit: int
+    ) -> pd.DataFrame | None:
+        """
+        Fetch data for multi-timeframe analysis.
+
+        Args:
+            symbol: Symbol to fetch
+            timeframe: Timeframe interval (e.g., '1d', '4h', '1h')
+            limit: Number of bars to fetch
+
+        Returns:
+            DataFrame with OHLCV data
+        """
+        try:
+            # Calculate lookback period based on timeframe
+            lookback_days = self._calculate_lookback(timeframe, limit)
+            start = datetime.now() - timedelta(days=lookback_days)
+
+            df = await self.data_manager.get_historical_data(
+                symbol=symbol, interval=timeframe, start=start
+            )
+            return df
+        except Exception as e:
+            logger.error(f"Error fetching MTF data for {symbol} ({timeframe}): {e}")
+            return None
+
+    def _calculate_lookback(self, timeframe: str, bars: int) -> int:
+        """Calculate lookback days needed for a timeframe"""
+        # Estimate days needed based on timeframe
+        tf_to_days = {
+            "1m": max(2, bars // (24 * 60)),
+            "5m": max(3, bars // (24 * 12)),
+            "15m": max(5, bars // (24 * 4)),
+            "1h": max(10, bars // 24),
+            "4h": max(30, bars // 6),
+            "1d": max(round(bars * 1.5), 300),  # ~1.5x buffer for weekends/holidays
+            "1w": max(bars * 10, 730),  # Allow for weekly bars
+        }
+        return tf_to_days.get(timeframe, 30)
 
     async def scan_etf_holdings(self, etf_symbol: str) -> list[dict] | None:
         """
@@ -412,11 +494,29 @@ class EMACloudScanner:
 
         for analysis in analyses:
             trend = analysis["trend"]
+            symbol = analysis["symbol"]
+
+            # Prepare MTF display data if available
+            mtf_data = None
+            if symbol in self._mtf_results:
+                mtf_result = self._mtf_results[symbol]
+                mtf_data = MTFDisplayData(
+                    enabled=True,
+                    alignment=mtf_result.alignment.value,
+                    confidence=mtf_result.confidence.value,
+                    bias=mtf_result.bias,
+                    bullish_count=mtf_result.bullish_count,
+                    bearish_count=mtf_result.bearish_count,
+                    neutral_count=mtf_result.neutral_count,
+                    total_timeframes=len(mtf_result.timeframes),
+                    alignment_pct=mtf_result.alignment_pct,
+                    summary=mtf_result.summary,
+                )
 
             self._dashboard.update_etf_data(
                 ETFDisplayData(
-                    symbol=analysis["symbol"],
-                    name=analysis["symbol"],
+                    symbol=symbol,
+                    name=symbol,
                     sector=analysis["sector"],
                     price=analysis["price"],
                     change_pct=analysis["change_pct"],
@@ -429,6 +529,7 @@ class EMACloudScanner:
                     rsi=analysis.get("rsi"),
                     adx=analysis.get("adx"),
                     volume_ratio=analysis.get("volume_ratio"),
+                    mtf=mtf_data,
                 )
             )
 

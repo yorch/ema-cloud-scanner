@@ -7,7 +7,7 @@ All settings are configurable and support presets for different trading styles.
 
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, SecretStr, ValidationInfo, field_validator
 
@@ -499,6 +499,46 @@ class BacktestConfig(BaseModel):
         return v
 
 
+class MTFConfig(BaseModel):
+    """Multi-Timeframe Analysis Configuration"""
+
+    enabled: bool = Field(default=False, description="Enable multi-timeframe analysis")
+    timeframes: list[str] = Field(
+        default_factory=lambda: ["1d", "4h", "1h"],
+        description="Timeframes to analyze (higher to lower)",
+    )
+    min_confidence: Literal["very_high", "high", "moderate", "low"] = Field(
+        default="moderate",
+        description="Minimum confidence level: very_high, high, moderate, low",
+    )
+    require_alignment: bool = Field(
+        default=True, description="Only take trades aligned with MTF bias"
+    )
+    bars_per_timeframe: int = Field(
+        default=200, description="Historical bars to fetch per timeframe"
+    )
+
+    @field_validator("timeframes")
+    @classmethod
+    def validate_timeframes(cls, v: list[str]) -> list[str]:
+        """Validate timeframes list"""
+        if len(v) < 1:
+            raise ValueError("At least one timeframe required")
+        valid_tfs = {"1m", "5m", "15m", "1h", "4h", "1d", "1w"}
+        for tf in v:
+            if tf not in valid_tfs:
+                raise ValueError(f"Invalid timeframe: {tf}. Must be one of {valid_tfs}")
+        return v
+
+    @field_validator("bars_per_timeframe")
+    @classmethod
+    def validate_bars(cls, v: int) -> int:
+        """Validate bars per timeframe"""
+        if v < 50:
+            raise ValueError("bars_per_timeframe must be >= 50")
+        return v
+
+
 class ScannerConfig(BaseModel):
     """Main scanner configuration"""
 
@@ -533,6 +573,9 @@ class ScannerConfig(BaseModel):
     data_provider: DataProviderConfig = Field(
         default_factory=DataProviderConfig, description="Data provider configuration"
     )
+
+    # Multi-timeframe analysis settings
+    mtf: MTFConfig = Field(default_factory=MTFConfig, description="Multi-timeframe configuration")
 
     # Backtest settings
     backtest: BacktestConfig = Field(

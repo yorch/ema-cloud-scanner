@@ -10,6 +10,21 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class MTFDisplayData(BaseModel):
+    """Multi-timeframe analysis display data"""
+
+    enabled: bool = Field(default=False, description="Whether MTF analysis is enabled")
+    alignment: str | None = Field(default=None, description="MTF alignment status")
+    confidence: str | None = Field(default=None, description="Signal confidence level")
+    bias: str | None = Field(default=None, description="Trading bias: long, short, or neutral")
+    bullish_count: int = Field(default=0, description="Number of bullish timeframes")
+    bearish_count: int = Field(default=0, description="Number of bearish timeframes")
+    neutral_count: int = Field(default=0, description="Number of neutral timeframes")
+    total_timeframes: int = Field(default=0, description="Total timeframes analyzed")
+    alignment_pct: float = Field(default=0, description="Alignment percentage (0-100)")
+    summary: str | None = Field(default=None, description="Human-readable summary")
+
+
 class ETFDisplayData(BaseModel):
     """Data structure for ETF display"""
 
@@ -27,6 +42,9 @@ class ETFDisplayData(BaseModel):
     rsi: float | None = Field(default=None, description="Current RSI value")
     adx: float | None = Field(default=None, description="Current ADX value")
     volume_ratio: float | None = Field(default=None, description="Volume relative to average")
+
+    # Multi-timeframe analysis
+    mtf: MTFDisplayData | None = Field(default=None, description="Multi-timeframe analysis data")
 
 
 class SignalDisplayData(BaseModel):
