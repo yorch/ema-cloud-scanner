@@ -16,7 +16,14 @@ from ema_cloud_lib.config.settings import (
     SYMBOL_TO_SECTOR,
     ScannerConfig,
 )
-from ema_cloud_lib.constants import TrendDirection, utc_now
+from ema_cloud_lib.constants import (
+    HOLDINGS_CACHE_TTL_HOURS,
+    MIN_BARS_FOR_ANALYSIS,
+    SIGNAL_COOLDOWN_CLEANUP_THRESHOLD,
+    SIGNAL_COOLDOWN_RETENTION_HOURS,
+    TrendDirection,
+    utc_now,
+)
 from ema_cloud_lib.data_providers.base import DataProviderManager
 from ema_cloud_lib.holdings.holdings_scanner import HoldingsScanner, SectorTrend
 from ema_cloud_lib.holdings.manager import Holding, HoldingsManager
@@ -73,6 +80,10 @@ class EMACloudScanner:
         self._recent_signals: dict[str, Signal] = {}
         self._signal_cooldown: dict[str, datetime] = {}
 
+        # Holdings cache (symbol -> (timestamp, holdings))
+        self._holdings_cache: dict[str, tuple[datetime, list[Holding]]] = {}
+        self._holdings_cache_ttl = timedelta(hours=HOLDINGS_CACHE_TTL_HOURS)
+
         # Cooldown period to avoid duplicate signals (minutes) - from config
         self.signal_cooldown_minutes = self.config.signal_cooldown_minutes
 
@@ -124,11 +135,34 @@ class EMACloudScanner:
         return indicator, generator
 
     def apply_config(self, config: ScannerConfig) -> None:
-        """Apply a new configuration and rebuild dependent components."""
-        self.config = config
-        self.data_manager = DataProviderManager(self._data_provider_config_dict())
-        self.cloud_indicator, self.signal_generator = self._build_indicators()
-        self.alert_manager = AlertManager.create_default(self._alert_config_dict())
+        """
+        Apply a new configuration and rebuild dependent components.
+
+        If configuration fails to apply, automatically rolls back to previous config.
+        """
+        # Save current configuration for rollback
+        old_config = self.config
+        old_data_manager = self.data_manager
+        old_cloud_indicator = self.cloud_indicator
+        old_signal_generator = self.signal_generator
+        old_alert_manager = self.alert_manager
+
+        try:
+            # Apply new configuration
+            self.config = config
+            self.data_manager = DataProviderManager(self._data_provider_config_dict())
+            self.cloud_indicator, self.signal_generator = self._build_indicators()
+            self.alert_manager = AlertManager.create_default(self._alert_config_dict())
+        except Exception as e:
+            # Rollback to previous configuration on failure
+            logger.error(f"Failed to apply configuration: {e}")
+            logger.info("Rolling back to previous configuration")
+            self.config = old_config
+            self.data_manager = old_data_manager
+            self.cloud_indicator = old_cloud_indicator
+            self.signal_generator = old_signal_generator
+            self.alert_manager = old_alert_manager
+            raise RuntimeError(f"Configuration rollback performed due to: {e}") from e
 
         # Reinitialize holdings scanner if enabled
         if self.config.scan_holdings:
@@ -176,7 +210,7 @@ class EMACloudScanner:
         interval = primary_tf.interval if primary_tf else "10m"
 
         df = await self.fetch_data(symbol, interval)
-        if df is None or len(df) < 50:
+        if df is None or len(df) < MIN_BARS_FOR_ANALYSIS:
             return None
 
         # Prepare data with indicators
@@ -330,6 +364,11 @@ class EMACloudScanner:
 
     def _should_alert_signal(self, signal: Signal) -> bool:
         """Check if we should alert for this signal (cooldown check)"""
+        # Cleanup expired entries periodically to prevent memory leak
+        if len(self._signal_cooldown) > SIGNAL_COOLDOWN_CLEANUP_THRESHOLD:
+            cutoff = datetime.now() - timedelta(hours=SIGNAL_COOLDOWN_RETENTION_HOURS)
+            self._signal_cooldown = {k: v for k, v in self._signal_cooldown.items() if v > cutoff}
+
         key = f"{signal.symbol}|{signal.direction}|{signal.signal_type.value}"
 
         last_alert = self._signal_cooldown.get(key)
@@ -420,19 +459,38 @@ class EMACloudScanner:
         if not self.holdings_scanner:
             return
 
-        # Fetch holdings with metadata
+        # Fetch holdings with metadata (using cache)
         etf_symbols = [analysis["symbol"] for analysis in etf_analyses]
         holdings_by_etf: dict[str, list[Holding]] = {}
         total_holdings_by_etf: dict[str, int] = {}
         etf_names: dict[str, str] = {}
 
-        holdings_results = await asyncio.gather(
-            *[self.holdings_manager.get_holdings(symbol) for symbol in etf_symbols],
-            return_exceptions=True,
-        )
+        # Check cache first and build list of symbols needing fetch
+        symbols_to_fetch = []
+        now = datetime.now()
 
-        for etf_symbol, holdings in zip(etf_symbols, holdings_results, strict=False):
-            if isinstance(holdings, BaseException):
+        for symbol in etf_symbols:
+            if symbol in self._holdings_cache:
+                cache_time, cached_holdings = self._holdings_cache[symbol]
+                if now - cache_time < self._holdings_cache_ttl:
+                    # Use cached data
+                    holdings_by_etf[symbol] = cached_holdings
+                    total_holdings_by_etf[symbol] = len(cached_holdings)
+                    etf_names[symbol] = symbol
+                    continue
+            symbols_to_fetch.append(symbol)
+
+        # Fetch only uncached symbols
+        if symbols_to_fetch:
+            holdings_results = await asyncio.gather(
+                *[self.holdings_manager.get_holdings(symbol) for symbol in symbols_to_fetch],
+                return_exceptions=True,
+            )
+        else:
+            holdings_results = []
+
+        for etf_symbol, holdings in zip(symbols_to_fetch, holdings_results, strict=False):
+            if isinstance(holdings, Exception):
                 logger.warning(f"Holdings lookup failed for {etf_symbol}: {holdings}")
                 # Set empty defaults to prevent KeyError later
                 holdings_by_etf[etf_symbol] = []
@@ -444,6 +502,8 @@ class EMACloudScanner:
                 holdings_by_etf[etf_symbol] = top_holdings
                 total_holdings_by_etf[etf_symbol] = len(top_holdings)
                 etf_names[etf_symbol] = holdings.etf_name
+                # Cache the holdings
+                self._holdings_cache[etf_symbol] = (now, top_holdings)
             else:
                 custom_holdings = self.holdings_manager.get_custom_holdings(etf_symbol)
                 if custom_holdings:

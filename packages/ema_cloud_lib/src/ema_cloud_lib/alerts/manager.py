@@ -4,6 +4,7 @@ Alert Manager
 Orchestrates multiple alert handlers and provides utility functions.
 """
 
+import asyncio
 import logging
 
 from .base import AlertMessage, BaseAlertHandler
@@ -46,20 +47,38 @@ class AlertManager:
 
     async def send_alert(self, message: AlertMessage) -> dict[str, bool]:
         """
-        Send alert to all enabled handlers.
+        Send alert to all enabled handlers in parallel.
 
         Returns:
             Dict mapping handler name to success status
         """
         results = {}
 
-        for name, handler in self.handlers.items():
-            if handler.enabled:
-                try:
-                    results[name] = await handler.send_alert(message)
-                except (OSError, TimeoutError, ValueError, RuntimeError) as e:
-                    logger.error(f"Handler {name} failed: {e}")
-                    results[name] = False
+        # Collect enabled handlers for parallel execution
+        enabled_handlers = [
+            (name, handler) for name, handler in self.handlers.items() if handler.enabled
+        ]
+
+        if not enabled_handlers:
+            return results
+
+        # Send alerts to all handlers in parallel
+        async def send_to_handler(name: str, handler: BaseAlertHandler) -> tuple[str, bool]:
+            try:
+                success = await handler.send_alert(message)
+                return (name, success)
+            except Exception as e:
+                logger.error(f"Handler {name} failed: {e}")
+                return (name, False)
+
+        # Execute all handlers concurrently
+        handler_results = await asyncio.gather(
+            *[send_to_handler(name, handler) for name, handler in enabled_handlers],
+            return_exceptions=False,
+        )
+
+        # Build results dictionary
+        results = dict(handler_results)
 
         # Add to history
         self._alert_history.append(message)
@@ -70,20 +89,38 @@ class AlertManager:
 
     async def send_batch(self, messages: list[AlertMessage]) -> dict[str, int]:
         """
-        Send multiple alerts to all handlers.
+        Send multiple alerts to all handlers in parallel.
 
         Returns:
             Dict mapping handler name to success count
         """
         results = {}
 
-        for name, handler in self.handlers.items():
-            if handler.enabled:
-                try:
-                    results[name] = await handler.send_batch(messages)
-                except (OSError, TimeoutError, ValueError, RuntimeError) as e:
-                    logger.error(f"Handler {name} batch failed: {e}")
-                    results[name] = 0
+        # Collect enabled handlers for parallel execution
+        enabled_handlers = [
+            (name, handler) for name, handler in self.handlers.items() if handler.enabled
+        ]
+
+        if not enabled_handlers:
+            return results
+
+        # Send batch to all handlers in parallel
+        async def send_batch_to_handler(name: str, handler: BaseAlertHandler) -> tuple[str, int]:
+            try:
+                count = await handler.send_batch(messages)
+                return (name, count)
+            except Exception as e:
+                logger.error(f"Handler {name} batch failed: {e}")
+                return (name, 0)
+
+        # Execute all handlers concurrently
+        handler_results = await asyncio.gather(
+            *[send_batch_to_handler(name, handler) for name, handler in enabled_handlers],
+            return_exceptions=False,
+        )
+
+        # Build results dictionary
+        results = dict(handler_results)
 
         # Add to history
         for message in messages:

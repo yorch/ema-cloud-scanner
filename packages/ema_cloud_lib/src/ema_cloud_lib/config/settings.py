@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic import BaseModel, Field, SecretStr, ValidationInfo, field_validator
 
 
 class TradingStyle(Enum):
@@ -68,7 +68,7 @@ class EMACloudConfig(BaseModel):
 
     @field_validator("slow_period")
     @classmethod
-    def validate_slow_greater_than_fast(cls, v: int, info) -> int:
+    def validate_slow_greater_than_fast(cls, v: int, info: ValidationInfo) -> int:
         """Validate slow period is greater than fast period."""
         if "fast_period" in info.data and v <= info.data["fast_period"]:
             raise ValueError("slow_period must be greater than fast_period")
@@ -331,7 +331,7 @@ class FilterConfig(BaseModel):
 
     @field_validator("rsi_overbought")
     @classmethod
-    def validate_rsi_overbought_greater(cls, v: float, info) -> float:
+    def validate_rsi_overbought_greater(cls, v: float, info: ValidationInfo) -> float:
         """Validate overbought is greater than oversold."""
         if "rsi_oversold" in info.data and v <= info.data["rsi_oversold"]:
             raise ValueError("rsi_overbought must be greater than rsi_oversold")

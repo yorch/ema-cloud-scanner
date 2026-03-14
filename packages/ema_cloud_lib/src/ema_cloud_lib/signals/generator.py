@@ -237,6 +237,31 @@ class SignalFilter:
             filter_name="volume",
         )
 
+    def _evaluate_directional_filter(
+        self,
+        direction: str,
+        long_condition: bool,
+        short_condition: bool,
+        long_message: str,
+        short_message: str,
+        filter_name: str,
+    ) -> FilterResult:
+        """
+        Helper to evaluate directional filters (long vs short).
+
+        Args:
+            direction: "long" or "short"
+            long_condition: Whether condition passes for long entry
+            short_condition: Whether condition passes for short entry
+            long_message: Success/failure message for long
+            short_message: Success/failure message for short
+            filter_name: Name of the filter (for logging)
+        """
+        if direction == "long":
+            return FilterResult(long_condition, long_message, filter_name)
+        else:  # short direction
+            return FilterResult(short_condition, short_message, filter_name)
+
     def filter_rsi(self, row: pd.Series, direction: str) -> FilterResult:
         """Check RSI for overbought/oversold conditions"""
         if not self.config.rsi_enabled:
@@ -246,6 +271,7 @@ class SignalFilter:
         if rsi is None or pd.isna(rsi):
             return FilterResult(passed=True, reason="RSI not available", filter_name="rsi")
 
+        # Long entry logic
         if direction == "long":
             if rsi > self.config.rsi_overbought:
                 return FilterResult(
@@ -262,7 +288,7 @@ class SignalFilter:
             return FilterResult(
                 passed=True, reason=f"RSI {rsi:.1f} in neutral zone", filter_name="rsi"
             )
-        # Short direction
+        # Short entry logic
         if rsi < self.config.rsi_oversold:
             return FilterResult(
                 passed=False, reason=f"RSI {rsi:.1f} oversold for short entry", filter_name="rsi"
@@ -826,12 +852,11 @@ class SignalGenerator:
             else:
                 break
 
-        # Get cloud states
-        clouds = self.cloud_indicator.analyze_single(df, -1)
-        cloud_states = {name: cloud.state for name, cloud in clouds.items()}
+        # Reuse cloud states from analysis (avoid duplicate calculation)
+        cloud_states = {name: cloud.state for name, cloud in analysis.clouds.items()}
 
         # Calculate support/resistance from clouds
-        primary_cloud = clouds.get("trend_confirmation")
+        primary_cloud = analysis.clouds.get("trend_confirmation")
         support = primary_cloud.cloud_bottom if primary_cloud else None
         resistance = primary_cloud.cloud_top if primary_cloud else None
 
