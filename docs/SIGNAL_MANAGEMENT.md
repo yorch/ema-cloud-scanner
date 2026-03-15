@@ -71,7 +71,8 @@ Complete guide to signal generation, deduplication, cooldown strategies, and sta
 |---------------------|---------------------------------------|----------------|
 | **CLOUD_FLIP**      | Fast EMA crosses slow EMA (cloud)     | Moderate       |
 | **PRICE_CROSS**     | Price breaks above/below cloud        | High           |
-| **PULLBACK_ENTRY**  | Price retraces to cloud support/resist| Low-Moderate   |
+| **CLOUD_BOUNCE**    | Price bounces off cloud support/resist| Moderate       |
+| **PULLBACK_ENTRY**  | Price retraces to 8-9 cloud for entry | Low-Moderate   |
 | **ALIGNMENT**       | All clouds align in same direction    | Very Low       |
 | **WATERFALL**       | All 6 clouds perfectly stacked in order| Very Low      |
 
@@ -205,6 +206,13 @@ def _should_alert_signal(self, signal: Signal) -> bool:
 | `signal_cooldown_minutes`    | 15      | 1-120    | EMACloudScanner   | Time-based deduplication   |
 
 ### Configuring Cooldown
+
+**Option 0: CLI Flag**
+
+```bash
+# Set cooldown to 30 minutes
+ema-scanner --signal-cooldown 30
+```
 
 **Option 1: Programmatic Configuration**
 

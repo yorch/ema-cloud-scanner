@@ -91,7 +91,13 @@ async def run_backtest():
         end=datetime(2025, 12, 31),
     )
 
-    backtester = Backtester(initial_capital=100000.0)
+    backtester = Backtester(
+        initial_capital=100000.0,   # Starting capital
+        position_size_pct=10.0,     # % of capital per position
+        commission=0.0,             # Commission per trade ($)
+        slippage_pct=0.05,          # Slippage as % of price
+        timeframe="1d",             # Timeframe label
+    )
     result = backtester.run(df, "XLK")
     print(result.format_report())
 

@@ -175,9 +175,9 @@ def filter_signal_by_mtf(signal: Signal, mtf_analysis: dict) -> bool:
         )
         return False
 
-    # Boost signal strength for full alignment
+    # Note: full alignment contributes to signal strength via the
+    # weighted filter scoring system in _calculate_signal_strength()
     if alignment["all_aligned"]:
-        signal.strength_boost = 1.2  # 20% strength boost
         logger.info(f"{signal.symbol}: All timeframes aligned - strength boost applied")
 
     return True

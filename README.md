@@ -117,9 +117,10 @@ The scanner is based on Ripster's EMA Cloud methodology, using multiple EMAs to 
 
 1. **Cloud Flip**: Cloud changes color (bullish ↔ bearish)
 2. **Price Cross**: Price crosses above/below a cloud
-3. **Pullback Entry**: Price pulls back to cloud acting as support/resistance
-4. **Multi-Cloud Alignment**: Multiple clouds align in same direction
-5. **Waterfall**: All 6 clouds perfectly stacked in order (strongest trend signal)
+3. **Cloud Bounce**: Price bounces off cloud acting as support/resistance
+4. **Pullback Entry**: Price pulls back to 8-9 EMA cloud for entry
+5. **Multi-Cloud Alignment**: Multiple clouds align in same direction
+6. **Waterfall**: All 6 clouds perfectly stacked in order (strongest trend signal)
 
 ## Running on a VPS / Docker
 
