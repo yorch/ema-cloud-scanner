@@ -27,8 +27,13 @@ ema_cloud_sector_scanner/
 ├── packages/
 │   ├── ema_cloud_lib/     # Core library (no CLI dependencies)
 │   └── ema_cloud_cli/     # Command-line interface with Textual dashboard
+├── .github/
+│   └── workflows/
+│       └── ci.yml         # CI pipeline: lint → test → typecheck → build → docker
+├── Dockerfile             # Two-stage build (builder + runtime, ~426MB final image)
+├── docker-compose.yml     # VPS deployment with env var config
 ├── run.py                 # Development runner (no install needed)
-└── pyproject.toml         # Workspace config
+└── pyproject.toml         # Root project configuration
 ```
 
 **Key Principle**: `ema-cloud-lib` is framework-agnostic and uses dependency injection for UI integration.
@@ -159,6 +164,35 @@ just docker-logs
 Telegram and Discord alerts are **auto-enabled** when their credentials are set — no extra flags needed.
 
 See `.env.example` for a fully annotated template.
+
+## CI / Docker Images
+
+Every push to `main` and `v*` tag runs the full CI pipeline and publishes a Docker image to GHCR:
+
+```bash
+# Pull the latest image directly (no local build needed)
+docker pull ghcr.io/<your-org>/ema_cloud_sector_scanner:latest
+```
+
+**CI pipeline**: lint → typecheck → test (Python 3.11–3.13) → build → docker publish
+
+**Tags published**:
+
+- `latest` — tip of `main`
+- `main` — branch name
+- `YYYYMMDDHHMM_<sha>` — exact build (e.g. `202603151430_455431c`)
+- `v1.2.3` — on git tags
+
+Pull requests always build the Docker image as a validation check. Images are only pushed when the `publish-docker` label is added to the PR.
+
+For VPS deployments where you don't want to build locally, update `docker-compose.yml`:
+
+```yaml
+services:
+  scanner:
+    image: ghcr.io/<your-org>/ema_cloud_sector_scanner:latest
+    # remove the `build: .` line
+```
 
 ## Advanced Features
 

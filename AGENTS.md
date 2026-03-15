@@ -175,6 +175,7 @@ just qa && just test -q
 ```
 
 **Important notes:**
+
 - `just fmt`, `just lint`, and `just fix` already cover both `packages/` and `tests/` directories
 - Fix any issues before committing; do not commit with known failures
 
@@ -184,12 +185,12 @@ The scanner ships with a full Docker setup for unattended server deployment.
 
 ### Files
 
-| File                 | Purpose                                                                 |
-| -------------------- | ----------------------------------------------------------------------- |
-| `Dockerfile`         | Multi-stage build; installs all extras (alpaca, polygon, notifications) |
-| `docker-compose.yml` | Orchestrates the container with env vars, restart policy, cache volume  |
-| `.env.example`       | Annotated template — copy to `.env` and fill in credentials             |
-| `.dockerignore`      | Excludes `.env`, tests, docs, cache from the build context              |
+| File                 | Purpose                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `Dockerfile`         | Two-stage build (builder + runtime); runtime carries only `.venv` — no uv binary, ~426MB |
+| `docker-compose.yml` | Orchestrates the container with env vars, restart policy, cache volume                   |
+| `.env.example`       | Annotated template — copy to `.env` and fill in credentials                              |
+| `.dockerignore`      | Excludes `.env`, tests, docs, cache from the build context                               |
 
 ### Key design decisions
 
@@ -197,6 +198,8 @@ The scanner ships with a full Docker setup for unattended server deployment.
 - **Secrets come in via env vars only** — `ScannerConfig.save()` strips all secret fields, so credentials cannot be committed in config JSON files
 - **Telegram and Discord auto-enable** when their env vars are set — no `--telegram-alerts` flag needed in `docker-compose.yml`
 - **Named volume** `scanner-cache` persists the holdings cache across restarts
+- **Two-stage build**: Builder installs all deps and bakes workspace packages as non-editable wheels into `.venv`; runtime stage copies only `.venv` (no uv binary, no source tree in the final image, ~426MB)
+- **Direct entrypoint**: Runtime uses `ema-scanner` directly from `.venv/bin` — no `uv run` overhead at startup
 
 ### Quick reference
 

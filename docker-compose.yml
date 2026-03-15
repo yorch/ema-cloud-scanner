@@ -1,7 +1,10 @@
 services:
   scanner:
+    # To build locally:
     build: .
     image: ema-cloud-scanner
+    # To pull from GHCR instead (after CI publishes):
+    # image: ghcr.io/<your-org>/ema_cloud_sector_scanner:latest
     restart: unless-stopped
 
     # Scanner flags — override here or via .env
