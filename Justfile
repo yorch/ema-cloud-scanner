@@ -37,15 +37,15 @@ dev *args:
 
 # Run all tests
 test *args:
-    uv run pytest {{ args }}
+    uv run --extra dev pytest {{ args }}
 
 # Run tests verbosely
 test-v *args:
-    uv run pytest -v {{ args }}
+    uv run --extra dev pytest -v {{ args }}
 
 # Run a specific test file
 test-file file *args:
-    uv run pytest {{ file }} -v {{ args }}
+    uv run --extra dev pytest {{ file }} -v {{ args }}
 
 # Test alert handlers
 test-alerts:
@@ -55,22 +55,22 @@ test-alerts:
 
 # Lint all packages and tests
 lint:
-    uv run ruff check packages/ tests/
+    uv run --extra dev ruff check packages/ tests/
 
 # Auto-fix lint issues
 fix:
-    uv run ruff check --fix packages/ tests/
+    uv run --extra dev ruff check --fix packages/ tests/
 
 # Format code
 fmt:
-    uv run ruff format packages/ tests/
+    uv run --extra dev ruff format packages/ tests/
 
 # Run lint + format
 check: lint fmt
 
 # Type check
 types:
-    uv run mypy packages/
+    uv run --extra dev mypy packages/
 
 # Run all quality checks
 qa: fmt lint types
@@ -94,7 +94,7 @@ install-dev:
 
 # Install pre-commit hooks
 hooks:
-    uv run pre-commit install
+    uv run --extra dev pre-commit install
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 
