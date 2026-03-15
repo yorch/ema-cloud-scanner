@@ -67,24 +67,24 @@ Complete guide to signal generation, deduplication, cooldown strategies, and sta
 
 ### Signal Types
 
-| Type                | Description                           | Frequency      |
-|---------------------|---------------------------------------|----------------|
-| **CLOUD_FLIP**      | Fast EMA crosses slow EMA (cloud)     | Moderate       |
-| **PRICE_CROSS**     | Price breaks above/below cloud        | High           |
-| **CLOUD_BOUNCE**    | Price bounces off cloud support/resist| Moderate       |
-| **PULLBACK_ENTRY**  | Price retraces to 8-9 cloud for entry | Low-Moderate   |
-| **ALIGNMENT**       | All clouds align in same direction    | Very Low       |
-| **WATERFALL**       | All 6 clouds perfectly stacked in order| Very Low      |
+| Type               | Description                             | Frequency    |
+| ------------------ | --------------------------------------- | ------------ |
+| **CLOUD_FLIP**     | Fast EMA crosses slow EMA (cloud)       | Moderate     |
+| **PRICE_CROSS**    | Price breaks above/below cloud          | High         |
+| **CLOUD_BOUNCE**   | Price bounces off cloud support/resist  | Moderate     |
+| **PULLBACK_ENTRY** | Price retraces to 8-9 cloud for entry   | Low-Moderate |
+| **ALIGNMENT**      | All clouds align in same direction      | Very Low     |
+| **WATERFALL**      | All 6 clouds perfectly stacked in order | Very Low     |
 
 ### Signal Strength Levels
 
-| Strength       | Criteria                                           | Alert Priority |
-|----------------|---------------------------------------------------|----------------|
-| VERY_STRONG    | 6/6 clouds aligned, all filters pass, ADX > 30, waterfall bonus  | 🔴 Critical    |
-| STRONG         | 5+ clouds aligned, key filters pass, ADX > 25    | 🟠 High        |
-| MODERATE       | 4 clouds aligned, most filters pass, ADX > 20    | 🟡 Medium      |
-| WEAK           | 3 clouds aligned, some filters fail              | 🟢 Low         |
-| VERY_WEAK      | < 3 clouds aligned, multiple filter failures     | ⚪ Info        |
+| Strength    | Criteria                                                        | Alert Priority |
+| ----------- | --------------------------------------------------------------- | -------------- |
+| VERY_STRONG | 6/6 clouds aligned, all filters pass, ADX > 30, waterfall bonus | 🔴 Critical     |
+| STRONG      | 5+ clouds aligned, key filters pass, ADX > 25                   | 🟠 High         |
+| MODERATE    | 4 clouds aligned, most filters pass, ADX > 20                   | 🟡 Medium       |
+| WEAK        | 3 clouds aligned, some filters fail                             | 🟢 Low          |
+| VERY_WEAK   | < 3 clouds aligned, multiple filter failures                    | ⚪ Info         |
 
 > **Note**: Signal strength is also influenced by the **weighted filter score** and **cloud stacking bonus**. A waterfall pattern adds +5 to the strength score, while partial stacking adds a proportional bonus. See [Advanced Features](ADVANCED_FEATURES.md#cloud-stacking--waterfall-detection) for details.
 
@@ -200,10 +200,10 @@ def _should_alert_signal(self, signal: Signal) -> bool:
 
 ### Cooldown Parameters
 
-| Parameter                    | Default | Range    | Location          | Purpose                    |
-|------------------------------|---------|----------|-------------------|----------------------------|
-| `signal_cooldown_bars`       | 5       | 1-20     | SignalGenerator   | Bar-level deduplication    |
-| `signal_cooldown_minutes`    | 15      | 1-120    | EMACloudScanner   | Time-based deduplication   |
+| Parameter                 | Default | Range | Location        | Purpose                  |
+| ------------------------- | ------- | ----- | --------------- | ------------------------ |
+| `signal_cooldown_bars`    | 5       | 1-20  | SignalGenerator | Bar-level deduplication  |
+| `signal_cooldown_minutes` | 15      | 1-120 | EMACloudScanner | Time-based deduplication |
 
 ### Configuring Cooldown
 
@@ -265,34 +265,34 @@ This means:
 #### Example 1: Same Signal Repeated
 
 ```text
-Time  | Symbol | Dir  | Type       | Action
-------|--------|------|------------|---------------------------
-14:30 | XLK    | LONG | CLOUD_FLIP | Alert ✅ (first occurrence)
-14:35 | XLK    | LONG | CLOUD_FLIP | Suppress (5 min < 15 min)
-14:40 | XLK    | LONG | CLOUD_FLIP | Suppress (10 min < 15 min)
-14:45 | XLK    | LONG | CLOUD_FLIP | Alert ✅ (15 min elapsed)
+| Time  | Symbol | Dir  | Type       | Action                     |
+| ----- | ------ | ---- | ---------- | -------------------------- |
+| 14:30 | XLK    | LONG | CLOUD_FLIP | Alert ✅ (first occurrence) |
+| 14:35 | XLK    | LONG | CLOUD_FLIP | Suppress (5 min < 15 min)  |
+| 14:40 | XLK    | LONG | CLOUD_FLIP | Suppress (10 min < 15 min) |
+| 14:45 | XLK    | LONG | CLOUD_FLIP | Alert ✅ (15 min elapsed)   |
 ```
 
 #### Example 2: Different Signal Types
 
 ```text
-Time  | Symbol | Dir  | Type          | Action
-------|--------|------|---------------|---------------------------
-14:30 | XLK    | LONG | CLOUD_FLIP    | Alert ✅ (different key)
-14:32 | XLK    | LONG | PRICE_CROSS   | Alert ✅ (different key)
-14:35 | XLK    | LONG | CLOUD_FLIP    | Suppress (5 min < 15 min)
-14:35 | XLK    | LONG | PRICE_CROSS   | Suppress (3 min < 15 min)
+| Time  | Symbol | Dir  | Type        | Action                    |
+| ----- | ------ | ---- | ----------- | ------------------------- |
+| 14:30 | XLK    | LONG | CLOUD_FLIP  | Alert ✅ (different key)   |
+| 14:32 | XLK    | LONG | PRICE_CROSS | Alert ✅ (different key)   |
+| 14:35 | XLK    | LONG | CLOUD_FLIP  | Suppress (5 min < 15 min) |
+| 14:35 | XLK    | LONG | PRICE_CROSS | Suppress (3 min < 15 min) |
 ```
 
 #### Example 3: Direction Change
 
 ```text
-Time  | Symbol | Dir   | Type       | Action
-------|--------|-------|------------|---------------------------
-14:30 | XLK    | LONG  | CLOUD_FLIP | Alert ✅ (first occurrence)
-14:35 | XLK    | SHORT | CLOUD_FLIP | Alert ✅ (different direction)
-14:40 | XLK    | LONG  | CLOUD_FLIP | Suppress (10 min < 15 min)
-14:45 | XLK    | SHORT | CLOUD_FLIP | Suppress (10 min < 15 min)
+| Time  | Symbol | Dir   | Type       | Action                        |
+| ----- | ------ | ----- | ---------- | ----------------------------- |
+| 14:30 | XLK    | LONG  | CLOUD_FLIP | Alert ✅ (first occurrence)    |
+| 14:35 | XLK    | SHORT | CLOUD_FLIP | Alert ✅ (different direction) |
+| 14:40 | XLK    | LONG  | CLOUD_FLIP | Suppress (10 min < 15 min)    |
+| 14:45 | XLK    | SHORT | CLOUD_FLIP | Suppress (10 min < 15 min)    |
 ```
 
 ### Dynamic Cooldown (Future Enhancement)

@@ -49,7 +49,7 @@ The terminal dashboard is built with **Textual** (not Rich) and provides a fully
 ### Dashboard Components
 
 | Component         | Description                              | Auto-Update |
-|-------------------|------------------------------------------|-------------|
+| ----------------- | ---------------------------------------- | ----------- |
 | **Header**        | Application title and current time       | Every scan  |
 | **ETF Table**     | Real-time sector ETF data and trends     | Every scan  |
 | **Signals Table** | Recent signal alerts (last 50)           | On signal   |
@@ -63,34 +63,34 @@ The terminal dashboard is built with **Textual** (not Rich) and provides a fully
 
 ### Global Shortcuts (Available Anywhere)
 
-| Key | Action              | Description                                      |
-|-----|---------------------|--------------------------------------------------|
-| `q` | **Quit**            | Exit the application gracefully                  |
-| `r` | **Refresh**         | Force immediate scan cycle                       |
-| `d` | **Toggle Dark Mode** | Switch between dark and light themes            |
-| `s` | **Settings**        | Open interactive settings modal                  |
-| `l` | **Toggle Logs**     | Show/hide the application log viewer             |
+| Key | Action               | Description                          |
+| --- | -------------------- | ------------------------------------ |
+| `q` | **Quit**             | Exit the application gracefully      |
+| `r` | **Refresh**          | Force immediate scan cycle           |
+| `d` | **Toggle Dark Mode** | Switch between dark and light themes |
+| `s` | **Settings**         | Open interactive settings modal      |
+| `l` | **Toggle Logs**      | Show/hide the application log viewer |
 
 ### Settings Modal Shortcuts
 
-| Key       | Action              | Description                                |
-|-----------|---------------------|--------------------------------------------|
-| `↑` / `↓` | **Navigate**        | Move between settings options              |
-| `Enter`   | **Select/Confirm**  | Apply selected setting or confirm changes  |
-| `Esc`     | **Cancel**          | Close settings modal without saving        |
-| `Tab`     | **Next Field**      | Move to next input field                   |
-| `Shift+Tab` | **Previous Field** | Move to previous input field               |
-| `Space`   | **Toggle Checkbox** | Enable/disable filter checkboxes           |
+| Key         | Action              | Description                               |
+| ----------- | ------------------- | ----------------------------------------- |
+| `↑` / `↓`   | **Navigate**        | Move between settings options             |
+| `Enter`     | **Select/Confirm**  | Apply selected setting or confirm changes |
+| `Esc`       | **Cancel**          | Close settings modal without saving       |
+| `Tab`       | **Next Field**      | Move to next input field                  |
+| `Shift+Tab` | **Previous Field**  | Move to previous input field              |
+| `Space`     | **Toggle Checkbox** | Enable/disable filter checkboxes          |
 
 ### Table Navigation Shortcuts
 
-| Key       | Action              | Description                        |
-|-----------|---------------------|------------------------------------|
-| `↑` / `↓` | **Row Navigation**  | Move cursor up/down in table       |
-| `PgUp`    | **Page Up**         | Scroll up one page                 |
-| `PgDn`    | **Page Down**       | Scroll down one page               |
-| `Home`    | **First Row**       | Jump to first table row            |
-| `End`     | **Last Row**        | Jump to last table row             |
+| Key       | Action             | Description                  |
+| --------- | ------------------ | ---------------------------- |
+| `↑` / `↓` | **Row Navigation** | Move cursor up/down in table |
+| `PgUp`    | **Page Up**        | Scroll up one page           |
+| `PgDn`    | **Page Down**      | Scroll down one page         |
+| `Home`    | **First Row**      | Jump to first table row      |
+| `End`     | **Last Row**       | Jump to last table row       |
 
 ---
 
@@ -207,14 +207,14 @@ Save to user config file
 ### What Updates Immediately
 
 | Setting Category | Hot Reload | Requires Restart |
-|------------------|------------|------------------|
-| Trading Style    | ✅ Yes     | No               |
-| ETF Selection    | ✅ Yes     | No               |
-| Signal Filters   | ✅ Yes     | No               |
-| Refresh Rate     | ✅ Yes     | No               |
-| Display Options  | ✅ Yes     | No               |
-| Data Provider    | ❌ No      | Yes              |
-| API Keys         | ❌ No      | Yes              |
+| ---------------- | ---------- | ---------------- |
+| Trading Style    | ✅ Yes      | No               |
+| ETF Selection    | ✅ Yes      | No               |
+| Signal Filters   | ✅ Yes      | No               |
+| Refresh Rate     | ✅ Yes      | No               |
+| Display Options  | ✅ Yes      | No               |
+| Data Provider    | ❌ No       | Yes              |
+| API Keys         | ❌ No       | Yes              |
 
 ### Configuration Precedence
 
@@ -259,13 +259,13 @@ Press `l` to show/hide the application log viewer.
 
 ### Log Levels and Colors
 
-| Level     | Color  | Description                        |
-|-----------|--------|------------------------------------|
-| DEBUG     | Gray   | Detailed diagnostic information    |
-| INFO      | Blue   | Normal operational messages        |
-| WARNING   | Yellow | Warning messages (non-critical)    |
-| ERROR     | Red    | Error messages (critical)          |
-| CRITICAL  | Red Bold | Critical failures                |
+| Level    | Color    | Description                     |
+| -------- | -------- | ------------------------------- |
+| DEBUG    | Gray     | Detailed diagnostic information |
+| INFO     | Blue     | Normal operational messages     |
+| WARNING  | Yellow   | Warning messages (non-critical) |
+| ERROR    | Red      | Error messages (critical)       |
+| CRITICAL | Red Bold | Critical failures               |
 
 ### Example Log Output
 
@@ -299,11 +299,11 @@ Use the settings modal to adjust log verbosity:
 
 In addition to the dashboard log viewer, logs are written to files:
 
-| Platform | Default Path                                      |
-|----------|---------------------------------------------------|
-| Linux    | `~/.local/state/ema-cloud-scanner/scanner.log`          |
-| macOS    | `~/Library/Logs/ema-cloud-scanner/scanner.log`          |
-| Windows  | `%LOCALAPPDATA%\ema-cloud-scanner\Logs\scanner.log`     |
+| Platform | Default Path                                        |
+| -------- | --------------------------------------------------- |
+| Linux    | `~/.local/state/ema-cloud-scanner/scanner.log`      |
+| macOS    | `~/Library/Logs/ema-cloud-scanner/scanner.log`      |
+| Windows  | `%LOCALAPPDATA%\ema-cloud-scanner\Logs\scanner.log` |
 
 See [Logging Guide](LOGGING.md) for complete log management documentation.
 
@@ -367,15 +367,15 @@ The status bar displays real-time system information:
 ETFs: 11 │ 🟢 6 🔴 3 ⚪ 2 │ Signals: 47 │ Scan: 2s ago │ API: 142 calls
 ```
 
-| Indicator      | Description                                    |
-|----------------|------------------------------------------------|
-| **ETFs**       | Total number of ETFs being monitored           |
-| **🟢 Bullish** | Count of ETFs in bullish trend (above 34-50)   |
-| **🔴 Bearish** | Count of ETFs in bearish trend (below 34-50)   |
-| **⚪ Neutral** | Count of ETFs in neutral/choppy trend          |
-| **Signals**    | Total signals generated this session           |
-| **Scan**       | Time since last scan cycle                     |
-| **API**        | Total API calls made to data providers         |
+| Indicator     | Description                                  |
+| ------------- | -------------------------------------------- |
+| **ETFs**      | Total number of ETFs being monitored         |
+| **🟢 Bullish** | Count of ETFs in bullish trend (above 34-50) |
+| **🔴 Bearish** | Count of ETFs in bearish trend (below 34-50) |
+| **⚪ Neutral** | Count of ETFs in neutral/choppy trend        |
+| **Signals**   | Total signals generated this session         |
+| **Scan**      | Time since last scan cycle                   |
+| **API**       | Total API calls made to data providers       |
 
 ---
 
