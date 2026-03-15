@@ -14,6 +14,21 @@ import pandas_market_calendars as mcal
 logger = logging.getLogger(__name__)
 
 
+ET = ZoneInfo("America/New_York")
+
+
+def _to_et(dt: datetime) -> datetime:
+    """Convert a datetime to Eastern Time. If naive, assume ET."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=ET)
+    return dt.astimezone(ET)
+
+
+def _now_et() -> datetime:
+    """Return the current time in Eastern Time (timezone-aware)."""
+    return datetime.now(ET)
+
+
 class MarketHours:
     """
     Market hours utilities with NYSE holiday calendar support.
@@ -54,7 +69,9 @@ class MarketHours:
             True if market is closed for a holiday
         """
         if check_time is None:
-            check_time = datetime.now()
+            check_time = _now_et()
+        else:
+            check_time = _to_et(check_time)
 
         # Get NYSE calendar
         nyse = cls._get_nyse_calendar()
@@ -78,7 +95,9 @@ class MarketHours:
             Early close time (in ET) if applicable, None otherwise
         """
         if check_time is None:
-            check_time = datetime.now()
+            check_time = _now_et()
+        else:
+            check_time = _to_et(check_time)
 
         # Get NYSE calendar
         nyse = cls._get_nyse_calendar()
@@ -123,7 +142,9 @@ class MarketHours:
             True if market is open for trading
         """
         if check_time is None:
-            check_time = datetime.now()
+            check_time = _now_et()
+        else:
+            check_time = _to_et(check_time)
 
         # Check if weekday (Mon=0, Sun=6)
         if check_time.weekday() >= 5:
@@ -153,7 +174,9 @@ class MarketHours:
             True if in pre-market or after-hours
         """
         if check_time is None:
-            check_time = datetime.now()
+            check_time = _now_et()
+        else:
+            check_time = _to_et(check_time)
 
         if check_time.weekday() >= 5:
             return False
@@ -211,12 +234,13 @@ class MarketHours:
                 minute=cls.MARKET_OPEN.minute,
                 second=0,
                 microsecond=0,
+                tzinfo=ET,
             )
 
         # Get first trading day
         next_trading_day = schedule.index[0].date()
 
-        return datetime.combine(next_trading_day, cls.MARKET_OPEN)
+        return datetime.combine(next_trading_day, cls.MARKET_OPEN, tzinfo=ET)
 
     @classmethod
     def time_to_open(cls, check_time: datetime | None = None) -> timedelta | None:
@@ -230,7 +254,9 @@ class MarketHours:
             timedelta until market opens, or None if already open
         """
         if check_time is None:
-            check_time = datetime.now()
+            check_time = _now_et()
+        else:
+            check_time = _to_et(check_time)
 
         if cls.is_market_open(check_time):
             return None
@@ -265,7 +291,9 @@ class MarketHours:
             timedelta until market closes, or None if market is closed
         """
         if check_time is None:
-            check_time = datetime.now()
+            check_time = _now_et()
+        else:
+            check_time = _to_et(check_time)
 
         if not cls.is_market_open(check_time):
             return None
@@ -297,7 +325,9 @@ class MarketHours:
                 - next_event: datetime | None (next market open/close)
         """
         if check_time is None:
-            check_time = datetime.now()
+            check_time = _now_et()
+        else:
+            check_time = _to_et(check_time)
 
         # Check if weekend
         if check_time.weekday() >= 5:

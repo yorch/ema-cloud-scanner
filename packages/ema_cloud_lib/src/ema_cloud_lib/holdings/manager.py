@@ -7,7 +7,7 @@ Supports multiple data sources and caching.
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +91,7 @@ class YahooHoldingsProvider(HoldingsProvider):
                     return ETFHoldings(
                         etf_symbol=etf_symbol,
                         etf_name=ticker.info.get("shortName", etf_symbol),
-                        as_of_date=datetime.now(),
+                        as_of_date=datetime.now(UTC),
                         total_holdings=len(holdings),
                         holdings=holdings,
                     )
@@ -116,7 +116,7 @@ class YahooHoldingsProvider(HoldingsProvider):
                     return ETFHoldings(
                         etf_symbol=etf_symbol,
                         etf_name=info.get("shortName", etf_symbol),
-                        as_of_date=datetime.now(),
+                        as_of_date=datetime.now(UTC),
                         total_holdings=len(holdings),
                         holdings=holdings,
                     )
@@ -280,7 +280,7 @@ class StaticHoldingsProvider(HoldingsProvider):
             return ETFHoldings(
                 etf_symbol=etf_symbol,
                 etf_name=f"{etf_symbol} (Static Data)",
-                as_of_date=datetime.now(),
+                as_of_date=datetime.now(UTC),
                 total_holdings=len(holdings),
                 holdings=holdings,
             )
@@ -337,7 +337,7 @@ class HoldingsManager:
         # Check memory cache
         if not force_refresh and etf_symbol in self._cache:
             cache_time = self._cache_times.get(etf_symbol)
-            if cache_time and datetime.now() - cache_time < self.cache_duration:
+            if cache_time and datetime.now(UTC) - cache_time < self.cache_duration:
                 # Import here to avoid circular dependency
                 from ema_cloud_lib import api_call_tracker
 
@@ -350,7 +350,10 @@ class HoldingsManager:
             try:
                 data = json.loads(cache_file.read_text())
                 cache_date = datetime.fromisoformat(data["as_of_date"])
-                if datetime.now() - cache_date < self.cache_duration:
+                # Ensure cache_date is timezone-aware for comparison
+                if cache_date.tzinfo is None:
+                    cache_date = cache_date.replace(tzinfo=UTC)
+                if datetime.now(UTC) - cache_date < self.cache_duration:
                     cached_holdings = self._parse_cached_holdings(data)
                     self._cache[etf_symbol] = cached_holdings
                     self._cache_times[etf_symbol] = cache_date
@@ -374,7 +377,7 @@ class HoldingsManager:
                 if holdings and holdings.holdings:
                     # Update caches
                     self._cache[etf_symbol] = holdings
-                    self._cache_times[etf_symbol] = datetime.now()
+                    self._cache_times[etf_symbol] = datetime.now(UTC)
 
                     # Save to file cache
                     try:

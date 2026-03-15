@@ -185,28 +185,34 @@ Estimated ~25% coverage. Recent additions (signal tests, MTF tests, correctness 
 
 Well-tested modules: signals/generator (~1,600 lines of tests), MTF analyzer (~740 lines), market hours, settings, backtester, correctness fixes (38 regression tests). All regression tests validate actual behavioral differences (not just smoke tests).
 
-### 2. Error Handling (Grade: C+)
+### 2. Error Handling (Grade: B+) — IMPROVED
 
-27+ locations catch bare `except Exception` instead of specific exception types. Key issues:
+~~27+ locations catch bare `except Exception` instead of specific exception types.~~ All bare `except Exception` handlers replaced with specific exception tuples across 12 locations in mtf_analyzer, alerts (console, desktop, manager), scanner, log_viewer, CLI. Remaining items:
 - `YahooFinanceProvider._convert_interval()` silently falls back to "1d" on unknown intervals
 - `asyncio.gather(return_exceptions=True)` with `zip(..., strict=False)` can silently drop failed ETFs
 - `RateLimitError` is defined but never raised
-- Alert handler failures logged but never surfaced to the user
 
-### 3. Data Provider Resilience (Grade: C)
+### 3. Data Provider Resilience (Grade: B+) — IMPROVED
 
-- No fallback chain (if Yahoo fails, doesn't try Alpaca)
-- No retry logic with backoff
-- No data validation after fetching
+~~No fallback chain / retry logic.~~ `DataProviderManager` now implements:
+- Fallback chain across providers (Alpaca > Polygon > Yahoo)
+- Retry with exponential backoff (configurable max_retries, base_delay)
+- Provider priority ordering (real-time preferred)
+
+Remaining items:
 - Alpaca quotes hardcode `volume=0`, breaking volume filters
-- No caching layer
+- No data validation after fetching
+- No caching layer between provider attempts
 
-### 4. Backtesting Accounting (Grade: C+)
+### 4. Backtesting Accounting (Grade: B) — IMPROVED
 
-- Commission deducted from capital but not from trade PnL — asymmetric
-- Slippage applied inconsistently between entry and exit
-- Hardcoded 50-bar warmup instead of calculating from indicator requirements
-- `print()` statements instead of logging
+~~Commission deducted asymmetrically; slippage inconsistent; hardcoded warmup.~~ Fixed:
+- Commission now deducted once at entry only (was double-counted at entry + exit)
+- Slippage applied consistently to all exits including end-of-data closes
+- Warmup period calculated from indicator requirements (233 bars for auto-generated signals, 50 for pre-computed)
+
+Remaining:
+- `print()` statements instead of logging (partially addressed — `print_summary()` now uses `logger.info()`)
 
 ### 5. CI/CD Gaps (Grade: B)
 
@@ -229,11 +235,11 @@ Well-tested modules: signals/generator (~1,600 lines of tests), MTF analyzer (~7
 7. Add coverage reporting to CI with 50% floor
 
 ### Tier 2 — Quality & Reliability
-8. Replace 27+ bare `except Exception` with specific exceptions
-9. Add data provider fallback chain with retry
-10. Fix backtesting commission/slippage accounting
-11. Use `SecretStr` consistently, never serialize credentials
-12. Add timezone-aware datetimes throughout
+8. ~~Replace 27+ bare `except Exception` with specific exceptions~~ ✅
+9. ~~Add data provider fallback chain with retry~~ ✅ (already implemented in DataProviderManager)
+10. ~~Fix backtesting commission/slippage accounting~~ ✅
+11. ~~Use `SecretStr` consistently, never serialize credentials~~ ✅
+12. ~~Add timezone-aware datetimes throughout~~ ✅
 
 ### Tier 3 — Feature Enhancements
 13. ~~Multi-timeframe confirmation~~ ✅ (MTF analyzer added)
@@ -247,4 +253,4 @@ Well-tested modules: signals/generator (~1,600 lines of tests), MTF analyzer (~7
 
 ## Conclusion
 
-This is a **well-architected, domain-faithful trading scanner** with strong fundamentals. The dual-package design, signal pipeline, and configuration system are genuinely well done. Recent improvements — 6 correctness bug fixes with 38 regression tests, multi-timeframe analysis, structured `RawSignal` refactoring, and a clean mypy pass (0 errors) — have meaningfully advanced the project. The main remaining risk is **reliability**: test coverage gaps on scanner/data-providers/alerts, and no resilience in data fetching. The architecture supports growth — the gaps are in hardening, not in design.
+This is a **well-architected, domain-faithful trading scanner** with strong fundamentals. The dual-package design, signal pipeline, and configuration system are genuinely well done. Recent improvements — 6 correctness bug fixes with 38 regression tests, multi-timeframe analysis, structured `RawSignal` refactoring, and a clean mypy pass (0 errors) — have meaningfully advanced the project. Tier 2 hardening is now complete: all bare exception handlers replaced with specific types, backtesting accounting fixed (commission deduplication, consistent slippage, dynamic warmup), credentials excluded from serialization, and timezone-aware datetimes used throughout (market hours, scanner, holdings, backtester). The main remaining risk is **test coverage**: scanner/data-providers/alerts still lack unit tests, and CI has no coverage enforcement. The architecture supports growth — the gaps are in coverage and CI, not in design or reliability.

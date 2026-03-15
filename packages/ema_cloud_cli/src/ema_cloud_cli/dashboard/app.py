@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -410,7 +411,9 @@ class SimpleDashboard:
     def print_summary(self) -> None:
         """Print current summary."""
         print(f"\n{'=' * 60}")
-        print(f"SECTOR ETF SUMMARY - {datetime.now().strftime('%H:%M:%S')}")
+        print(
+            f"SECTOR ETF SUMMARY - {datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M:%S ET')}"
+        )
         print(f"{'=' * 60}")
 
         for etf in sorted(self._etf_data.values(), key=lambda x: x.trend_strength, reverse=True):

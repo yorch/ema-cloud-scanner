@@ -166,7 +166,7 @@ class EMACloudScanner:
             self.data_manager = DataProviderManager(self._data_provider_config_dict())
             self.cloud_indicator, self.signal_generator = self._build_indicators()
             self.alert_manager = AlertManager.create_default(self._alert_config_dict())
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, RuntimeError) as e:
             # Rollback to previous configuration on failure
             logger.error(f"Failed to apply configuration: {e}")
             logger.info("Rolling back to previous configuration")
@@ -266,7 +266,7 @@ class EMACloudScanner:
                 )
                 self._mtf_results[symbol] = mtf_result
                 logger.debug(f"MTF analysis for {symbol}: {mtf_result.summary}")
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, KeyError) as e:
                 logger.error(f"MTF analysis failed for {symbol}: {e}")
 
         # Get latest row for display
@@ -303,13 +303,13 @@ class EMACloudScanner:
         try:
             # Calculate lookback period based on timeframe
             lookback_days = self._calculate_lookback(timeframe, limit)
-            start = datetime.now() - timedelta(days=lookback_days)
+            start = utc_now() - timedelta(days=lookback_days)
 
             df = await self.data_manager.get_historical_data(
                 symbol=symbol, interval=timeframe, start=start
             )
             return df
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, OSError) as e:
             logger.error(f"Error fetching MTF data for {symbol} ({timeframe}): {e}")
             return None
 
@@ -444,7 +444,7 @@ class EMACloudScanner:
         """Check if we should alert for this signal (cooldown check)"""
         # Cleanup expired entries periodically to prevent memory leak
         if len(self._signal_cooldown) > SIGNAL_COOLDOWN_CLEANUP_THRESHOLD:
-            cutoff = datetime.now() - timedelta(hours=SIGNAL_COOLDOWN_RETENTION_HOURS)
+            cutoff = utc_now() - timedelta(hours=SIGNAL_COOLDOWN_RETENTION_HOURS)
             self._signal_cooldown = {k: v for k, v in self._signal_cooldown.items() if v > cutoff}
 
         key = f"{signal.symbol}|{signal.direction}|{signal.signal_type.value}"
@@ -564,7 +564,7 @@ class EMACloudScanner:
 
         # Check cache first and build list of symbols needing fetch
         symbols_to_fetch = []
-        now = datetime.now()
+        now = utc_now()
 
         for symbol in etf_symbols:
             if symbol in self._holdings_cache:

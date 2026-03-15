@@ -6,7 +6,7 @@ Tests signals against historical data to evaluate performance.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -255,12 +255,23 @@ class Backtester:
         Returns:
             BacktestResult with all metrics
         """
-        if len(df) < 50:
-            logger.warning(f"Insufficient data for backtest: {len(df)} bars")
+        # Calculate warmup period from indicator requirements
+        # Longest EMA used is 200; ADX/ATR use 14-bar rolling windows
+        warmup_bars = 233  # Longest EMA pair (200-233 cloud) needs 233 bars
+        if signals_df is not None:
+            # When pre-computed signals are provided, we only need enough
+            # bars for the signal generation to have stabilized
+            warmup_bars = min(warmup_bars, 50)
+
+        if len(df) < warmup_bars + 1:
+            logger.warning(
+                f"Insufficient data for backtest: {len(df)} bars "
+                f"(need {warmup_bars + 1} for indicator warmup)"
+            )
             return BacktestResult(
                 symbol=symbol,
-                start_date=datetime.now(),
-                end_date=datetime.now(),
+                start_date=datetime.now(UTC),
+                end_date=datetime.now(UTC),
                 initial_capital=self.initial_capital,
                 final_capital=self.initial_capital,
             )
@@ -275,8 +286,8 @@ class Backtester:
         if signals_df is None:
             signals_df = self._generate_simple_signals(df)
 
-        # Walk through data
-        for i in range(50, len(df)):
+        # Walk through data (skip warmup period for indicator stabilization)
+        for i in range(warmup_bars, len(df)):
             idx = df.index[i]
             row = df.iloc[i]
             current_price = row["close"]
@@ -332,10 +343,10 @@ class Backtester:
 
                     position.close(idx, exit_price, exit_reason)
 
-                    # Update capital
+                    # Update capital (commission already deducted at entry)
                     position_value = capital * (self.position_size_pct / 100)
                     shares = position_value / position.entry_price
-                    capital += position.pnl * shares - self.commission
+                    capital += position.pnl * shares
 
                     trades.append(position)
                     position = None
@@ -391,6 +402,11 @@ class Backtester:
         # Close any open position at end
         if position is not None:
             final_price = df.iloc[-1]["close"]
+            # Apply slippage to end-of-data exit consistently
+            if position.direction == "long":
+                final_price = final_price * (1 - self.slippage_pct / 100)
+            else:
+                final_price = final_price * (1 + self.slippage_pct / 100)
             position.close(df.index[-1], final_price, "end_of_data")
             position_value = capital * (self.position_size_pct / 100)
             shares = position_value / position.entry_price
@@ -418,8 +434,8 @@ class Backtester:
             sharpe = 0
 
         # Get date range
-        start_date = df.index[0] if hasattr(df.index[0], "strftime") else datetime.now()
-        end_date = df.index[-1] if hasattr(df.index[-1], "strftime") else datetime.now()
+        start_date = df.index[0] if hasattr(df.index[0], "strftime") else datetime.now(UTC)
+        end_date = df.index[-1] if hasattr(df.index[-1], "strftime") else datetime.now(UTC)
 
         # Create result
         result = BacktestResult(

@@ -67,7 +67,7 @@ class AlertManager:
             try:
                 success = await handler.send_alert(message)
                 return (name, success)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, TypeError) as e:
                 logger.error(f"Handler {name} failed: {e}")
                 return (name, False)
 
@@ -109,7 +109,7 @@ class AlertManager:
             try:
                 count = await handler.send_batch(messages)
                 return (name, count)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, TypeError) as e:
                 logger.error(f"Handler {name} batch failed: {e}")
                 return (name, 0)
 

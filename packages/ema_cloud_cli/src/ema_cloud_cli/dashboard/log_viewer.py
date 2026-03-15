@@ -66,11 +66,11 @@ class TextualLogHandler(logging.Handler):
             try:
                 if self.log_viewer:
                     self.log_viewer.write(styled_msg)
-            except Exception:
+            except (AttributeError, RuntimeError):
                 # Silently fail if widget is not ready
                 pass
 
-        except Exception:
+        except (AttributeError, RuntimeError, ValueError):
             self.handleError(record)
 
     def flush_buffer(self) -> None:

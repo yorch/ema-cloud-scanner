@@ -59,7 +59,7 @@ class ConsoleAlertHandler(BaseAlertHandler):
             print(output)
             return True
 
-        except Exception as e:
+        except (AttributeError, TypeError, OSError, UnicodeError) as e:
             logger.error(f"Console alert error: {e}")
             return False
 
@@ -111,7 +111,7 @@ class DesktopAlertHandler(BaseAlertHandler):
 
             return True
 
-        except Exception as e:
+        except (AttributeError, OSError, RuntimeError, NotImplementedError) as e:
             logger.error(f"Desktop notification error: {e}")
             return False
 
@@ -133,5 +133,5 @@ class DesktopAlertHandler(BaseAlertHandler):
             else:  # Linux
                 # Try using paplay or aplay
                 pass
-        except Exception as e:
+        except (OSError, ImportError, RuntimeError) as e:
             logger.debug(f"Could not play sound: {e}")
