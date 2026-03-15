@@ -197,6 +197,7 @@ async def async_main(
     report_dashboard: ReportDashboard | None = None
     if report_dir:
         report_dashboard = ReportDashboard(report_dir)
+        scanner.add_cycle_callback(report_dashboard.flush_summary)
         scanner.add_cycle_callback(report_dashboard.flush_report)
 
     # Initialize dashboard if requested

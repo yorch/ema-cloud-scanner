@@ -136,6 +136,131 @@ class ReportDashboard:
 
         return filepath
 
+    def flush_summary(self) -> Path | None:
+        """
+        Write a human-readable plain-text summary to latest_summary.txt.
+
+        Overwrites the file each cycle so it always reflects the latest scan.
+        Does NOT clear internal state — flush_report() handles the reset.
+
+        Returns:
+            Path to the written summary file, or None if no data was collected.
+        """
+        if not self._etf_data:
+            return None
+
+        timestamp = datetime.now(UTC)
+        filepath = self._report_dir / "latest_summary.txt"
+
+        cycle_duration = None
+        if self._cycle_start is not None:
+            cycle_duration = round(time.monotonic() - self._cycle_start, 2)
+
+        market_status = MarketHours.get_market_status()
+        api_stats = api_call_tracker.get_stats()
+
+        bullish = sum(1 for d in self._etf_data.values() if d.trend == TrendDirection.BULLISH.value)
+        bearish = sum(1 for d in self._etf_data.values() if d.trend == TrendDirection.BEARISH.value)
+        neutral = len(self._etf_data) - bullish - bearish
+
+        lines: list[str] = []
+
+        # Header
+        lines.append(f"EMA Cloud Scanner — {timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        lines.append("=" * 72)
+        if cycle_duration is not None:
+            lines.append(f"Cycle duration: {cycle_duration}s")
+        lines.append(f"Market status:  {market_status['status']}")
+        lines.append("")
+
+        # ETF table — sort: bullish first, then neutral, then bearish
+        trend_order = {
+            TrendDirection.BULLISH.value: 0,
+            "neutral": 1,
+            TrendDirection.BEARISH.value: 2,
+        }
+        sorted_etfs = sorted(
+            self._etf_data.values(),
+            key=lambda d: (trend_order.get(d.trend, 1), d.symbol),
+        )
+
+        trend_icons = {
+            TrendDirection.BULLISH.value: "▲",
+            TrendDirection.BEARISH.value: "▼",
+        }
+
+        lines.append(
+            f"{'Symbol':<8} {'Sector':<14} {'Price':>8} {'Chg%':>7} "
+            f"{'Trend':>5} {'Str%':>5} {'Sigs':>4} {'RSI':>6} {'ADX':>6}"
+        )
+        lines.append("-" * 72)
+        for d in sorted_etfs:
+            icon = trend_icons.get(d.trend, "─")
+            rsi_str = f"{d.rsi:.1f}" if d.rsi is not None else "—"
+            adx_str = f"{d.adx:.1f}" if d.adx is not None else "—"
+            lines.append(
+                f"{d.symbol:<8} {d.sector:<14} {d.price:>8.2f} {d.change_pct:>+6.1f}% "
+                f"{icon:>5} {d.trend_strength * 100:>4.0f}% {d.signals_count:>4} "
+                f"{rsi_str:>6} {adx_str:>6}"
+            )
+        lines.append("")
+
+        # Signals section
+        if self._signals:
+            lines.append("Signals")
+            lines.append("-" * 72)
+            for sig in self._signals:
+                dir_icon = "↑" if sig.direction == "long" else "↓"
+                wfs = (
+                    f"{sig.weighted_filter_score:.2f}"
+                    if sig.weighted_filter_score is not None
+                    else "—"
+                )
+                lines.append(
+                    f"  {sig.timestamp.strftime('%H:%M:%S')} {sig.symbol:<6} {dir_icon} "
+                    f"{sig.signal_type:<24} {sig.price:>8.2f}  {sig.strength:<12} wfs={wfs}"
+                )
+            lines.append("")
+
+        # Holdings section
+        holdings_with_signals = {sym: h for sym, h in self._holdings_data.items() if h.holdings}
+        if holdings_with_signals:
+            lines.append("Holdings")
+            lines.append("-" * 72)
+            for _sym, h in sorted(holdings_with_signals.items()):
+                lines.append(f"  {h.etf_symbol} ({h.sector_trend})")
+                for stock in h.holdings:
+                    if stock.signal_type:
+                        weight_str = f"{stock.weight:.1f}%" if stock.weight is not None else "—"
+                        price_str = f"{stock.price:.2f}" if stock.price is not None else "—"
+                        lines.append(
+                            f"    {stock.symbol:<8} {stock.signal_type:<24} "
+                            f"{stock.strength or '—':<12} {price_str:>8}  {weight_str:>6}"
+                        )
+            lines.append("")
+
+        # Footer
+        lines.append("=" * 72)
+        lines.append(
+            f"ETFs: {len(self._etf_data)} total  "
+            f"({bullish} bullish, {bearish} bearish, {neutral} neutral)  |  "
+            f"Signals: {len(self._signals)}  |  "
+            f"Holdings ETFs: {len(self._holdings_data)}"
+        )
+
+        # API metrics
+        lines.append(
+            f"API: {api_stats.get('total_calls', 0)} calls  "
+            f"{api_stats.get('calls_per_minute', 0):.1f}/min  "
+            f"cache {api_stats.get('cache_hit_rate', 0):.0f}%  "
+            f"success {api_stats.get('success_rate', 0):.0f}%"
+        )
+        lines.append("")
+
+        filepath.write_text("\n".join(lines))
+        logger.info("Summary written: %s", filepath)
+        return filepath
+
     def _rotate_reports(self) -> None:
         """Remove oldest reports if over the max limit."""
         reports = sorted(self._report_dir.glob("scan_*.json"))

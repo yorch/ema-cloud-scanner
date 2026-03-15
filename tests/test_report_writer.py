@@ -248,6 +248,84 @@ class TestReportDashboard:
         assert mtf["bias"] == "long"
         assert mtf["alignment_pct"] == 100.0
 
+    def test_flush_summary_no_data_returns_none(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        assert rd.flush_summary() is None
+
+    def test_flush_summary_writes_file(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        rd.update_etf_data(_make_etf_data("XLK", "bullish"))
+
+        filepath = rd.flush_summary()
+        assert filepath is not None
+        assert filepath.exists()
+        assert filepath.name == "latest_summary.txt"
+
+    def test_flush_summary_overwrites_on_each_cycle(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+
+        # First cycle
+        rd.update_etf_data(_make_etf_data("XLK", "bullish"))
+        rd.flush_summary()
+        rd.flush_report()  # resets signals/cycle_start
+
+        # Second cycle with different data
+        rd.update_etf_data(_make_etf_data("XLF", "bearish"))
+        rd.flush_summary()
+
+        content = (tmp_path / "latest_summary.txt").read_text()
+        # Should contain XLF from latest cycle (ETF data persists across flushes)
+        assert "XLF" in content
+        # Only one summary file should exist
+        summaries = list(tmp_path.glob("latest_summary*"))
+        assert len(summaries) == 1
+
+    def test_flush_summary_content(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        rd.update_etf_data(_make_etf_data("XLK", "bullish"))
+        rd.update_etf_data(_make_etf_data("XLF", "bearish"))
+        rd.add_signal(_make_signal_data("XLK"))
+
+        rd.flush_summary()
+        content = (tmp_path / "latest_summary.txt").read_text()
+
+        # Scan timestamp header
+        assert "EMA Cloud Scanner" in content
+        # ETF symbols
+        assert "XLK" in content
+        assert "XLF" in content
+        # Trend direction icons
+        assert "▲" in content  # bullish
+        assert "▼" in content  # bearish
+        # Signal data
+        assert "cloud_flip_bullish" in content
+        assert "STRONG" in content
+        # Summary counts
+        assert "1 bullish" in content
+        assert "1 bearish" in content
+        assert "Signals: 1" in content
+
+    def test_flush_summary_with_holdings(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        rd.update_etf_data(_make_etf_data("XLK", "bullish"))
+        rd.update_holdings_data(_make_holdings_data("XLK"))
+
+        rd.flush_summary()
+        content = (tmp_path / "latest_summary.txt").read_text()
+
+        assert "Holdings" in content
+        assert "AAPL" in content
+        assert "22.5%" in content
+
+    def test_flush_summary_market_status(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        rd.update_etf_data(_make_etf_data())
+
+        rd.flush_summary()
+        content = (tmp_path / "latest_summary.txt").read_text()
+
+        assert "Market status:" in content
+
     def test_stop_is_noop(self, tmp_path: Path):
         rd = ReportDashboard(tmp_path)
         rd.stop()  # Should not raise
