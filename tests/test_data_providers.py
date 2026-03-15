@@ -570,3 +570,103 @@ class TestExceptions:
 
     def test_invalid_symbol_error_is_data_provider_error(self):
         assert issubclass(InvalidSymbolError, DataProviderError)
+
+
+class TestIsRateLimit:
+    """Unit tests for the _is_rate_limit() heuristic."""
+
+    def setup_method(self):
+        from ema_cloud_lib.data_providers.base import _is_rate_limit
+
+        self.fn = _is_rate_limit
+
+    def test_message_contains_429(self):
+        assert self.fn(Exception("HTTP 429 Too Many Requests")) is True
+
+    def test_message_contains_too_many_requests_lowercase(self):
+        assert self.fn(Exception("too many requests")) is True
+
+    def test_message_contains_rate_limit(self):
+        assert self.fn(Exception("rate limit exceeded")) is True
+
+    def test_status_code_attribute_429(self):
+        exc = Exception("API error")
+        exc.status_code = 429  # type: ignore[attr-defined]
+        assert self.fn(exc) is True
+
+    def test_code_attribute_429(self):
+        exc = Exception("API error")
+        exc.code = 429  # type: ignore[attr-defined]
+        assert self.fn(exc) is True
+
+    def test_http_status_attribute_429(self):
+        exc = Exception("API error")
+        exc.http_status = 429  # type: ignore[attr-defined]
+        assert self.fn(exc) is True
+
+    def test_non_rate_limit_500(self):
+        assert self.fn(Exception("Internal Server Error 500")) is False
+
+    def test_non_rate_limit_plain(self):
+        assert self.fn(ValueError("bad value")) is False
+
+    def test_non_rate_limit_status_code_400(self):
+        exc = Exception("Bad Request")
+        exc.status_code = 400  # type: ignore[attr-defined]
+        assert self.fn(exc) is False
+
+
+class TestRateLimitHandlingInManager:
+    """DataProviderManager should apply a longer backoff for RateLimitError."""
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_uses_long_backoff(self):
+        """When a provider raises RateLimitError, manager waits >=60 s before retry."""
+        manager = DataProviderManager()
+        mock_prov = MagicMock()
+        mock_prov.name = "mock"
+        mock_prov.get_historical_data = AsyncMock(
+            side_effect=RateLimitError("rate limit hit")
+        )
+        manager.providers = {"mock": mock_prov}
+        manager.max_retries = 2
+        manager.base_delay = 1.0
+
+        sleep_calls = []
+
+        async def fake_sleep(secs):
+            sleep_calls.append(secs)
+
+        with patch("ema_cloud_lib.data_providers.base.asyncio.sleep", new=fake_sleep):
+            with pytest.raises(DataProviderError):
+                await manager.get_historical_data("XLK", "1d")
+
+        # At least one sleep call should be >= 60 s
+        assert sleep_calls, "Expected at least one sleep call for rate-limit backoff"
+        assert max(sleep_calls) >= 60.0
+
+    @pytest.mark.asyncio
+    async def test_transient_error_uses_short_backoff(self):
+        """Non-rate-limit errors should use the normal short exponential backoff."""
+        manager = DataProviderManager()
+        mock_prov = MagicMock()
+        mock_prov.name = "mock"
+        mock_prov.get_historical_data = AsyncMock(
+            side_effect=DataProviderError("transient error")
+        )
+        manager.providers = {"mock": mock_prov}
+        manager.max_retries = 2
+        manager.base_delay = 1.0
+
+        sleep_calls = []
+
+        async def fake_sleep(secs):
+            sleep_calls.append(secs)
+
+        with patch("ema_cloud_lib.data_providers.base.asyncio.sleep", new=fake_sleep):
+            with pytest.raises(DataProviderError):
+                await manager.get_historical_data("XLK", "1d")
+
+        # Backoff should be base_delay * 2^0 = 1 s — well below 60 s
+        assert sleep_calls
+        assert max(sleep_calls) < 60.0

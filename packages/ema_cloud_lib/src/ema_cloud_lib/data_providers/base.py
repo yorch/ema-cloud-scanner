@@ -213,6 +213,23 @@ class RateLimitError(DataProviderError):
     pass
 
 
+def _is_rate_limit(exc: Exception) -> bool:
+    """Return True when *exc* signals an HTTP 429 / rate-limit response.
+
+    Checks both the exception message (works for yfinance and Polygon which
+    surface HTTP errors as text) and any numeric status/code attribute
+    (works for alpaca-py's APIError which carries a ``status_code`` field).
+    """
+    msg = str(exc).lower()
+    if "429" in str(exc) or "too many requests" in msg or "rate limit" in msg:
+        return True
+    for attr in ("status_code", "code", "http_status"):
+        code = getattr(exc, attr, None)
+        if code == 429:
+            return True
+    return False
+
+
 class InvalidSymbolError(DataProviderError):
     """Invalid or unknown symbol"""
 
@@ -568,6 +585,12 @@ class YahooFinanceProvider(BaseDataProvider):
             api_call_tracker.record_call(failed=True)
             logger.error(f"Network error fetching {symbol} from Yahoo Finance: {e}")
             raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
+        except Exception as e:
+            api_call_tracker.record_call(failed=True)
+            if _is_rate_limit(e):
+                logger.warning(f"Yahoo Finance rate limit hit for {symbol}")
+                raise RateLimitError(f"Yahoo Finance rate limit for {symbol}: {e}") from e
+            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
 
     async def get_quote(self, symbol: str) -> Quote:
         """Get current quote from Yahoo Finance"""
@@ -711,7 +734,16 @@ class AlpacaProvider(BaseDataProvider):
             raise
         except (ValueError, KeyError, TypeError, OSError) as e:
             api_call_tracker.record_call(failed=True)
+            if _is_rate_limit(e):
+                logger.warning(f"Alpaca rate limit hit for {symbol}")
+                raise RateLimitError(f"Alpaca rate limit for {symbol}: {e}") from e
             logger.error(f"Error fetching {symbol} from Alpaca: {e}")
+            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
+        except Exception as e:
+            api_call_tracker.record_call(failed=True)
+            if _is_rate_limit(e):
+                logger.warning(f"Alpaca rate limit hit for {symbol}")
+                raise RateLimitError(f"Alpaca rate limit for {symbol}: {e}") from e
             raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
 
     async def get_quote(self, symbol: str) -> Quote:
@@ -884,7 +916,16 @@ class PolygonProvider(BaseDataProvider):
             raise
         except (ValueError, KeyError, TypeError, OSError) as e:
             api_call_tracker.record_call(failed=True)
+            if _is_rate_limit(e):
+                logger.warning(f"Polygon rate limit hit for {symbol}")
+                raise RateLimitError(f"Polygon rate limit for {symbol}: {e}") from e
             logger.error(f"Error fetching {symbol} from Polygon: {e}")
+            raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
+        except Exception as e:
+            api_call_tracker.record_call(failed=True)
+            if _is_rate_limit(e):
+                logger.warning(f"Polygon rate limit hit for {symbol}")
+                raise RateLimitError(f"Polygon rate limit for {symbol}: {e}") from e
             raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
 
     async def get_quote(self, symbol: str) -> Quote:
@@ -1028,6 +1069,21 @@ class DataProviderManager:
                         )
 
                     return df
+                except RateLimitError as e:
+                    last_error = e
+                    # Rate limits need a much longer cooldown than transient errors
+                    rate_limit_delay = max(self.base_delay * (2**attempt), 60.0)
+                    if attempt < self.max_retries - 1:
+                        logger.warning(
+                            f"Provider {prov.name} rate-limited for {symbol} "
+                            f"(attempt {attempt + 1}/{self.max_retries}). "
+                            f"Waiting {rate_limit_delay:.0f}s before retry..."
+                        )
+                        await asyncio.sleep(rate_limit_delay)
+                    else:
+                        logger.warning(
+                            f"Provider {prov.name} exhausted retries (rate-limited) for {symbol}: {e}"
+                        )
                 except DataProviderError as e:
                     last_error = e
                     if attempt < self.max_retries - 1:
