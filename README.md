@@ -197,8 +197,17 @@ Scans all 11 S&P sector ETFs by default:
 
 ### Quick Start (No Installation Required)
 
+A `Justfile` is provided for convenience. Run `just` to list all available recipes.
+
 ```bash
-# Run scanner (uv handles dependencies automatically)
+# Using just (recommended)
+just dev            # Run once, all market hours (for local testing)
+just once           # Run once during market hours
+just swing          # Run with swing style
+just test           # Run all tests
+just qa             # Lint + format + type check
+
+# Or directly with uv
 uv run python run.py --help
 uv run python run.py --once
 uv run python run.py --style swing --etfs XLK XLF
@@ -207,16 +216,17 @@ uv run python run.py --style swing --etfs XLK XLF
 ### Code Quality
 
 ```bash
-# Lint
+# Using just
+just lint           # Lint all packages
+just fix            # Auto-fix lint issues
+just fmt            # Format code
+just types          # Type check
+just qa             # Run all checks
+
+# Or directly
 ruff check packages/
-
-# Format
 ruff format packages/
-
-# Type check
 mypy packages/
-
-# Run tests
 pytest
 ```
 

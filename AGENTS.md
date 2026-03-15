@@ -31,6 +31,7 @@ ema_cloud_sector_scanner/
 │           ├── config_store.py      # User preferences persistence
 │           └── dashboard/           # Textual-based terminal UI
 │
+├── Justfile               # Developer task runner (run `just` to list)
 ├── pyproject.toml         # Workspace config
 └── run.py                 # Development runner (no install needed)
 ```
@@ -38,6 +39,43 @@ ema_cloud_sector_scanner/
 **Key Principle**: `ema_cloud_lib` is **framework-agnostic** and has zero CLI dependencies. It uses **dependency injection** via `DashboardProtocol` to decouple from any specific UI framework.
 
 ## Common Development Commands
+
+A `Justfile` is provided as a convenient wrapper. Run `just` (no args) to list all recipes.
+
+### Using `just` (Recommended)
+
+```bash
+# Running the scanner
+just once           # Single scan (market hours)
+just dev            # Single scan, all-hours mode (for testing)
+just run            # Continuous scan
+just swing          # Swing style
+just intraday       # Intraday style
+just scalp          # Scalping style
+
+# Testing
+just test           # All tests
+just test-v         # Verbose
+just test-file tests/test_scanner.py  # Specific file
+just test-alerts    # Alert handlers
+
+# Code quality
+just lint           # Ruff lint
+just fix            # Auto-fix
+just fmt            # Format
+just types          # mypy
+just qa             # All quality checks
+
+# Setup
+just install        # Editable install of both packages
+just install-all    # With optional providers
+just install-dev    # With dev tools
+just hooks          # Pre-commit hooks
+
+# Utilities
+just help           # Scanner --help
+just clear-cache    # Clear holdings cache
+```
 
 ### Quick Development (No Installation)
 
