@@ -625,9 +625,7 @@ class TestRateLimitHandlingInManager:
         manager = DataProviderManager()
         mock_prov = MagicMock()
         mock_prov.name = "mock"
-        mock_prov.get_historical_data = AsyncMock(
-            side_effect=RateLimitError("rate limit hit")
-        )
+        mock_prov.get_historical_data = AsyncMock(side_effect=RateLimitError("rate limit hit"))
         manager.providers = {"mock": mock_prov}
         manager.max_retries = 2
         manager.base_delay = 1.0
@@ -651,9 +649,7 @@ class TestRateLimitHandlingInManager:
         manager = DataProviderManager()
         mock_prov = MagicMock()
         mock_prov.name = "mock"
-        mock_prov.get_historical_data = AsyncMock(
-            side_effect=DataProviderError("transient error")
-        )
+        mock_prov.get_historical_data = AsyncMock(side_effect=DataProviderError("transient error"))
         manager.providers = {"mock": mock_prov}
         manager.max_retries = 2
         manager.base_delay = 1.0
