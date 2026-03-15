@@ -45,44 +45,64 @@ from ema_cloud_lib.signals.generator import (
 
 # Pre-built RawSignal instances matching the old string-based signals
 _RAW_TREND_FLIP_BULLISH = RawSignal(
-    signal_type="TREND_FLIP", direction="bullish",
-    cloud_name="trend_confirmation", message="34-50 cloud turned green",
+    signal_type="TREND_FLIP",
+    direction="bullish",
+    cloud_name="trend_confirmation",
+    message="34-50 cloud turned green",
 )
 _RAW_TREND_FLIP_BEARISH = RawSignal(
-    signal_type="TREND_FLIP", direction="bearish",
-    cloud_name="trend_confirmation", message="34-50 cloud turned red",
+    signal_type="TREND_FLIP",
+    direction="bearish",
+    cloud_name="trend_confirmation",
+    message="34-50 cloud turned red",
 )
 _RAW_SHORT_TERM_BULLISH = RawSignal(
-    signal_type="SHORT_TERM", direction="bullish",
-    cloud_name="trend_line", message="5-12 cloud turned green",
+    signal_type="SHORT_TERM",
+    direction="bullish",
+    cloud_name="trend_line",
+    message="5-12 cloud turned green",
 )
 _RAW_BREAKOUT = RawSignal(
-    signal_type="BREAKOUT", direction="bullish",
-    cloud_name="trend_confirmation", message="Price crossed above 34-50 cloud",
+    signal_type="BREAKOUT",
+    direction="bullish",
+    cloud_name="trend_confirmation",
+    message="Price crossed above 34-50 cloud",
 )
 _RAW_BREAKDOWN = RawSignal(
-    signal_type="BREAKDOWN", direction="bearish",
-    cloud_name="trend_confirmation", message="Price crossed below 34-50 cloud",
+    signal_type="BREAKDOWN",
+    direction="bearish",
+    cloud_name="trend_confirmation",
+    message="Price crossed below 34-50 cloud",
 )
 _RAW_PULLBACK_BULLISH = RawSignal(
-    signal_type="PULLBACK_ENTRY", direction="bullish",
-    cloud_name="pullback", message="Price at 8-9 cloud support in uptrend",
+    signal_type="PULLBACK_ENTRY",
+    direction="bullish",
+    cloud_name="pullback",
+    message="Price at 8-9 cloud support in uptrend",
 )
 _RAW_PULLBACK_BEARISH = RawSignal(
-    signal_type="PULLBACK_ENTRY", direction="bearish",
-    cloud_name="pullback", message="Price at 8-9 cloud resistance in downtrend",
+    signal_type="PULLBACK_ENTRY",
+    direction="bearish",
+    cloud_name="pullback",
+    message="Price at 8-9 cloud resistance in downtrend",
 )
 _RAW_ALIGNMENT_BULLISH = RawSignal(
-    signal_type="STRONG_ALIGNMENT", direction="bullish",
-    cloud_name="all", message="All clouds bullish",
+    signal_type="STRONG_ALIGNMENT",
+    direction="bullish",
+    cloud_name="all",
+    message="All clouds bullish",
 )
 _RAW_ALIGNMENT_BEARISH = RawSignal(
-    signal_type="STRONG_ALIGNMENT", direction="bearish",
-    cloud_name="all", message="All clouds bearish",
+    signal_type="STRONG_ALIGNMENT",
+    direction="bearish",
+    cloud_name="all",
+    message="All clouds bearish",
 )
 _RAW_UNKNOWN_BEARISH = RawSignal(
-    signal_type="SOME_UNKNOWN", direction="bearish",
-    cloud_name="unknown", message="custom signal",
+    signal_type="SOME_UNKNOWN",
+    direction="bearish",
+    cloud_name="unknown",
+    message="custom signal",
 )
 
 
