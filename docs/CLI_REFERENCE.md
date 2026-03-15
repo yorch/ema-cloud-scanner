@@ -85,6 +85,7 @@ uv run python run.py [OPTIONS]
 | `--no-dashboard` | Flag    | false   | Disable terminal dashboard       |
 | `--refresh-rate` | Integer | 5       | Dashboard refresh rate (seconds) |
 | `--all-hours`    | Flag    | false   | Scan during extended hours       |
+| `--report-dir`   | Path    | -       | Write JSON reports and `latest_summary.txt` to this directory |
 
 #### Data Providers
 
