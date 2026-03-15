@@ -23,6 +23,7 @@ ema_cloud_sector_scanner/
 │   │       ├── data_providers/      # Yahoo, Alpaca, Polygon integrations
 │   │       ├── holdings/            # ETF holdings management
 │   │       ├── backtesting/         # Backtest engine
+│   │       ├── reports/             # Headless JSON report writer
 │   │       └── types/               # Protocols, display data types
 │   │
 │   └── ema_cloud_cli/     # CLI application
@@ -198,6 +199,8 @@ The scanner ships with a full Docker setup for unattended server deployment.
 - **Secrets come in via env vars only** — `ScannerConfig.save()` strips all secret fields, so credentials cannot be committed in config JSON files
 - **Telegram and Discord auto-enable** when their env vars are set — no `--telegram-alerts` flag needed in `docker-compose.yml`
 - **Named volume** `scanner-cache` persists the holdings cache across restarts
+- **Named volume** `scanner-reports` persists JSON scan reports at `/data/reports`
+- **`EMA_SCANNER_REPORT_DIR`** is set by default in Docker, so headless report files are always written
 - **Two-stage build**: Builder installs all deps and bakes workspace packages as non-editable wheels into `.venv`; runtime stage copies only `.venv` (no uv binary, no source tree in the final image, ~426MB)
 - **Direct entrypoint**: Runtime uses `ema-scanner` directly from `.venv/bin` — no `uv run` overhead at startup
 
@@ -229,6 +232,13 @@ just docker-clean    # Full reset (removes volumes)
 | Alpaca          | `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` |
 | Polygon         | `POLYGON_API_KEY`                     |
 
+### Headless report output env vars
+
+| Variable                 | Purpose                                            |
+| ------------------------ | -------------------------------------------------- |
+| `EMA_SCANNER_REPORT_DIR` | Directory for JSON scan reports (CLI `--report-dir`) |
+| `EMA_CLI_REPORT_DIR`     | Same, via CLI settings env prefix                  |
+
 ## Architecture Patterns
 
 ### 1. Dependency Injection for Dashboard
@@ -240,12 +250,20 @@ The library uses **Protocol-based dependency injection** to avoid coupling to sp
 class DashboardProtocol(Protocol):
     def update_etf_data(self, data: ETFDisplayData) -> None: ...
     def add_signal(self, signal: SignalDisplayData) -> None: ...
+    def update_holdings_data(self, data: HoldingsETFDisplayData) -> None: ...
     def stop(self) -> None: ...
 
 # Scanner accepts any dashboard implementation
 scanner = EMACloudScanner(config)
 scanner.set_dashboard(my_dashboard)  # Textual, Rich, Web, etc.
 ```
+
+**Implementations**:
+
+- `TerminalDashboard` (CLI) - Full Textual TUI with interactive tables
+- `SimpleDashboard` (CLI) - Console fallback when Textual unavailable or `--no-dashboard`
+- `ReportDashboard` (lib) - Writes JSON report files for headless/server use
+- `CompositeDashboard` (lib) - Delegates to multiple dashboards simultaneously
 
 **When adding features**: Prefer extending protocols in `types/protocols.py` rather than importing UI frameworks into the library.
 
@@ -314,6 +332,55 @@ await scanner.alert_manager.send_alert(alert_message)
 **When adding alerts**: Create new handler subclassing `BaseAlertHandler` in `alerts/`.
 
 **Alert configuration**: Use `AlertConfig` in `config/settings.py` to enable/disable handlers and provide credentials.
+
+### 5. Headless Report Output
+
+The `ReportDashboard` implements `DashboardProtocol` and writes timestamped JSON files per scan cycle:
+
+```python
+from ema_cloud_lib.reports import ReportDashboard
+
+report_dashboard = ReportDashboard(Path("./reports"), max_reports=500)
+scanner.set_dashboard(report_dashboard)
+scanner.add_cycle_callback(report_dashboard.flush_report)
+```
+
+Each report file (`scan_YYYYMMDD_HHMMSS_ffffff.json`) contains:
+
+```json
+{
+  "scan_timestamp": "...",
+  "scan_metadata": { "cycle_duration_seconds": 3.42 },
+  "market_status": { "status": "OPEN", "message": "...", "time_info": "..." },
+  "api_metrics": { "total_calls": 42, "calls_per_minute": 1.2, "cache_hit_rate": 85.0, ... },
+  "etfs": { "XLK": { "price": 150.0, "trend": "bullish", "mtf": {...}, ... } },
+  "signals": [ { "symbol": "XLK", "direction": "long", "strength": "STRONG", ... } ],
+  "holdings": { "XLK": { "sector_trend": "bullish", "holdings": [...] } },
+  "summary": { "total_etfs": 11, "bullish": 7, "bearish": 2, "neutral": 2, "total_signals": 3 }
+}
+```
+
+**Configuration**: `--report-dir /path` CLI flag, `EMA_SCANNER_REPORT_DIR` env var, or `EMA_CLI_REPORT_DIR` setting. Auto-rotates old reports (default: keep 500).
+
+**Composing dashboards**: Use `CompositeDashboard` to combine multiple outputs:
+
+```python
+from ema_cloud_lib.reports import CompositeDashboard, ReportDashboard
+
+composite = CompositeDashboard(SimpleDashboard(), ReportDashboard(path))
+scanner.set_dashboard(composite)
+```
+
+### 6. Scanner Cycle Callbacks
+
+`EMACloudScanner.add_cycle_callback(fn)` registers functions called at the end of each scan cycle, after all ETF data, signals, and holdings have been processed:
+
+```python
+scanner.add_cycle_callback(report_dashboard.flush_report)
+scanner.add_cycle_callback(lambda: logger.info("Cycle done"))
+```
+
+Callbacks run synchronously. Exceptions are logged but do not abort the scan loop.
 
 ## Key Configuration Objects
 

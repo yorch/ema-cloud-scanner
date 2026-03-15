@@ -75,6 +75,9 @@ from ema_cloud_lib.indicators.ema_cloud import (
     TechnicalIndicators,
     TrendAnalysis,
 )
+
+# Reports
+from ema_cloud_lib.reports import CompositeDashboard, ReportDashboard
 from ema_cloud_lib.scanner import EMACloudScanner, MarketHours
 
 # Signals
@@ -147,6 +150,9 @@ __all__ = [
     "ConsoleAlertHandler",
     "DesktopAlertHandler",
     "create_alert_from_signal",
+    # Reports
+    "ReportDashboard",
+    "CompositeDashboard",
     # Data providers
     "DataProviderManager",
     "BaseDataProvider",

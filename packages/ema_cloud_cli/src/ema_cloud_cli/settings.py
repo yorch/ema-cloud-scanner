@@ -75,6 +75,12 @@ class CLISettings(BaseSettings):
         description="Dashboard refresh rate in seconds",
     )
 
+    # Report output
+    report_dir: Path | None = Field(
+        default=None,
+        description="Directory for JSON scan reports. If set, enables headless report output.",
+    )
+
     # Logging preferences
     log_dir: Path | None = Field(
         default=None,
@@ -105,6 +111,15 @@ class CLISettings(BaseSettings):
     @classmethod
     def expand_config_dir(cls, v: str | Path | None) -> Path | None:
         """Expand user home directory in config path."""
+        if v is None:
+            return None
+        path = Path(v)
+        return path.expanduser().resolve()
+
+    @field_validator("report_dir", mode="before")
+    @classmethod
+    def expand_report_dir(cls, v: str | Path | None) -> Path | None:
+        """Expand user home directory in report path."""
         if v is None:
             return None
         path = Path(v)

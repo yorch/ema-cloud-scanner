@@ -7,6 +7,7 @@ Based on Ripster's EMA Cloud methodology.
 
 import asyncio
 import logging
+import typing
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -100,6 +101,9 @@ class EMACloudScanner:
         # Cooldown period to avoid duplicate signals (minutes) - from config
         self.signal_cooldown_minutes = self.config.signal_cooldown_minutes
 
+        # Post-cycle callbacks (called at end of each scan cycle)
+        self._cycle_callbacks: list[typing.Callable[[], typing.Any]] = []
+
     @property
     def dashboard(self) -> DashboardProtocol | None:
         """Get the current dashboard instance"""
@@ -113,6 +117,18 @@ class EMACloudScanner:
             dashboard: A dashboard implementing DashboardProtocol, or None to disable
         """
         self._dashboard = dashboard
+
+    def add_cycle_callback(self, callback: typing.Callable[[], typing.Any]) -> None:
+        """
+        Register a callback to run at the end of each scan cycle.
+
+        Callbacks are called after all ETF data, signals, and holdings
+        have been processed and sent to the dashboard.
+
+        Args:
+            callback: A callable taking no arguments.
+        """
+        self._cycle_callbacks.append(callback)
 
     def _alert_config_dict(self) -> dict[str, dict]:
         return self.config.alerts.to_dict
@@ -557,6 +573,13 @@ class EMACloudScanner:
             await self._scan_all_holdings(analyses)
 
         logger.info(f"Scan complete. Analyzed {len(analyses)} ETFs.")
+
+        # Run post-cycle callbacks (e.g. report flushing)
+        for callback in self._cycle_callbacks:
+            try:
+                callback()
+            except Exception:
+                logger.exception("Cycle callback failed")
 
     async def _scan_all_holdings(self, etf_analyses: list[dict]) -> None:
         """
