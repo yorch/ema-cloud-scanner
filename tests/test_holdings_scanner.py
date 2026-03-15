@@ -1,6 +1,7 @@
 """Tests for holdings scanner functionality."""
 
 from datetime import datetime
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -27,9 +28,9 @@ def scanner_config():
 
 
 @pytest.fixture
-def mock_data_manager(mocker):
+def mock_data_manager():
     """Create mock data provider manager."""
-    manager = mocker.Mock(spec=DataProviderManager)
+    manager = MagicMock(spec=DataProviderManager)
 
     # Mock fetch_bars to return sample data
     async def mock_fetch_bars(symbol, timeframe, limit):
@@ -174,7 +175,7 @@ async def test_scan_holdings_with_no_holdings(holdings_scanner):
 
 
 @pytest.mark.asyncio
-async def test_scan_holdings_respects_sector_filter(holdings_scanner, mocker):
+async def test_scan_holdings_respects_sector_filter(holdings_scanner):
     """Test that holdings scanning respects sector trend filtering."""
     # Set up holdings
     holdings_scanner.set_holdings({"XLK": ["AAPL", "MSFT"]})
@@ -182,25 +183,27 @@ async def test_scan_holdings_respects_sector_filter(holdings_scanner, mocker):
     # Set bullish sector trend (blocks shorts)
     holdings_scanner.update_sector_trend("XLK", SectorTrend.BULLISH, 80)
 
-    # Mock scan_stock to return contexts
+    # Create mock signals using MagicMock
+    mock_long_signal_obj = MagicMock()
+    mock_long_signal_obj.symbol = "AAPL"
+    mock_long_signal_obj.direction = SignalDirection.LONG
+    mock_long_signal_obj.strength = SignalStrength.STRONG
+
     mock_long_signal = StockSignalContext(
-        signal=mocker.Mock(
-            symbol="AAPL",
-            direction=SignalDirection.LONG,
-            strength=SignalStrength.STRONG,
-        ),
+        signal=mock_long_signal_obj,
         sector_etf="XLK",
         sector_trend=SectorTrend.BULLISH,
         filtered_by_sector=False,
         sector_strength=80,
     )
 
+    mock_short_signal_obj = MagicMock()
+    mock_short_signal_obj.symbol = "MSFT"
+    mock_short_signal_obj.direction = SignalDirection.SHORT
+    mock_short_signal_obj.strength = SignalStrength.STRONG
+
     mock_short_signal = StockSignalContext(
-        signal=mocker.Mock(
-            symbol="MSFT",
-            direction=SignalDirection.SHORT,
-            strength=SignalStrength.STRONG,
-        ),
+        signal=mock_short_signal_obj,
         sector_etf="XLK",
         sector_trend=SectorTrend.BULLISH,
         filtered_by_sector=True,  # Filtered because SHORT in BULLISH sector

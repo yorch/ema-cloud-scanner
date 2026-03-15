@@ -1704,3 +1704,323 @@ class TestProcessRawSignalDetails:
             self.ts,
         )
         assert sig.adx is None
+
+
+# ===========================================================================
+# Signal Direction Parsing (Keyword-Based)
+# ===========================================================================
+
+
+class TestSignalDirectionParsing:
+    """Signal direction should be determined by keywords, not emoji."""
+
+    def _make_cloud_data(self, state=CloudState.BULLISH):
+        return CloudData(
+            name="trend_confirmation",
+            fast_ema=35.0,
+            slow_ema=34.0,
+            cloud_top=35.0,
+            cloud_bottom=34.0,
+            cloud_thickness=1.0,
+            cloud_thickness_pct=1.0,
+            state=state,
+            price_relation=PriceRelation.ABOVE,
+            is_expanding=False,
+            is_contracting=False,
+            slope=0.0,
+        )
+
+    def _make_row(self, close=105.0, atr=1.0):
+        return pd.Series(
+            {
+                "close": close,
+                "open": close - 0.5,
+                "high": close + 1.0,
+                "low": close - 1.0,
+                "volume": 1_000_000,
+                "rsi": 55.0,
+                "adx": 25.0,
+                "atr": atr,
+                "atr_pct": atr / close * 100,
+                "vwap": close - 1.0,
+                "volume_ratio": 2.0,
+                "macd_histogram": 0.1,
+            }
+        )
+
+    def test_bullish_trend_flip_detected(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data()}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal(
+                "TREND_FLIP", "bullish", "trend_confirmation", "34-50 cloud turned green"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "long"
+        assert sig.signal_type == SignalType.CLOUD_FLIP_BULLISH
+
+    def test_bearish_trend_flip_detected(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data(state=CloudState.BEARISH)}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal(
+                "TREND_FLIP", "bearish", "trend_confirmation", "34-50 cloud turned red"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "short"
+        assert sig.signal_type == SignalType.CLOUD_FLIP_BEARISH
+
+    def test_breakout_is_bullish(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data()}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal(
+                "BREAKOUT", "bullish", "trend_confirmation", "Price crossed above 34-50 cloud"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "long"
+        assert sig.signal_type == SignalType.PRICE_CROSS_ABOVE
+
+    def test_breakdown_is_bearish(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data(state=CloudState.BEARISH)}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal(
+                "BREAKDOWN", "bearish", "trend_confirmation", "Price crossed below 34-50 cloud"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "short"
+        assert sig.signal_type == SignalType.PRICE_CROSS_BELOW
+
+    def test_pullback_uptrend_is_bullish(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data()}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal(
+                "PULLBACK_ENTRY", "bullish", "pullback", "Price at 8-9 cloud support in uptrend"
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "long"
+
+    def test_pullback_downtrend_is_bearish(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data(state=CloudState.BEARISH)}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal(
+                "PULLBACK_ENTRY",
+                "bearish",
+                "pullback",
+                "Price at 8-9 cloud resistance in downtrend",
+            ),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "short"
+
+    def test_bullish_alignment_is_long(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data()}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal("STRONG_ALIGNMENT", "bullish", "all", "All clouds bullish"),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "long"
+
+    def test_bearish_alignment_is_short(self):
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data(state=CloudState.BEARISH)}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal("STRONG_ALIGNMENT", "bearish", "all", "All clouds bearish"),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "short"
+
+    def test_unknown_signal_defaults_to_bearish(self):
+        """Unknown signals with bearish direction map to bearish/short."""
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data()}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal("SOME_UNKNOWN", "bearish", "unknown", "custom"),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "short"
+
+    def test_direction_comes_from_struct_not_message(self):
+        """Direction is read from the RawSignal.direction field, not parsed from message text."""
+        gen = SignalGenerator()
+        clouds = {"trend_confirmation": self._make_cloud_data()}
+        row = self._make_row()
+        ts = datetime(2025, 6, 10, 11, 0)
+
+        sig = gen._process_raw_signal(
+            raw_signal=RawSignal("TREND_FLIP", "bullish", "trend_confirmation", "test"),
+            row=row,
+            clouds=clouds,
+            symbol="XLK",
+            timestamp=ts,
+        )
+        assert sig is not None
+        assert sig.direction == "long"
+
+
+# ===========================================================================
+# Sector Filter Direction Check
+# ===========================================================================
+
+
+class TestSectorFilterDirectionCheck:
+    """filter_signal_by_sector must explicitly check signal.direction."""
+
+    def _make_signal(self, direction: str) -> Signal:
+        return Signal(
+            symbol="AAPL",
+            signal_type=SignalType.CLOUD_FLIP_BULLISH,
+            direction=direction,
+            strength=SignalStrength.STRONG,
+            timestamp=datetime(2025, 6, 10, 11, 0),
+            price=150.0,
+            primary_cloud_state=CloudState.BULLISH,
+            price_relation=PriceRelation.ABOVE,
+        )
+
+    def _make_sector_state(self, trend: str, strength: float = 60.0) -> SectorTrendState:
+        return SectorTrendState(
+            symbol="XLK",
+            sector_name="Technology",
+            timestamp=datetime(2025, 6, 10, 11, 0),
+            trend_direction=trend,
+            trend_strength=strength,
+            trend_duration=10,
+        )
+
+    def test_long_signal_bullish_sector_passes(self):
+        gen = SignalGenerator()
+        sig = self._make_signal("long")
+        sector = self._make_sector_state("bullish")
+        passed, reason = gen.filter_signal_by_sector(sig, sector)
+        assert passed is True
+        assert "confirms bullish" in reason
+
+    def test_long_signal_bearish_sector_fails(self):
+        gen = SignalGenerator()
+        sig = self._make_signal("long")
+        sector = self._make_sector_state("bearish")
+        passed, reason = gen.filter_signal_by_sector(sig, sector)
+        assert passed is False
+        assert "avoid long" in reason
+
+    def test_short_signal_bearish_sector_passes(self):
+        gen = SignalGenerator()
+        sig = self._make_signal("short")
+        sector = self._make_sector_state("bearish")
+        passed, reason = gen.filter_signal_by_sector(sig, sector)
+        assert passed is True
+        assert "confirms bearish" in reason
+
+    def test_short_signal_bullish_sector_fails(self):
+        gen = SignalGenerator()
+        sig = self._make_signal("short")
+        sector = self._make_sector_state("bullish")
+        passed, reason = gen.filter_signal_by_sector(sig, sector)
+        assert passed is False
+        assert "avoid short" in reason
+
+    def test_long_signal_neutral_sector_passes(self):
+        gen = SignalGenerator()
+        sig = self._make_signal("long")
+        sector = self._make_sector_state("neutral")
+        passed, reason = gen.filter_signal_by_sector(sig, sector)
+        assert passed is True
+        assert "neutral" in reason
+
+    def test_short_signal_neutral_sector_passes(self):
+        gen = SignalGenerator()
+        sig = self._make_signal("short")
+        sector = self._make_sector_state("neutral")
+        passed, reason = gen.filter_signal_by_sector(sig, sector)
+        assert passed is True
+        assert "neutral" in reason
+
+    def test_invalid_direction_returns_false(self):
+        """Unknown direction should be rejected, not fall through."""
+        gen = SignalGenerator()
+        sig = self._make_signal("sideways")  # Invalid direction
+        sector = self._make_sector_state("bearish")
+        passed, reason = gen.filter_signal_by_sector(sig, sector)
+        assert passed is False
+        assert "Unknown signal direction" in reason
+
+    def test_short_signal_weak_bearish_sector_passes_with_caution(self):
+        gen = SignalGenerator()
+        sig = self._make_signal("short")
+        sector = self._make_sector_state("bearish", strength=30.0)
+        passed, reason = gen.filter_signal_by_sector(sig, sector)
+        assert passed is True
+        assert "weak bearish" in reason

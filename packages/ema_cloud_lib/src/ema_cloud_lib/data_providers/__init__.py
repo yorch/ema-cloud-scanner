@@ -7,12 +7,14 @@ from .base import (
     BaseDataProvider,
     DataProviderError,
     DataProviderManager,
+    DataQualityResult,
     InvalidSymbolError,
     PolygonProvider,
     Quote,
     RateLimitError,
     YahooFinanceProvider,
     api_call_tracker,
+    validate_ohlcv,
 )
 
 __all__ = [
@@ -21,6 +23,7 @@ __all__ = [
     "BaseDataProvider",
     "DataProviderError",
     "DataProviderManager",
+    "DataQualityResult",
     "InvalidSymbolError",
     "OHLCV",
     "PolygonProvider",
@@ -28,4 +31,5 @@ __all__ = [
     "RateLimitError",
     "YahooFinanceProvider",
     "api_call_tracker",
+    "validate_ohlcv",
 ]

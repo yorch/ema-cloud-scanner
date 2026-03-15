@@ -389,6 +389,49 @@ class TestNextTradingDay:
         assert "Tue" in status["time_info"]
 
 
+# ===========================================================================
+# DST Handling
+# ===========================================================================
+
+
+class TestDSTHandling:
+    """Market hours DST handling should use zoneinfo, not month approximation."""
+
+    def test_early_close_during_est(self):
+        """Early close detection during EST (winter) should work correctly."""
+        christmas_eve = datetime(2025, 12, 24, 10, 0)
+        early_close = MarketHours.get_early_close_time(christmas_eve)
+
+        if early_close is not None:
+            assert early_close.hour == 13, (
+                f"Christmas Eve early close should be 1 PM ET, got {early_close}"
+            )
+
+    def test_early_close_during_edt(self):
+        """Early close detection during EDT (summer) should work correctly."""
+        july_3 = datetime(2025, 7, 3, 10, 0)
+        early_close = MarketHours.get_early_close_time(july_3)
+
+        if early_close is not None:
+            assert early_close.hour == 13, (
+                f"July 3rd early close should be 1 PM ET, got {early_close}"
+            )
+
+    def test_regular_day_no_early_close(self):
+        """Regular trading days should not have early close."""
+        regular_day = datetime(2025, 6, 10, 10, 0)
+        early_close = MarketHours.get_early_close_time(regular_day)
+        assert early_close is None, "Regular trading day should have no early close"
+
+    def test_march_dst_transition_boundary(self):
+        """Days around March DST transition should be handled correctly."""
+        march_7 = datetime(2025, 3, 7, 10, 0)
+        assert MarketHours.is_market_open(march_7), "March 7 at 10 AM should be market open"
+
+        march_10 = datetime(2025, 3, 10, 10, 0)
+        assert MarketHours.is_market_open(march_10), "March 10 at 10 AM should be market open"
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])

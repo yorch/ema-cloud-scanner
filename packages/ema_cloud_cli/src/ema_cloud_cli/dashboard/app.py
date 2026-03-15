@@ -398,11 +398,16 @@ class SimpleDashboard:
         """Print a signal to console."""
         arrow = "🟢 ↑" if signal.direction == "long" else "🔴 ↓"
         valid = "✓" if signal.is_valid else "✗"
+        waterfall_tag = " [WATERFALL]" if signal.is_waterfall else ""
 
         print(f"\n{'-' * 60}")
-        print(f"{arrow} SIGNAL: {signal.symbol} @ ${signal.price:.2f}")
+        print(f"{arrow} SIGNAL: {signal.symbol} @ ${signal.price:.2f}{waterfall_tag}")
         print(f"   Type: {signal.signal_type}")
         print(f"   Strength: {signal.strength} | Valid: {valid}")
+        if signal.weighted_filter_score is not None:
+            print(f"   Filter Score: {signal.weighted_filter_score:.0%}")
+        if signal.stacking_score is not None:
+            print(f"   Stacking: {signal.stacking_score:+.2f}")
         print(f"   Time: {signal.timestamp.strftime('%H:%M:%S')}")
         if signal.notes:
             print(f"   Note: {signal.notes}")
@@ -422,9 +427,13 @@ class SimpleDashboard:
                 if etf.trend == TrendDirection.BULLISH.value
                 else ("🔴" if etf.trend == TrendDirection.BEARISH.value else "⚪")
             )
+            stack_tag = " WF" if etf.is_waterfall else ""
+            stack_score = (
+                f" Stack:{etf.stacking_score:+.1f}" if etf.stacking_score is not None else ""
+            )
             print(
                 f"{trend_icon} {etf.symbol:6} | {etf.sector:20} | "
-                f"${etf.price:8.2f} | Trend: {etf.trend_strength:5.1f}%"
+                f"${etf.price:8.2f} | Trend: {etf.trend_strength:5.1f}%{stack_score}{stack_tag}"
             )
 
         print(f"{'=' * 60}\n")

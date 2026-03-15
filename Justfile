@@ -53,17 +53,17 @@ test-alerts:
 
 # ── Code Quality ──────────────────────────────────────────────────────────────
 
-# Lint all packages
+# Lint all packages and tests
 lint:
-    uv run ruff check packages/
+    uv run ruff check packages/ tests/
 
 # Auto-fix lint issues
 fix:
-    uv run ruff check --fix packages/
+    uv run ruff check --fix packages/ tests/
 
 # Format code
 fmt:
-    uv run ruff format packages/
+    uv run ruff format packages/ tests/
 
 # Run lint + format
 check: lint fmt
@@ -73,7 +73,7 @@ types:
     uv run mypy packages/
 
 # Run all quality checks
-qa: lint fmt types
+qa: fmt lint types
 
 # ── Installation ──────────────────────────────────────────────────────────────
 

@@ -28,6 +28,9 @@ from ema_cloud_lib.backtesting.engine import (
     Backtester,
     BacktestResult,
     Trade,
+    WalkForwardBacktester,
+    WalkForwardResult,
+    WalkForwardWindow,
     run_quick_backtest,
 )
 
@@ -68,6 +71,7 @@ from ema_cloud_lib.indicators.ema_cloud import (
     EMACloudIndicator,
     PriceRelation,
     RawSignal,
+    StackingOrder,
     TechnicalIndicators,
     TrendAnalysis,
 )
@@ -128,6 +132,7 @@ __all__ = [
     "CloudState",
     "PriceRelation",
     "RawSignal",
+    "StackingOrder",
     "TrendAnalysis",
     # Signals
     "SignalGenerator",
@@ -156,5 +161,8 @@ __all__ = [
     "Backtester",
     "BacktestResult",
     "Trade",
+    "WalkForwardBacktester",
+    "WalkForwardResult",
+    "WalkForwardWindow",
     "run_quick_backtest",
 ]

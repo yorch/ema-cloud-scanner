@@ -5,16 +5,18 @@ Real-time sector ETF scanner based on **Ripster's EMA Cloud methodology**. Monit
 ## Features
 
 - **Multiple EMA Clouds**: All 6 Ripster cloud configurations (5-12, 8-9, 20-21, 34-50, 72-89, 200-233)
-- **Real-time Signal Detection**: Cloud flips, price crosses, pullback entries, multi-cloud alignment
+- **Real-time Signal Detection**: Cloud flips, price crosses, pullback entries, multi-cloud alignment, waterfall patterns
 - **Signal Strength Ratings**: VERY_STRONG to VERY_WEAK with configurable filters
 - **Multiple Trading Styles**: Scalping, Intraday, Swing, Position, Long-term presets
-- **Confirmation Filters**: Volume, RSI, ADX, VWAP, ATR, MACD, time-of-day
+- **Confirmation Filters**: Volume, RSI, ADX, VWAP, ATR, MACD, time-of-day with configurable weighted scoring
 - **Market Hours Detection**: Automatic NYSE/NASDAQ holiday and early close detection using official trading calendar
 - **Alert System**: Console, desktop notifications, Telegram, Discord, Email
 - **Terminal Dashboard**: Textual-based real-time monitoring interface
 - **ETF Holdings**: Fetch and analyze top holdings for each sector
 - **Holdings Scanning**: Scan individual stocks within sector ETF holdings with sector trend filtering
-- **Backtesting**: Test strategies against historical data
+- **Backtesting**: Test strategies against historical data with walk-forward validation
+- **Data Quality Validation**: Automatic OHLCV data validation post-fetch (NaN, duplicates, anomalies)
+- **Config Schema Migration**: Versioned config files with automatic migration on load
 
 ## Package Structure
 
@@ -77,9 +79,10 @@ import asyncio
 from ema_cloud_lib import EMACloudScanner, ScannerConfig, TradingStyle
 
 # Create configuration
-config = ScannerConfig()
-config.trading_style = TradingStyle.SWING
-config.etf_symbols = ['XLK', 'XLF', 'XLV']
+config = ScannerConfig(
+    trading_style=TradingStyle.SWING,
+    active_sectors=["technology", "financials", "healthcare"],
+)
 
 # Create and run scanner
 scanner = EMACloudScanner(config)
@@ -115,8 +118,10 @@ The scanner is based on Ripster's EMA Cloud methodology, using multiple EMAs to 
 
 1. **Cloud Flip**: Cloud changes color (bullish ↔ bearish)
 2. **Price Cross**: Price crosses above/below a cloud
-3. **Pullback Entry**: Price pulls back to cloud acting as support/resistance
-4. **Multi-Cloud Alignment**: Multiple clouds align in same direction
+3. **Cloud Bounce**: Price bounces off cloud acting as support/resistance
+4. **Pullback Entry**: Price pulls back to 8-9 EMA cloud for entry
+5. **Multi-Cloud Alignment**: Multiple clouds align in same direction
+6. **Waterfall**: All 6 clouds perfectly stacked in order (strongest trend signal)
 
 ## Running on a VPS / Docker
 
@@ -253,18 +258,18 @@ uv run python run.py --style swing --etfs XLK XLF
 ### Code Quality
 
 ```bash
-# Using just
-just lint           # Lint all packages
+# Using just (recommended)
+just lint           # Lint all packages and tests
 just fix            # Auto-fix lint issues
 just fmt            # Format code
 just types          # Type check
-just qa             # Run all checks
+just qa             # Format + lint + type check
 
-# Or directly
-ruff check packages/
-ruff format packages/
-mypy packages/
-pytest
+# Or directly with uv
+uv run ruff check packages/ tests/
+uv run ruff format packages/ tests/
+uv run mypy packages/
+uv run pytest tests/
 ```
 
 **See**: [AGENTS.md](AGENTS.md) for comprehensive development guidelines and architecture patterns.

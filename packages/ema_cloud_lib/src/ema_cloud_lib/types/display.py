@@ -46,6 +46,12 @@ class ETFDisplayData(BaseModel):
     # Multi-timeframe analysis
     mtf: MTFDisplayData | None = Field(default=None, description="Multi-timeframe analysis data")
 
+    # Cloud stacking
+    stacking_score: float | None = Field(
+        default=None, description="Cloud stacking score (-1.0 to 1.0)"
+    )
+    is_waterfall: bool = Field(default=False, description="True if all clouds perfectly stacked")
+
 
 class SignalDisplayData(BaseModel):
     """Data structure for signal display"""
@@ -58,6 +64,15 @@ class SignalDisplayData(BaseModel):
     strength: str = Field(..., description="Signal strength rating")
     is_valid: bool = Field(..., description="Whether signal passes all validations")
     notes: str = Field(..., description="Additional signal notes")
+
+    # Tier 3 metrics
+    weighted_filter_score: float | None = Field(
+        default=None, description="Weighted filter score (0.0-1.0)"
+    )
+    stacking_score: float | None = Field(
+        default=None, description="Cloud stacking score (-1.0 to 1.0)"
+    )
+    is_waterfall: bool = Field(default=False, description="True if all clouds perfectly stacked")
 
 
 class HoldingDisplayData(BaseModel):

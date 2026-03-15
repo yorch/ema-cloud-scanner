@@ -21,6 +21,7 @@ def setup_etf_table(app) -> None:
     table.add_column("Trend", key="trend", width=10)
     table.add_column("Strength", key="strength", width=9)
     table.add_column("MTF", key="mtf", width=12)
+    table.add_column("Stack", key="stack", width=7)
     table.add_column("RSI", key="rsi", width=7)
     table.add_column("ADX", key="adx", width=7)
     table.add_column("Sigs", key="signals", width=5)
@@ -38,6 +39,7 @@ def setup_signals_table(app) -> None:
     table.add_column("Signal", key="signal", width=22)
     table.add_column("Price", key="price", width=9)
     table.add_column("Str", key="strength", width=8)
+    table.add_column("Score", key="score", width=6)
 
 
 def setup_holdings_table(app) -> None:
@@ -87,6 +89,14 @@ def update_etf_table(app, etf_data: dict[str, ETFDisplayData]) -> None:
         else:
             mtf_text = "-"
 
+        # Stacking column
+        if etf.is_waterfall:
+            stack_text = "WF"
+        elif etf.stacking_score is not None:
+            stack_text = f"{etf.stacking_score:+.1f}"
+        else:
+            stack_text = "-"
+
         rsi_text = f"{etf.rsi:.1f}" if etf.rsi is not None else "-"
         adx_text = f"{etf.adx:.1f}" if etf.adx is not None else "-"
         signals_text = str(etf.signals_count)
@@ -99,6 +109,7 @@ def update_etf_table(app, etf_data: dict[str, ETFDisplayData]) -> None:
             trend_text,
             strength_text,
             mtf_text,
+            stack_text,
             rsi_text,
             adx_text,
             signals_text,
@@ -122,6 +133,14 @@ def update_signals_table(
     for i, signal in enumerate(signals[:max_rows]):
         dir_text = "🟢 ↑" if signal.direction == "long" else "🔴 ↓"
         signal_type = signal.signal_type[:20]
+        if signal.is_waterfall:
+            signal_type = f"WF {signal_type}"[:20]
+
+        score_text = (
+            f"{signal.weighted_filter_score:.0%}"
+            if signal.weighted_filter_score is not None
+            else "-"
+        )
 
         table.add_row(
             signal.timestamp.strftime("%H:%M:%S"),
@@ -130,6 +149,7 @@ def update_signals_table(
             signal_type,
             f"${signal.price:.2f}",
             signal.strength[:6],
+            score_text,
             key=f"sig-{i}",
         )
 

@@ -82,7 +82,7 @@ Configuration sources can partially override settings:
 # ~/.config/ema-cloud-scanner/config.json
 {
   "trading_style": "swing",
-  "active_sectors": ["XLK", "XLF", "XLV"],
+  "active_sectors": ["technology", "financials", "healthcare"],
   "filters": {
     "volume_enabled": true,
     "rsi_enabled": true,
@@ -207,24 +207,32 @@ User config files are stored as JSON with Pydantic v2 serialization:
   "filters": {
     "volume_enabled": true,
     "volume_multiplier": 1.5,
-    "volume_lookback_periods": 20,
+    "volume_lookback": 20,
     "rsi_enabled": true,
     "rsi_period": 14,
     "rsi_overbought": 70,
     "rsi_oversold": 30,
     "adx_enabled": true,
     "adx_period": 14,
-    "adx_min": 20,
-    "vwap_enabled": false,
-    "atr_enabled": false,
+    "adx_min_strength": 20,
+    "vwap_enabled": true,
+    "atr_enabled": true,
     "atr_period": 14,
-    "atr_min_percent": 0.5,
-    "atr_max_percent": 5.0,
+    "atr_min_threshold": 0.5,
+    "atr_max_threshold": 5.0,
     "macd_enabled": false,
     "time_filter_enabled": true,
-    "time_filter_start": "09:45",
-    "time_filter_end": "15:45",
-    "min_cloud_thickness_percent": 0.1
+    "trading_start_time": "09:30",
+    "trading_end_time": "16:00",
+    "filter_weights": {
+      "volume": 2.0,
+      "rsi": 1.0,
+      "adx": 2.0,
+      "vwap": 1.5,
+      "atr": 1.0,
+      "macd": 1.0,
+      "time": 0.5
+    }
   },
   "data_provider": {
     "primary": "yahoo",
@@ -245,7 +253,7 @@ User config files are stored as JSON with Pydantic v2 serialization:
     "discord_webhook_url": null
   },
   "scan_interval": 60,
-  "dashboard_refresh_rate": 2,
+  "dashboard_refresh_rate": 5,
   "show_all_etfs": true
 }
 ```
@@ -322,23 +330,64 @@ except ValidationError as e:
 
 ### Config File Migration
 
-When upgrading versions, config files are automatically migrated:
+Configuration files include a `schema_version` field and are automatically migrated when loaded:
 
 ```python
-# Old config format (v1.0)
-{
-  "style": "intraday",  # Old key
-  "symbols": ["XLK", "XLF"]
-}
+from ema_cloud_lib.config.settings import ScannerConfig, migrate_config
 
-# New config format (v1.1+)
-{
-  "trading_style": "intraday",  # New key
-  "active_sectors": ["technology", "financials"]
-}
+# migrate_config() is called automatically by ScannerConfig.load()
+# It detects the schema version and applies sequential migrations
 
-# Migration happens automatically on load
-# Old config files are backed up to config.json.bak
+# Manual migration example:
+old_config = {"trading_style": "swing", "filters": {"volume_enabled": True}}
+migrated = migrate_config(old_config)
+# Result: schema_version set to current, filter_weights added to filters
+```
+
+#### Schema Versions
+
+| Version | Changes |
+|---------|---------|
+| 1 (implicit) | Original schema, no `schema_version` field |
+| 2 (current) | Added `schema_version`, `filter_weights` in filters section |
+
+#### How Migration Works
+
+1. On `ScannerConfig.load()`, config JSON is parsed
+2. `migrate_config()` detects the current version (defaults to 1 if missing)
+3. Registered migration functions are applied sequentially (v1→v2, v2→v3, etc.)
+4. The migrated config is validated by Pydantic
+
+```python
+# Example config file (current schema v2)
+{
+  "schema_version": 2,
+  "trading_style": "swing",
+  "filters": {
+    "volume_enabled": true,
+    "rsi_enabled": true,
+    "filter_weights": {
+      "volume": 2.0,
+      "rsi": 1.0,
+      "adx": 2.0,
+      "vwap": 1.5,
+      "atr": 1.0,
+      "macd": 1.0,
+      "time": 0.5
+    }
+  }
+}
+```
+
+#### Adding New Migrations
+
+New migrations are registered with the `@_register_migration` decorator in `settings.py`:
+
+```python
+@_register_migration(2)  # Migrates from v2 → v3
+def _migrate_v2_to_v3(config: dict) -> dict:
+    # Apply changes for v3
+    return config
 ```
 
 ---

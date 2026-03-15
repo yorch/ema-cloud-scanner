@@ -154,5 +154,11 @@ class BaseAlertHandler(ABC):
             fields.append(("R/R Ratio", extra_data["R/R Ratio"]))
         if extra_data.get("Sector") is not None:
             fields.append(("Sector", extra_data["Sector"]))
+        if extra_data.get("Filter Score") is not None:
+            fields.append(("Filter Score", f"{extra_data['Filter Score']:.0%}"))
+        if extra_data.get("Stacking") is not None:
+            fields.append(("Stacking", f"{extra_data['Stacking']:+.2f}"))
+        if extra_data.get("Waterfall"):
+            fields.append(("Waterfall", "YES"))
 
         return fields

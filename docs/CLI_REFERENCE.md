@@ -116,11 +116,12 @@ Enable/disable filters:
 
 Filter parameters:
 
-| Option                | Type    | Default | Description                 |
-| --------------------- | ------- | ------- | --------------------------- |
-| `--rsi-period`        | Integer | 14      | RSI calculation period      |
-| `--adx-period`        | Integer | 14      | ADX calculation period      |
-| `--volume-multiplier` | Float   | 1.5     | Volume threshold multiplier |
+| Option                | Type    | Default | Description                                    |
+| --------------------- | ------- | ------- | ---------------------------------------------- |
+| `--rsi-period`        | Integer | 14      | RSI calculation period                         |
+| `--adx-period`        | Integer | 14      | ADX calculation period                         |
+| `--volume-multiplier` | Float   | 1.5     | Volume threshold multiplier                    |
+| `--filter-weights`    | String  | -       | Filter weights as JSON (e.g., `'{"volume":2.0}'`) |
 
 #### Alert Configuration
 
@@ -169,15 +170,18 @@ ema-scanner backtest SYMBOLS... --start-date YYYY-MM-DD --end-date YYYY-MM-DD [O
 
 #### Backtest Options
 
-| Option            | Type   | Default  | Description                  |
-| ----------------- | ------ | -------- | ---------------------------- |
-| `--style`         | Choice | intraday | Trading style preset         |
-| `--capital`       | Float  | 100000.0 | Initial capital              |
-| `--position-size` | Float  | 10.0     | Position size (% of capital) |
-| `--commission`    | Float  | 0.0      | Commission per trade         |
-| `--slippage`      | Float  | 0.05     | Slippage (% of price)        |
-| `--report`        | Path   | -        | Save detailed JSON report    |
-| `--verbose`, `-v` | Flag   | false    | Verbose logging              |
+| Option              | Type    | Default  | Description                             |
+| ------------------- | ------- | -------- | --------------------------------------- |
+| `--style`           | Choice  | intraday | Trading style preset                    |
+| `--capital`         | Float   | 100000.0 | Initial capital                         |
+| `--position-size`   | Float   | 10.0     | Position size (% of capital)            |
+| `--commission`      | Float   | 0.0      | Commission per trade                    |
+| `--slippage`        | Float   | 0.05     | Slippage (% of price)                   |
+| `--report`          | Path    | -        | Save detailed JSON report               |
+| `--walk-forward`    | Flag    | false    | Enable walk-forward validation          |
+| `--wf-in-sample`    | Integer | 500      | Walk-forward in-sample window (bars)    |
+| `--wf-out-sample`   | Integer | 100      | Walk-forward out-of-sample window (bars)|
+| `--verbose`, `-v`   | Flag    | false    | Verbose logging                         |
 
 **Example**:
 

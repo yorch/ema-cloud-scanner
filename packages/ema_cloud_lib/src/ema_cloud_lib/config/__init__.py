@@ -1,6 +1,7 @@
 """Configuration module for EMA Cloud Library."""
 
 from .settings import (
+    CONFIG_SCHEMA_VERSION,
     DEFAULT_CONFIG,
     DEFAULT_EMA_CLOUDS,
     ETF_SUBSETS,
@@ -17,17 +18,20 @@ from .settings import (
     TimeframeConfig,
     TradingStyle,
     TrendState,
+    migrate_config,
 )
 
 __all__ = [
     "AlertConfig",
     "BacktestConfig",
+    "CONFIG_SCHEMA_VERSION",
     "DataProviderConfig",
     "DEFAULT_CONFIG",
     "DEFAULT_EMA_CLOUDS",
     "EMACloudConfig",
     "ETF_SUBSETS",
     "FilterConfig",
+    "migrate_config",
     "ScannerConfig",
     "SECTOR_ETFS",
     "SignalType",

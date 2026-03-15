@@ -27,7 +27,7 @@ ema_cloud_sector_scanner/
 │   │
 │   └── ema_cloud_cli/     # CLI application
 │       └── src/ema_cloud_cli/
-│           ├── cli.py               # Argparse entry point
+│           ├── cli.py               # Typer entry point
 │           ├── config_store.py      # User preferences persistence
 │           └── dashboard/           # Textual-based terminal UI
 │
@@ -64,17 +64,28 @@ just test-file tests/test_scanner.py  # Specific file
 just test-alerts    # Alert handlers
 
 # Code quality
-just lint           # Ruff lint
-just fix            # Auto-fix
-just fmt            # Format
+just lint           # Ruff lint (packages + tests)
+just fix            # Auto-fix (packages + tests)
+just fmt            # Format (packages + tests)
+just check          # Lint + format
 just types          # mypy
-just qa             # All quality checks
+just qa             # Format + lint + types
 
 # Setup
 just install        # Editable install of both packages
 just install-all    # With optional providers
 just install-dev    # With dev tools
 just hooks          # Pre-commit hooks
+
+# Docker
+just docker-build   # Build image
+just docker-up      # Start detached
+just docker-down    # Stop
+just docker-restart # Restart
+just docker-logs    # Tail logs
+just docker-once    # One-shot scan
+just docker-shell   # Debug shell
+just docker-clean   # Full reset
 
 # Utilities
 just help           # Scanner --help
@@ -109,34 +120,63 @@ uv pip install -e "packages/ema_cloud_lib[dev]"
 ### Testing
 
 ```bash
-# Run tests
-pytest
+# Run all tests
+just test
 
-# Run with async support
-pytest -v --asyncio-mode=auto
+# Run tests verbosely
+just test-v
 
 # Run specific test file
-pytest tests/test_scanner.py
+just test-file tests/test_scanner.py
 
 # Run specific test
-pytest tests/test_scanner.py::test_signal_generation -v
+just test tests/test_scanner.py::test_signal_generation -v
 ```
 
 ### Code Quality
 
 ```bash
-# Lint all packages
-ruff check packages/
+# Lint all packages and tests
+just lint
 
-# Auto-fix issues
-ruff check --fix packages/
+# Auto-fix lint issues
+just fix
 
 # Format code
-ruff format packages/
+just fmt
 
 # Type check
-mypy packages/
+just types
+
+# All quality checks (format + lint + types)
+just qa
 ```
+
+### Pre-Commit Validation Checklist
+
+**All of the following checks MUST pass before committing any changes:**
+
+```bash
+# 1. Format code (fixes in place)
+just fmt
+
+# 2. Lint check (fix first, then verify)
+just fix
+just lint
+
+# 3. Type check
+just types
+
+# 4. Run tests
+just test -q
+
+# Or run all quality checks + tests in sequence:
+just qa && just test -q
+```
+
+**Important notes:**
+- `just fmt`, `just lint`, and `just fix` already cover both `packages/` and `tests/` directories
+- Fix any issues before committing; do not commit with known failures
 
 ## Docker / VPS Deployment
 
@@ -231,7 +271,7 @@ Raw Data → EMA Clouds → Signal Detection → Confirmation Filters → Streng
 ```
 
 - **Stage 1**: Calculate 6 EMA clouds (5-12, 8-9, 20-21, 34-50, 72-89, 200-233)
-- **Stage 2**: Detect patterns (cloud flip, price cross, pullback, alignment)
+- **Stage 2**: Detect patterns (cloud flip, price cross, cloud bounce, pullback, alignment, waterfall)
 - **Stage 3**: Apply confirmation filters (volume, RSI, ADX, VWAP, ATR, MACD)
 - **Stage 4**: Rate signal strength (VERY_STRONG → VERY_WEAK)
 - **Stage 5**: Route to alert handlers
@@ -266,8 +306,9 @@ await scanner.alert_manager.send_alert(alert_message)
 - `DesktopAlertHandler` - Native OS notifications (requires `plyer`)
 - `TelegramAlertHandler` - Telegram bot messages (requires `aiohttp`)
 - `DiscordAlertHandler` - Discord webhook messages (requires `aiohttp`)
+- `EmailAlertHandler` - Email via SMTP (requires `aiosmtplib`)
 
-**When adding alerts**: Create new handler in `alerts/handlers.py` implementing `BaseAlertHandler` interface.
+**When adding alerts**: Create new handler subclassing `BaseAlertHandler` in `alerts/`.
 
 **Alert configuration**: Use `AlertConfig` in `config/settings.py` to enable/disable handlers and provide credentials.
 
@@ -318,16 +359,24 @@ Located in: `packages/ema_cloud_lib/src/ema_cloud_lib/config/settings.py`
 
 1. **Cloud Flip**: Fast EMA crosses slow EMA (cloud color change)
 2. **Price Cross**: Price breaks above/below cloud boundary
-3. **Pullback Entry**: Price retraces to cloud support/resistance
-4. **Multi-Cloud Alignment**: All clouds aligned same direction
+3. **Cloud Bounce**: Price bounces off cloud acting as support/resistance
+4. **Pullback Entry**: Price retraces to 8-9 EMA cloud for entry
+5. **Multi-Cloud Alignment**: All clouds aligned same direction (trend confirmation)
+6. **Waterfall**: All 6 clouds perfectly stacked in order (strongest trend signal)
+
+### Cloud Stacking & Waterfall
+
+Cloud stacking analysis (`EMACloudIndicator.analyze_stacking()`) compares midpoints of all 6 clouds in canonical order. A **waterfall** pattern occurs when all cloud midpoints are perfectly ordered from shortest-term to longest-term. Stacking score ranges from -1.0 (bearish) to 1.0 (bullish).
 
 ### Signal Strength Criteria
 
-- **VERY_STRONG**: All 6 clouds aligned, all filters pass, ADX > 30, volume > 2x
+- **VERY_STRONG**: All 6 clouds aligned, all filters pass, ADX > 30, volume > 2x, waterfall bonus
 - **STRONG**: 5+ clouds aligned, key filters pass, ADX > 25
 - **MODERATE**: 4 clouds aligned, most filters pass, ADX > 20
 - **WEAK**: 3 clouds aligned, some filters fail
 - **VERY_WEAK**: < 3 clouds aligned, multiple filter failures
+
+Signal strength is also influenced by **weighted filter scoring** (configurable per-filter weights in `FilterConfig.filter_weights`) and **cloud stacking bonus** (waterfall +5, partial stacking proportional).
 
 ## Market Hours & Timing
 
@@ -388,16 +437,27 @@ User configurations can be saved as JSON:
 
 ```json
 {
+  "schema_version": 2,
   "trading_style": "swing",
-  "symbols": ["XLK", "XLF"],
+  "active_sectors": ["technology", "financials"],
   "filters": {
     "volume_enabled": true,
-    "rsi_enabled": true
+    "rsi_enabled": true,
+    "filter_weights": {
+      "volume": 2.0,
+      "rsi": 1.0,
+      "adx": 2.0,
+      "vwap": 1.5,
+      "atr": 1.0,
+      "macd": 1.0,
+      "time": 0.5
+    }
   }
 }
 ```
 
 Load with: `--config path/to/config.json`
+Save with: `ema-scanner config-save path/to/config.json`
 
 CLI preferences are stored in: `packages/ema_cloud_cli/src/ema_cloud_cli/config_store.py`
 

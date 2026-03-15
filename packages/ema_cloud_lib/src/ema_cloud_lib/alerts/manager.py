@@ -223,5 +223,8 @@ def create_alert_from_signal(signal) -> AlertMessage:
             "R/R Ratio": signal.risk_reward_ratio,
             "Sector": signal.sector,
             "Valid": signal.is_valid(),
+            "Filter Score": signal.weighted_filter_score,
+            "Stacking": signal.stacking_score,
+            "Waterfall": signal.is_waterfall,
         },
     )

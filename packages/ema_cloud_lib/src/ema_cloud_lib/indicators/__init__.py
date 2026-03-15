@@ -5,6 +5,7 @@ from .ema_cloud import (
     CloudState,
     EMACloudIndicator,
     PriceRelation,
+    StackingOrder,
     TechnicalIndicators,
     TrendAnalysis,
     calculate_adx,
@@ -32,6 +33,7 @@ __all__ = [
     "CloudState",
     "EMACloudIndicator",
     "PriceRelation",
+    "StackingOrder",
     "TechnicalIndicators",
     "TrendAnalysis",
 ]

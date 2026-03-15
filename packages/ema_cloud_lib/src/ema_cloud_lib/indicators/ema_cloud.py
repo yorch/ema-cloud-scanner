@@ -76,6 +76,38 @@ class CloudData(BaseModel):
     slope: float = Field(..., description="Cloud slope (positive=upward, negative=downward)")
 
 
+class StackingOrder(BaseModel):
+    """Result of cloud stacking order analysis (waterfall detection)."""
+
+    is_stacked_bullish: bool = Field(
+        default=False,
+        description="True when clouds are stacked in bullish waterfall order "
+        "(shorter-term clouds above longer-term)",
+    )
+    is_stacked_bearish: bool = Field(
+        default=False,
+        description="True when clouds are stacked in bearish waterfall order "
+        "(shorter-term clouds below longer-term)",
+    )
+    stacking_score: float = Field(
+        default=0.0,
+        description="Stacking quality score from -1.0 (perfect bearish) to 1.0 (perfect bullish)",
+    )
+    ordered_pairs: int = Field(
+        default=0,
+        description="Number of adjacent cloud pairs in correct stacking order",
+    )
+    total_pairs: int = Field(
+        default=0,
+        description="Total number of adjacent cloud pairs evaluated",
+    )
+
+    @property
+    def is_waterfall(self) -> bool:
+        """True when all cloud pairs are in perfect stacking order (bullish or bearish)."""
+        return self.total_pairs > 0 and self.ordered_pairs == self.total_pairs
+
+
 class TrendAnalysis(BaseModel):
     """Complete trend analysis result"""
 
@@ -89,6 +121,10 @@ class TrendAnalysis(BaseModel):
     trend_strength: float = Field(..., description="Trend strength (0-100)")
     trend_alignment: int = Field(..., description="Number of aligned clouds")
     signals: list[str] = Field(default_factory=list, description="List of signal types detected")
+    stacking: StackingOrder = Field(
+        default_factory=StackingOrder,
+        description="Cloud stacking order / waterfall analysis",
+    )
 
     # Additional indicators
     rsi: float | None = Field(default=None, description="RSI value")
@@ -414,6 +450,60 @@ class EMACloudIndicator:
 
         return clouds
 
+    # Canonical ordering from shortest-term to longest-term cloud
+    CLOUD_ORDER: list[str] = [
+        "trend_line",  # 5-12
+        "pullback",  # 8-9
+        "momentum",  # 20-21
+        "trend_confirmation",  # 34-50
+        "long_term",  # 72-89
+        "major_trend",  # 200-233
+    ]
+
+    def analyze_stacking(self, clouds: dict[str, CloudData]) -> StackingOrder:
+        """Analyse cloud stacking order (waterfall detection).
+
+        In a perfect **bullish waterfall** the midpoint of each shorter-term
+        cloud sits *above* the midpoint of the next longer-term cloud (e.g.
+        5-12 > 8-9 > 20-21 > 34-50 > 72-89 > 200-233).  A perfect **bearish
+        waterfall** is the reverse.
+
+        Returns a ``StackingOrder`` with a score from -1.0 (perfect bearish)
+        to +1.0 (perfect bullish) and counts of ordered pairs.
+        """
+        # Build ordered list of cloud midpoints present in the data
+        ordered_mids: list[float] = []
+        for name in self.CLOUD_ORDER:
+            if name in clouds:
+                c = clouds[name]
+                ordered_mids.append((c.cloud_top + c.cloud_bottom) / 2)
+
+        if len(ordered_mids) < 2:
+            return StackingOrder()
+
+        total_pairs = len(ordered_mids) - 1
+        bullish_pairs = 0
+        bearish_pairs = 0
+
+        for i in range(total_pairs):
+            if ordered_mids[i] > ordered_mids[i + 1]:
+                bullish_pairs += 1
+            elif ordered_mids[i] < ordered_mids[i + 1]:
+                bearish_pairs += 1
+            # equal → neither counted
+
+        score = (bullish_pairs - bearish_pairs) / total_pairs
+        is_bullish = bullish_pairs == total_pairs
+        is_bearish = bearish_pairs == total_pairs
+
+        return StackingOrder(
+            is_stacked_bullish=is_bullish,
+            is_stacked_bearish=is_bearish,
+            stacking_score=score,
+            ordered_pairs=max(bullish_pairs, bearish_pairs),
+            total_pairs=total_pairs,
+        )
+
     def detect_signals(self, df: pd.DataFrame, idx: int = -1) -> list[RawSignal]:
         """
         Detect trading signals based on cloud analysis.
@@ -562,6 +652,28 @@ class EMACloudIndicator:
                     message="All clouds bearish",
                 )
             )
+
+        # Waterfall detection — perfect stacking order
+        stacking = self.analyze_stacking(clouds)
+        if stacking.is_waterfall:
+            if stacking.is_stacked_bullish:
+                signals.append(
+                    RawSignal(
+                        signal_type="WATERFALL",
+                        direction="bullish",
+                        cloud_name="all",
+                        message="Bullish waterfall — all clouds stacked in order",
+                    )
+                )
+            elif stacking.is_stacked_bearish:
+                signals.append(
+                    RawSignal(
+                        signal_type="WATERFALL",
+                        direction="bearish",
+                        cloud_name="all",
+                        message="Bearish waterfall — all clouds stacked in order",
+                    )
+                )
 
         return signals
 
