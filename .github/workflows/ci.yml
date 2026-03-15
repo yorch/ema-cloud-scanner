@@ -43,7 +43,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --extra dev
       - name: Run tests with coverage
-        run: uv run pytest tests/ -v --tb=short
+        run: >
+          uv run pytest tests/ -v --tb=short
+          --cov=ema_cloud_lib
+          --cov-report=term-missing
+          --cov-fail-under=50
       - name: Run CLI tests
         run: uv run pytest packages/ema_cloud_cli/tests/ -v --tb=short
 
