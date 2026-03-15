@@ -2,6 +2,16 @@
 
 This file provides guidance to AI Agents when working with code in this repository.
 
+## Linear Project
+
+When querying Linear issues or tasks for this repository, always filter by the **"EMA Cloud Sector Scanner"** project:
+
+- **Project name**: `EMA Cloud Sector Scanner`
+- **Project ID**: `2eb309d4-81ba-4644-ac98-9236870d56b1`
+- **Linear URL**: https://linear.app/brnby/project/ema-cloud-sector-scanner-e2e1dd29d7b2
+
+Example: `list_issues(project="EMA Cloud Sector Scanner")` — do not show issues from other projects unless explicitly asked.
+
 ## Project Overview
 
 **EMA Cloud Sector Scanner**: Real-time trading scanner monitoring sector ETFs using Ripster's EMA Cloud methodology. Detects cloud flips, price crosses, pullback entries, and multi-cloud alignment signals with configurable confirmation filters.
