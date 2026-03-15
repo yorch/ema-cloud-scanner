@@ -47,9 +47,15 @@ services:
       SMTP_USERNAME: "${SMTP_USERNAME:-}"
       SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
 
+      # ── Reports ─────────────────────────────────────────────────────────
+      # Set to a directory path to enable JSON scan report output
+      EMA_SCANNER_REPORT_DIR: "${EMA_SCANNER_REPORT_DIR:-/data/reports}"
+
     volumes:
       # Persist holdings cache across restarts
       - scanner-cache:/home/scanner/.cache/ema-scanner
+      # Persist scan reports
+      - scanner-reports:/data/reports
       # Optional: mount a config JSON for non-secret scanner settings
       # - ./scanner-config.json:/app/config.json:ro
 
@@ -63,3 +69,4 @@ services:
 
 volumes:
   scanner-cache:
+  scanner-reports:

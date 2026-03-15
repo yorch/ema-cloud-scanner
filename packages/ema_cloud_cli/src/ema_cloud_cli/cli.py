@@ -37,6 +37,7 @@ from ema_cloud_lib import EMACloudScanner, ScannerConfig, TradingStyle
 from ema_cloud_lib.backtesting.engine import Backtester
 from ema_cloud_lib.config.settings import ETF_SUBSETS, SYMBOL_TO_SECTOR
 from ema_cloud_lib.data_providers.base import DataProviderManager, api_call_tracker
+from ema_cloud_lib.reports import CompositeDashboard, ReportDashboard
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -186,13 +187,20 @@ async def async_main(
     no_dashboard: bool,
     all_hours: bool,
     once: bool,
+    report_dir: Path | None = None,
 ):
     """Async main logic"""
     # Create scanner
     scanner = EMACloudScanner(scanner_config)
 
+    # Initialize report writer if requested
+    report_dashboard: ReportDashboard | None = None
+    if report_dir:
+        report_dashboard = ReportDashboard(report_dir)
+        scanner.add_cycle_callback(report_dashboard.flush_report)
+
     # Initialize dashboard if requested
-    dashboard: TerminalDashboard | SimpleDashboard | None = None
+    dashboard: TerminalDashboard | SimpleDashboard | CompositeDashboard | None = None
     dashboard_task = None
     scanner_task = None
     shutdown_event = asyncio.Event()
@@ -215,7 +223,14 @@ async def async_main(
         except (RuntimeError, ImportError, AttributeError, OSError):
             dashboard = SimpleDashboard()
 
+        # Compose with report dashboard if both are active
+        if report_dashboard:
+            dashboard = CompositeDashboard(dashboard, report_dashboard)
+
         scanner.set_dashboard(dashboard)
+    elif report_dashboard:
+        # Headless with reports: use report dashboard as the dashboard
+        scanner.set_dashboard(report_dashboard)
 
     # Handle shutdown signals
     def signal_handler(sig, frame):
@@ -478,6 +493,15 @@ def main(
     signal_cooldown: Annotated[
         int | None,
         typer.Option("--signal-cooldown", help="Signal cooldown in minutes (default: 15)"),
+    ] = None,
+    # Report output
+    report_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--report-dir",
+            help="Write JSON scan reports to this directory (enables headless report output)",
+            envvar="EMA_SCANNER_REPORT_DIR",
+        ),
     ] = None,
     # Configuration
     config: Annotated[
@@ -784,8 +808,13 @@ def main(
         console.print_json(data=config_dict)
         raise typer.Exit(0)
 
+    # Apply report directory from CLI settings if not explicitly set
+    cli_report_dir = report_dir
+    if cli_report_dir is None and cli_settings.report_dir:
+        cli_report_dir = cli_settings.report_dir
+
     # Run async main
-    asyncio.run(async_main(scanner_config, no_dashboard, all_hours, once))
+    asyncio.run(async_main(scanner_config, no_dashboard, all_hours, once, cli_report_dir))
 
 
 @app.command()
