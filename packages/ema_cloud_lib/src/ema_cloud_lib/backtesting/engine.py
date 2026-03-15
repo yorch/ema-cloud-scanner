@@ -611,7 +611,7 @@ class WalkForwardResult(BaseModel):
         self.oos_total_trades = sum(r.total_trades for r in oos_results)
 
         win_rates = [r.win_rate for r in oos_results if r.total_trades > 0]
-        self.oos_win_rate = np.mean(win_rates) if win_rates else 0.0
+        self.oos_win_rate = float(np.mean(win_rates)) if win_rates else 0.0
 
         returns = [r.total_return_pct for r in oos_results]
         self.oos_avg_return_pct = float(np.mean(returns)) if returns else 0.0
