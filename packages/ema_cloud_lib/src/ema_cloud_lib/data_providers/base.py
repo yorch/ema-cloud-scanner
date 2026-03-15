@@ -506,7 +506,13 @@ class YahooFinanceProvider(BaseDataProvider):
             "1wk": "1wk",
             "1mo": "1mo",
         }
-        return mapping.get(interval, "1d")
+        result = mapping.get(interval)
+        if result is None:
+            logger.warning(
+                "YahooFinanceProvider: unsupported interval %r, falling back to '1d'", interval
+            )
+            return "1d"
+        return result
 
     async def get_historical_data(
         self,

@@ -226,9 +226,16 @@ class TestYahooFinanceProvider:
         assert provider._convert_interval("10m") == "15m"  # No 10m in yfinance
         assert provider._convert_interval("4h") == "1h"  # Will resample
 
-    def test_convert_interval_unknown_defaults_to_1d(self):
+    def test_convert_interval_unknown_defaults_to_1d(self, caplog):
+        import logging
+
         provider = YahooFinanceProvider()
-        assert provider._convert_interval("unknown") == "1d"
+        with caplog.at_level(logging.WARNING):
+            result = provider._convert_interval("unknown")
+        assert result == "1d"
+        assert (
+            "unsupported interval" in caplog.text.lower() or "falling back" in caplog.text.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_get_historical_data_success(self):
