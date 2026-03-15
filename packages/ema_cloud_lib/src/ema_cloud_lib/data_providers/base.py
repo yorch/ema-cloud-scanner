@@ -11,6 +11,7 @@ Each provider must implement the BaseDataProvider interface.
 
 import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -994,12 +995,16 @@ class DataProviderManager:
         config: dict[str, Any] | None = None,
         max_retries: int = 3,
         base_delay: float = 1.0,
+        cache_ttl: float = 30.0,
     ):
         self.config = config or {}
         self.providers: dict[str, BaseDataProvider] = {}
         self.primary_provider: BaseDataProvider | None = None
         self.max_retries = max_retries
         self.base_delay = base_delay
+        self.cache_ttl = cache_ttl
+        # Cache: (symbol, interval) -> (DataFrame, monotonic timestamp)
+        self._cache: dict[tuple[str, str], tuple[pd.DataFrame, float]] = {}
         self._initialize_providers()
 
     def _initialize_providers(self):
@@ -1051,6 +1056,27 @@ class DataProviderManager:
             bars: Number of bars
             provider: Specific provider to use (optional)
         """
+        # Normalise interval for cache key (best-effort; full validation happens inside provider)
+        try:
+            _norm_interval = (
+                list(self.providers.values())[0]._validate_interval(interval)
+                if self.providers
+                else interval
+            )
+        except (ValueError, IndexError):
+            _norm_interval = interval
+
+        cache_key = (symbol, _norm_interval)
+        if self.cache_ttl > 0 and cache_key in self._cache:
+            cached_df, cached_at = self._cache[cache_key]
+            if time.monotonic() - cached_at < self.cache_ttl:
+                api_call_tracker.record_cache_hit()
+                logger.debug(
+                    "Cache hit for %s @ %s (ttl=%.0fs)", symbol, _norm_interval, self.cache_ttl
+                )
+                return cached_df.copy()
+        api_call_tracker.record_cache_miss()
+
         providers_to_try = []
 
         if provider and provider in self.providers:
@@ -1074,6 +1100,8 @@ class DataProviderManager:
                             + "; ".join(quality.errors)
                         )
 
+                    if self.cache_ttl > 0:
+                        self._cache[cache_key] = (df.copy(), time.monotonic())
                     return df
                 except RateLimitError as e:
                     last_error = e

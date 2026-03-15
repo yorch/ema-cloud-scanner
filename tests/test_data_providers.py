@@ -666,3 +666,137 @@ class TestRateLimitHandlingInManager:
         # Backoff should be base_delay * 2^0 = 1 s — well below 60 s
         assert sleep_calls
         assert max(sleep_calls) < 60.0
+
+
+class TestDataProviderManagerCache:
+    """TTL-based in-memory cache on DataProviderManager.get_historical_data."""
+
+    def _make_manager(self, cache_ttl: float = 30.0) -> DataProviderManager:
+        manager = DataProviderManager(cache_ttl=cache_ttl)
+        manager.providers = {}
+        return manager
+
+    def _make_provider(self, df: pd.DataFrame) -> MagicMock:
+        prov = MagicMock()
+        prov.name = "mock"
+        prov._validate_interval = lambda interval: interval
+        prov.get_historical_data = AsyncMock(return_value=df)
+        return prov
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_returns_cached_data(self):
+        """Second call returns cached df without hitting the provider."""
+        manager = self._make_manager(cache_ttl=60.0)
+        df = _make_ohlcv_df(50)
+        prov = self._make_provider(df)
+        manager.providers = {"mock": prov}
+
+        await manager.get_historical_data("XLK", "1d")
+        await manager.get_historical_data("XLK", "1d")
+
+        assert prov.get_historical_data.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_recorded_in_tracker(self):
+        """Cache hit increments the APICallTracker cache_hits counter."""
+        from ema_cloud_lib.data_providers.base import api_call_tracker
+
+        api_call_tracker.reset()
+        manager = self._make_manager(cache_ttl=60.0)
+        df = _make_ohlcv_df(20)
+        prov = self._make_provider(df)
+        manager.providers = {"mock": prov}
+
+        await manager.get_historical_data("XLK", "1d")  # miss
+        await manager.get_historical_data("XLK", "1d")  # hit
+
+        assert api_call_tracker.cache_hits >= 1
+
+    @pytest.mark.asyncio
+    async def test_cache_miss_recorded_in_tracker(self):
+        """First call (cache miss) increments cache_misses counter."""
+        from ema_cloud_lib.data_providers.base import api_call_tracker
+
+        api_call_tracker.reset()
+        manager = self._make_manager(cache_ttl=60.0)
+        df = _make_ohlcv_df(20)
+        prov = self._make_provider(df)
+        manager.providers = {"mock": prov}
+
+        await manager.get_historical_data("XLK", "1d")
+
+        assert api_call_tracker.cache_misses >= 1
+
+    @pytest.mark.asyncio
+    async def test_cache_expires_after_ttl(self):
+        """After TTL expires, a new fetch is triggered."""
+        manager = self._make_manager(cache_ttl=0.05)  # 50 ms TTL
+        df = _make_ohlcv_df(20)
+        prov = self._make_provider(df)
+        manager.providers = {"mock": prov}
+
+        await manager.get_historical_data("XLK", "1d")
+
+        # Manually expire the cache entry
+        import time
+
+        sym_key = ("XLK", "1d")
+        cached_df, _ = manager._cache[sym_key]
+        manager._cache[sym_key] = (cached_df, time.monotonic() - 1.0)
+
+        await manager.get_historical_data("XLK", "1d")
+
+        assert prov.get_historical_data.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_cache_disabled_when_ttl_zero(self):
+        """cache_ttl=0 disables caching entirely; every call hits the provider."""
+        manager = self._make_manager(cache_ttl=0.0)
+        df = _make_ohlcv_df(20)
+        prov = self._make_provider(df)
+        manager.providers = {"mock": prov}
+
+        await manager.get_historical_data("XLK", "1d")
+        await manager.get_historical_data("XLK", "1d")
+
+        assert prov.get_historical_data.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_different_intervals_cached_separately(self):
+        """(symbol, interval) tuples are independent cache keys."""
+        manager = self._make_manager(cache_ttl=60.0)
+        df = _make_ohlcv_df(20)
+        prov = self._make_provider(df)
+        manager.providers = {"mock": prov}
+
+        await manager.get_historical_data("XLK", "1d")
+        await manager.get_historical_data("XLK", "1h")
+
+        assert prov.get_historical_data.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_different_symbols_cached_separately(self):
+        """Different symbols have independent cache entries."""
+        manager = self._make_manager(cache_ttl=60.0)
+        df = _make_ohlcv_df(20)
+        prov = self._make_provider(df)
+        manager.providers = {"mock": prov}
+
+        await manager.get_historical_data("XLK", "1d")
+        await manager.get_historical_data("XLF", "1d")
+
+        assert prov.get_historical_data.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_cache_returns_copy_not_reference(self):
+        """Mutations to the returned DataFrame do not corrupt the cache."""
+        manager = self._make_manager(cache_ttl=60.0)
+        df = _make_ohlcv_df(20)
+        prov = self._make_provider(df)
+        manager.providers = {"mock": prov}
+
+        result1 = await manager.get_historical_data("XLK", "1d")
+        result1["close"] = 0.0  # mutate returned copy
+
+        result2 = await manager.get_historical_data("XLK", "1d")
+        assert (result2["close"] != 0.0).any()
