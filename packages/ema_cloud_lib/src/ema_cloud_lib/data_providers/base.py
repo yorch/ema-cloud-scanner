@@ -758,7 +758,9 @@ class AlpacaProvider(BaseDataProvider):
             from alpaca.data.requests import StockLatestBarRequest, StockLatestQuoteRequest
 
             client = self._get_client()
-            quote_data = client.get_stock_latest_quote(StockLatestQuoteRequest(symbol_or_symbols=symbol))[symbol]
+            quote_data = client.get_stock_latest_quote(
+                StockLatestQuoteRequest(symbol_or_symbols=symbol)
+            )[symbol]
             bars = client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbol))
             volume = bars[symbol].volume if symbol in bars else 0
 
@@ -787,8 +789,12 @@ class AlpacaProvider(BaseDataProvider):
             from alpaca.data.requests import StockLatestBarRequest, StockLatestQuoteRequest
 
             client = self._get_client()
-            quotes_data = client.get_stock_latest_quote(StockLatestQuoteRequest(symbol_or_symbols=symbols))
-            bars_data = client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbols))
+            quotes_data = client.get_stock_latest_quote(
+                StockLatestQuoteRequest(symbol_or_symbols=symbols)
+            )
+            bars_data = client.get_stock_latest_bar(
+                StockLatestBarRequest(symbol_or_symbols=symbols)
+            )
 
             quotes = {}
             for sym, quote_data in quotes_data.items():

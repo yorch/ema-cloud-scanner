@@ -441,7 +441,9 @@ class EMACloudScanner:
                 results.append(analysis)
 
         if failed and failed == len(etfs):
-            raise RuntimeError(f"All {len(etfs)} ETF scans failed — check data provider connectivity")
+            raise RuntimeError(
+                f"All {len(etfs)} ETF scans failed — check data provider connectivity"
+            )
 
         return results
 
@@ -598,7 +600,9 @@ class EMACloudScanner:
 
         for etf_symbol, holdings in zip(symbols_to_fetch, holdings_results, strict=True):
             if isinstance(holdings, BaseException):
-                logger.warning("Holdings lookup failed for %s: %s", etf_symbol, holdings, exc_info=holdings)
+                logger.warning(
+                    "Holdings lookup failed for %s: %s", etf_symbol, holdings, exc_info=holdings
+                )
                 # Set empty defaults to prevent KeyError later
                 holdings_by_etf[etf_symbol] = []
                 total_holdings_by_etf[etf_symbol] = 0

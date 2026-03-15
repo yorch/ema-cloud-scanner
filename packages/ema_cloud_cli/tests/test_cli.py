@@ -14,7 +14,6 @@ from ema_cloud_cli.cli import (
     app,
 )
 
-
 # ── Pure utility functions ────────────────────────────────────────────────────
 
 
@@ -167,16 +166,12 @@ class TestCLIValidation:
         assert "polygon" in result.output.lower()
 
     def test_telegram_alerts_require_credentials(self):
-        result = self.runner.invoke(
-            app, ["--telegram-alerts", "--no-dashboard", "--once"]
-        )
+        result = self.runner.invoke(app, ["--telegram-alerts", "--no-dashboard", "--once"])
         assert result.exit_code != 0
         assert "telegram" in result.output.lower()
 
     def test_discord_alerts_require_webhook(self):
-        result = self.runner.invoke(
-            app, ["--discord-alerts", "--no-dashboard", "--once"]
-        )
+        result = self.runner.invoke(app, ["--discord-alerts", "--no-dashboard", "--once"])
         assert result.exit_code != 0
         assert "discord" in result.output.lower()
 
@@ -212,9 +207,7 @@ class TestCLIValidation:
     def test_valid_yahoo_provider_accepted(self):
         """Yahoo provider requires no credentials — scanner setup should proceed."""
         with patch("ema_cloud_cli.cli.asyncio.run"):
-            result = self.runner.invoke(
-                app, ["--provider", "yahoo", "--no-dashboard", "--once"]
-            )
+            result = self.runner.invoke(app, ["--provider", "yahoo", "--no-dashboard", "--once"])
         # Should not exit with validation error
         assert "Error:" not in result.output or result.exit_code == 0
 
@@ -226,7 +219,6 @@ class TestCLIConfigPrint:
         self.runner = CliRunner()
 
     def test_print_config_outputs_json(self):
-        import json
 
         result = self.runner.invoke(app, ["--print-config"])
         assert result.exit_code == 0
