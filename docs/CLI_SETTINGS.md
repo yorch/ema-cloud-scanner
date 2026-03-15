@@ -50,6 +50,18 @@ export EMA_CLI_ALL_HOURS=true
 export EMA_CLI_DASHBOARD_REFRESH_RATE=3
 ```
 
+### Report Output
+
+```bash
+# Directory for JSON scan reports and latest_summary.txt
+# When set, the scanner writes a timestamped JSON report per cycle
+# and a human-readable latest_summary.txt (overwritten each cycle)
+export EMA_SCANNER_REPORT_DIR="/path/to/reports"
+
+# Alternative via CLI settings prefix
+export EMA_CLI_REPORT_DIR="/path/to/reports"
+```
+
 ### Logging
 
 ```bash

@@ -354,6 +354,7 @@ from ema_cloud_lib.reports import ReportDashboard
 
 report_dashboard = ReportDashboard(Path("./reports"), max_reports=500)
 scanner.set_dashboard(report_dashboard)
+scanner.add_cycle_callback(report_dashboard.flush_summary)
 scanner.add_cycle_callback(report_dashboard.flush_report)
 ```
 
@@ -371,6 +372,8 @@ Each report file (`scan_YYYYMMDD_HHMMSS_ffffff.json`) contains:
   "summary": { "total_etfs": 11, "bullish": 7, "bearish": 2, "neutral": 2, "total_signals": 3 }
 }
 ```
+
+A human-readable `latest_summary.txt` is also written to the report directory each cycle, overwriting the previous file. It contains an ASCII-formatted ETF trend table, signals, holdings, and summary counts — useful for `tail -f` or monitoring tools.
 
 **Configuration**: `--report-dir /path` CLI flag, `EMA_SCANNER_REPORT_DIR` env var, or `EMA_CLI_REPORT_DIR` setting. Auto-rotates old reports (default: keep 500).
 

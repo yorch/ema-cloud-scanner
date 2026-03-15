@@ -160,6 +160,7 @@ just docker-logs
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`         | Telegram alert bot             | —          |
 | `DISCORD_WEBHOOK_URL`                             | Discord webhook                | —          |
 | `SMTP_SERVER` / `SMTP_USERNAME` / `SMTP_PASSWORD` | Email (SMTP)                   | —          |
+| `EMA_SCANNER_REPORT_DIR`                          | Directory for JSON reports and `latest_summary.txt` | —  |
 
 Telegram and Discord alerts are **auto-enabled** when their credentials are set — no extra flags needed.
 
