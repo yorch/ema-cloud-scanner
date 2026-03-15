@@ -540,3 +540,58 @@ class TestSectorTrendConversion:
 
         state = self._make_sector_state(scanner, "mixed", trend_strength=0.3)
         assert scanner._sector_trend_from_state(state) == SectorTrend.NEUTRAL
+
+
+# ===========================================================================
+# Symbol Deduplication
+# ===========================================================================
+
+
+class TestSymbolDeduplication:
+    """get_active_etf_symbols should not return duplicates."""
+
+    def test_no_duplicates_with_overlap(self):
+        """Adding XLK as custom when technology sector is active should not duplicate."""
+        config = ScannerConfig(
+            active_sectors=["technology", "financials"],
+            custom_symbols=["XLK", "SPY"],
+        )
+        symbols = config.get_active_etf_symbols()
+        assert symbols.count("XLK") == 1, f"XLK appears {symbols.count('XLK')} times"
+        assert "SPY" in symbols
+        assert "XLF" in symbols
+
+    def test_order_preserved(self):
+        """Sector symbols should come first, then custom symbols."""
+        config = ScannerConfig(
+            active_sectors=["technology", "financials"],
+            custom_symbols=["SPY", "QQQ"],
+        )
+        symbols = config.get_active_etf_symbols()
+        assert symbols == ["XLK", "XLF", "SPY", "QQQ"]
+
+    def test_no_duplicates_multiple_custom_overlap(self):
+        """Multiple custom symbols overlapping with sectors."""
+        config = ScannerConfig(
+            active_sectors=["technology", "financials", "energy"],
+            custom_symbols=["XLK", "XLF", "XLE", "AAPL"],
+        )
+        symbols = config.get_active_etf_symbols()
+        assert len(symbols) == len(set(symbols)), f"Duplicates found: {symbols}"
+        assert len(symbols) == 4  # XLK, XLF, XLE, AAPL
+
+    def test_no_custom_symbols_works(self):
+        """Without custom symbols, should just return sector symbols."""
+        config = ScannerConfig(
+            active_sectors=["technology"],
+            custom_symbols=[],
+        )
+        symbols = config.get_active_etf_symbols()
+        assert symbols == ["XLK"]
+
+    def test_all_sectors_no_duplicates(self):
+        """All sectors should produce unique symbols."""
+        config = ScannerConfig()  # Default: all sectors
+        symbols = config.get_active_etf_symbols()
+        assert len(symbols) == len(set(symbols))
+        assert len(symbols) == 11  # All sector ETFs

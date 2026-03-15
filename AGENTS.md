@@ -165,18 +165,17 @@ uv run ruff check packages/ tests/
 uv run mypy packages/
 
 # 4. Run tests
-uv run pytest tests/ --ignore=tests/test_holdings_scanner.py -q
+uv run pytest tests/ -q
 
 # Or run all four in sequence:
 uv run ruff format packages/ tests/ \
   && uv run ruff check packages/ tests/ \
   && uv run mypy packages/ \
-  && uv run pytest tests/ --ignore=tests/test_holdings_scanner.py -q
+  && uv run pytest tests/ -q
 ```
 
 **Important notes:**
 - Always format and lint **both** `packages/` and `tests/` directories
-- `tests/test_holdings_scanner.py` requires `pytest-mock` which is not in the default dev dependencies — ignore it in test runs
 - Fix any issues before committing; do not commit with known failures
 
 ## Docker / VPS Deployment

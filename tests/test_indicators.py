@@ -1167,3 +1167,150 @@ class TestTrendAnalysis:
         assert ta.rsi == 72.0
         assert ta.adx == 28.0
         assert ta.signals == ["BREAKOUT"]
+
+
+# ===========================================================================
+# RSI Division-by-Zero Edge Cases
+# ===========================================================================
+
+
+class TestRSIDivisionByZero:
+    """RSI should handle edge cases where avg_gain or avg_loss is zero."""
+
+    def test_all_gains_rsi_is_100(self):
+        """When price only goes up, RSI should be 100 (fully overbought)."""
+        prices = pd.Series([100.0 + i for i in range(50)])
+        rsi = calculate_rsi(prices, period=14)
+        assert rsi.iloc[-1] > 99.0, f"RSI should be ~100 for all-gains, got {rsi.iloc[-1]}"
+
+    def test_all_losses_rsi_is_near_zero(self):
+        """When price only goes down, RSI should be near 0 (fully oversold)."""
+        prices = pd.Series([200.0 - i for i in range(50)])
+        rsi = calculate_rsi(prices, period=14)
+        assert rsi.iloc[-1] < 1.0, f"RSI should be ~0 for all-losses, got {rsi.iloc[-1]}"
+
+    def test_flat_prices_rsi_is_neutral(self):
+        """When price doesn't change, RSI should be neutral (50)."""
+        prices = pd.Series([100.0] * 50)
+        rsi = calculate_rsi(prices, period=14)
+        assert not pd.isna(rsi.iloc[-1]), "RSI should not be NaN for flat prices"
+        assert rsi.iloc[-1] == 50.0, f"RSI should be 50 for flat prices, got {rsi.iloc[-1]}"
+
+    def test_rsi_no_nans_in_output(self):
+        """RSI output should never contain NaN after the initial warmup."""
+        prices = pd.Series([100.0] * 20 + [100.0 + i * 0.1 for i in range(30)])
+        rsi = calculate_rsi(prices, period=14)
+        valid_rsi = rsi.iloc[15:]
+        assert not valid_rsi.isna().any(), (
+            f"RSI contains NaN values: {valid_rsi[valid_rsi.isna()].index.tolist()}"
+        )
+
+    def test_rsi_normal_case_unchanged(self):
+        """Normal RSI calculation should still work correctly."""
+        rng = np.random.default_rng(42)
+        prices = pd.Series(100 + rng.normal(0, 1, 100).cumsum())
+        rsi = calculate_rsi(prices, period=14)
+        valid = rsi.dropna()
+        assert (valid >= 0).all() and (valid <= 100).all()
+
+
+# ===========================================================================
+# ADX Division-by-Zero Edge Cases
+# ===========================================================================
+
+
+class TestADXDivisionByZero:
+    """ADX should handle zero directional movement gracefully."""
+
+    def test_flat_market_dx_is_zero(self):
+        """When there's no directional movement, DX should be 0."""
+        n = 50
+        high = pd.Series([100.0] * n)
+        low = pd.Series([100.0] * n)
+        close = pd.Series([100.0] * n)
+        result = calculate_adx(high, low, close, period=14)
+        assert not pd.isna(result["adx"].iloc[-1]), "ADX should not be NaN"
+        assert result["adx"].iloc[-1] == 0.0, (
+            f"ADX should be 0 for flat market, got {result['adx'].iloc[-1]}"
+        )
+
+    def test_adx_no_nans(self):
+        """ADX should not produce NaN values after warmup."""
+        high = pd.Series([100.0] * 30 + [100.0 + i * 0.5 for i in range(70)])
+        low = pd.Series([99.0] * 30 + [99.0 + i * 0.5 for i in range(70)])
+        close = pd.Series([99.5] * 30 + [99.5 + i * 0.5 for i in range(70)])
+        result = calculate_adx(high, low, close, period=14)
+        valid_adx = result["adx"].iloc[20:]
+        assert not valid_adx.isna().any(), "ADX contains NaN values"
+
+    def test_adx_normal_trending_market(self):
+        """ADX should still correctly detect strong trends."""
+        rng = np.random.default_rng(42)
+        n = 100
+        trend = np.arange(n) * 0.5
+        close = pd.Series(100 + trend + rng.normal(0, 0.5, n))
+        high = close + rng.uniform(0.5, 1.5, n)
+        low = close - rng.uniform(0.5, 1.5, n)
+        result = calculate_adx(high, low, close, period=14)
+        assert result["adx"].iloc[-1] > 10, "ADX should be > 10 for trending market"
+
+
+# ===========================================================================
+# VWAP Daily Reset
+# ===========================================================================
+
+
+class TestVWAPDailyReset:
+    """VWAP should properly detect DatetimeIndex and reset daily."""
+
+    def test_vwap_resets_daily_with_datetime_index(self):
+        """VWAP should reset at each new trading day for intraday data."""
+        dates_day1 = pd.date_range("2025-01-06 09:30", periods=10, freq="5min")
+        dates_day2 = pd.date_range("2025-01-07 09:30", periods=10, freq="5min")
+        dates = dates_day1.append(dates_day2)
+
+        high = pd.Series([101.0] * 20, index=dates)
+        low = pd.Series([99.0] * 20, index=dates)
+        close = pd.Series([100.0] * 20, index=dates)
+        volume = pd.Series([1000.0] * 20, index=dates)
+
+        vwap = calculate_vwap(high, low, close, volume)
+
+        assert vwap.iloc[0] == pytest.approx(vwap.iloc[10], rel=1e-6), (
+            "VWAP should reset at day boundary"
+        )
+
+    def test_vwap_with_integer_index_no_reset(self):
+        """VWAP with integer index should use simple cumulative (no daily reset)."""
+        n = 20
+        index = range(n)
+        high = pd.Series([101.0] * n, index=index)
+        low = pd.Series([99.0] * n, index=index)
+        close = pd.Series([100.0] * n, index=index)
+        volume = pd.Series([1000.0] * n, index=index)
+
+        vwap = calculate_vwap(high, low, close, volume)
+        assert vwap.iloc[0] == pytest.approx(vwap.iloc[-1], rel=1e-6)
+
+    def test_vwap_isinstance_check_not_hasattr(self):
+        """Verify VWAP uses isinstance(index, DatetimeIndex), not hasattr."""
+        n = 10
+        idx = pd.RangeIndex(n)
+        idx.date = list(range(n))  # type: ignore[attr-defined]
+
+        assert hasattr(idx, "date"), "Test setup: index must have .date for this regression test"
+        assert not isinstance(idx, pd.DatetimeIndex)
+
+        high = pd.Series([100.0 + i for i in range(n)], index=idx)
+        low = pd.Series([98.0 + i for i in range(n)], index=idx)
+        close = pd.Series([99.0 + i for i in range(n)], index=idx)
+        volume = pd.Series([1000.0 + i * 100 for i in range(n)], index=idx)
+
+        vwap = calculate_vwap(high, low, close, volume)
+        assert not vwap.isna().any(), "VWAP should not be NaN"
+
+        typical_price = (high + low + close) / 3
+        assert vwap.iloc[-1] < typical_price.iloc[-1], (
+            "Cumulative VWAP should lag behind latest typical price for "
+            "trending data — indicates correct cumulative (not per-bar) calc"
+        )
