@@ -65,6 +65,10 @@ fix:
 fmt:
     uv run --extra dev ruff format packages/ tests/
 
+# Check formatting without modifying files (used in CI)
+fmt-check:
+    uv run --extra dev ruff format --check packages/ tests/
+
 # Run lint + format
 check: lint fmt
 

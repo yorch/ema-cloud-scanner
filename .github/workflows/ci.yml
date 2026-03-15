@@ -25,11 +25,12 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
+      - uses: extractions/setup-just@v2
       - run: uv sync --extra dev
       - name: Ruff check
-        run: uv run ruff check packages/
-      - name: Ruff format
-        run: uv run ruff format --check packages/
+        run: just lint
+      - name: Ruff format check
+        run: just fmt-check
 
   typecheck:
     runs-on: ubuntu-latest
@@ -38,13 +39,10 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
+      - uses: extractions/setup-just@v2
       - run: uv sync --extra dev
       - name: Mypy type check
-        run: >
-          uv run mypy
-          packages/ema_cloud_lib/src/ema_cloud_lib/
-          packages/ema_cloud_cli/src/ema_cloud_cli/
-          --ignore-missing-imports
+        run: just types
 
   test:
     runs-on: ubuntu-latest
@@ -56,15 +54,16 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: extractions/setup-just@v2
       - run: uv sync --extra dev
       - name: Run tests with coverage
         run: >
-          uv run pytest tests/ -v --tb=short
+          just test tests/ -v --tb=short
           --cov=ema_cloud_lib
           --cov-report=term-missing
           --cov-fail-under=50
       - name: Run CLI tests
-        run: uv run pytest packages/ema_cloud_cli/tests/ -v --tb=short
+        run: just test packages/ema_cloud_cli/tests/ -v --tb=short
 
   build:
     runs-on: ubuntu-latest
