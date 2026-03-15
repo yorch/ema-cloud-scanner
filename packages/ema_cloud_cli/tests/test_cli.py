@@ -14,6 +14,10 @@ from ema_cloud_cli.cli import (
     app,
 )
 
+# Suppress ANSI color codes so string assertions work consistently across
+# Python versions and operating systems (CI Linux vs local macOS).
+_NO_COLOR = {"NO_COLOR": "1"}
+
 # ── Pure utility functions ────────────────────────────────────────────────────
 
 
@@ -120,45 +124,55 @@ class TestDetermineLogLevel:
 # ── CLI invocation via typer.testing.CliRunner ────────────────────────────────
 
 
-class TestCLIHelp:
+class _CLITestBase:
+    """Mixin that routes all invoke calls through NO_COLOR=1.
+
+    Typer/Click emits ANSI escape sequences on Linux (CI) even through the
+    test runner, which splits flag names like ``--style`` into
+    ``\x1b[1;36m-\x1b[0m\x1b[1;36m-style\x1b[0m``.  Setting NO_COLOR=1
+    suppresses all colour output so plain-string assertions work uniformly.
+    """
+
     def setup_method(self):
         self.runner = CliRunner()
 
+    def invoke(self, args, **kwargs):
+        env = {**_NO_COLOR, **kwargs.pop("env", {})}
+        return self.runner.invoke(app, args, env=env, **kwargs)
+
+
+class TestCLIHelp(_CLITestBase):
     def test_help_exits_zero(self):
-        result = self.runner.invoke(app, ["--help"])
+        result = self.invoke(["--help"])
         assert result.exit_code == 0
 
     def test_help_mentions_style(self):
-        result = self.runner.invoke(app, ["--help"])
+        result = self.invoke(["--help"])
         assert "--style" in result.output
 
     def test_help_mentions_no_dashboard(self):
-        result = self.runner.invoke(app, ["--help"])
+        result = self.invoke(["--help"])
         assert "--no-dashboard" in result.output
 
     def test_backtest_help(self):
-        result = self.runner.invoke(app, ["backtest", "--help"])
+        result = self.invoke(["backtest", "--help"])
         assert result.exit_code == 0
         assert "--start-date" in result.output
 
     def test_config_save_help(self):
-        result = self.runner.invoke(app, ["config-save", "--help"])
+        result = self.invoke(["config-save", "--help"])
         assert result.exit_code == 0
 
 
-class TestCLIValidation:
-    def setup_method(self):
-        self.runner = CliRunner()
-
+class TestCLIValidation(_CLITestBase):
     def test_alpaca_provider_requires_keys(self):
-        result = self.runner.invoke(app, ["--provider", "alpaca", "--no-dashboard", "--once"])
+        result = self.invoke(["--provider", "alpaca", "--no-dashboard", "--once"])
         assert result.exit_code != 0
         assert "alpaca-key" in result.output.lower() or "alpaca" in result.output.lower()
 
     def test_polygon_provider_requires_key(self):
         # Clear POLYGON_API_KEY so the envvar fallback doesn't bypass validation
-        result = self.runner.invoke(
-            app,
+        result = self.invoke(
             ["--provider", "polygon", "--no-dashboard", "--once"],
             env={"POLYGON_API_KEY": ""},
         )
@@ -166,70 +180,59 @@ class TestCLIValidation:
         assert "polygon" in result.output.lower()
 
     def test_telegram_alerts_require_credentials(self):
-        result = self.runner.invoke(app, ["--telegram-alerts", "--no-dashboard", "--once"])
+        result = self.invoke(["--telegram-alerts", "--no-dashboard", "--once"])
         assert result.exit_code != 0
         assert "telegram" in result.output.lower()
 
     def test_discord_alerts_require_webhook(self):
-        result = self.runner.invoke(app, ["--discord-alerts", "--no-dashboard", "--once"])
+        result = self.invoke(["--discord-alerts", "--no-dashboard", "--once"])
         assert result.exit_code != 0
         assert "discord" in result.output.lower()
 
     def test_invalid_filter_weights_json(self):
-        result = self.runner.invoke(
-            app,
+        result = self.invoke(
             ["--filter-weights", "not-valid-json", "--no-dashboard", "--once"],
         )
         assert result.exit_code != 0
         assert "json" in result.output.lower() or "invalid" in result.output.lower()
 
     def test_filter_weights_non_object_json(self):
-        result = self.runner.invoke(
-            app,
+        result = self.invoke(
             ["--filter-weights", "[1,2,3]", "--no-dashboard", "--once"],
         )
         assert result.exit_code != 0
         assert "json object" in result.output.lower() or "json" in result.output.lower()
 
     def test_print_config_exits_cleanly(self):
-        result = self.runner.invoke(app, ["--print-config"])
-        # Should exit 0 after printing; may raise Exit(0)
+        result = self.invoke(["--print-config"])
         assert result.exit_code == 0
 
     def test_unknown_subset_rejected(self):
         """Unknown subset should produce an error message and exit non-zero."""
-        result = self.runner.invoke(
-            app, ["--subset", "nonexistent_subset", "--no-dashboard", "--once"]
-        )
+        result = self.invoke(["--subset", "nonexistent_subset", "--no-dashboard", "--once"])
         assert result.exit_code != 0
         assert "subset" in result.output.lower()
 
     def test_valid_yahoo_provider_accepted(self):
         """Yahoo provider requires no credentials — scanner setup should proceed."""
         with patch("ema_cloud_cli.cli.asyncio.run"):
-            result = self.runner.invoke(app, ["--provider", "yahoo", "--no-dashboard", "--once"])
-        # Should not exit with validation error
+            result = self.invoke(["--provider", "yahoo", "--no-dashboard", "--once"])
         assert "Error:" not in result.output or result.exit_code == 0
 
 
-class TestCLIConfigPrint:
+class TestCLIConfigPrint(_CLITestBase):
     """--print-config should dump valid JSON and exit 0 without running the scanner."""
 
-    def setup_method(self):
-        self.runner = CliRunner()
-
     def test_print_config_outputs_json(self):
-
-        result = self.runner.invoke(app, ["--print-config"])
+        result = self.invoke(["--print-config"])
         assert result.exit_code == 0
-        # Output should contain JSON-like structure
         assert "{" in result.output
 
     def test_print_config_with_style(self):
-        result = self.runner.invoke(app, ["--style", "swing", "--print-config"])
+        result = self.invoke(["--style", "swing", "--print-config"])
         assert result.exit_code == 0
 
     def test_print_config_with_interval(self):
-        result = self.runner.invoke(app, ["--interval", "120", "--print-config"])
+        result = self.invoke(["--interval", "120", "--print-config"])
         assert result.exit_code == 0
         assert "120" in result.output
