@@ -431,12 +431,17 @@ class EMACloudScanner:
         tasks = [self.analyze_etf(etf) for etf in etfs]
         analyses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for etf, analysis in zip(etfs, analyses, strict=False):
+        failed = 0
+        for etf, analysis in zip(etfs, analyses, strict=True):
             if isinstance(analysis, BaseException):
-                logger.error(f"Analysis failed for {etf}: {analysis}")
+                logger.error("Analysis failed for %s: %s", etf, analysis, exc_info=analysis)
+                failed += 1
                 continue
             if analysis:
                 results.append(analysis)
+
+        if failed and failed == len(etfs):
+            raise RuntimeError(f"All {len(etfs)} ETF scans failed — check data provider connectivity")
 
         return results
 
@@ -591,9 +596,9 @@ class EMACloudScanner:
         else:
             holdings_results = []
 
-        for etf_symbol, holdings in zip(symbols_to_fetch, holdings_results, strict=False):
+        for etf_symbol, holdings in zip(symbols_to_fetch, holdings_results, strict=True):
             if isinstance(holdings, BaseException):
-                logger.warning(f"Holdings lookup failed for {etf_symbol}: {holdings}")
+                logger.warning("Holdings lookup failed for %s: %s", etf_symbol, holdings, exc_info=holdings)
                 # Set empty defaults to prevent KeyError later
                 holdings_by_etf[etf_symbol] = []
                 total_holdings_by_etf[etf_symbol] = 0
