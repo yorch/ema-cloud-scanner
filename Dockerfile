@@ -13,12 +13,15 @@ COPY pyproject.toml uv.lock ./
 COPY packages/ema_cloud_lib/pyproject.toml packages/ema_cloud_lib/
 COPY packages/ema_cloud_cli/pyproject.toml packages/ema_cloud_cli/
 
-# Install all dependencies (all providers: yahoo, alpaca, polygon + notifications)
+# Install third-party dependencies only (skip workspace packages — src/ not copied yet)
 # aiohttp is required for Telegram and Discord alert handlers
-RUN uv sync --frozen --no-dev --extra all
+RUN uv sync --frozen --no-dev --extra all --no-install-workspace
 
 # Copy source code
 COPY packages/ packages/
+
+# Install workspace packages now that source is present
+RUN uv sync --frozen --no-dev --extra all
 
 # Create a non-root user for security
 RUN useradd -m -u 1000 scanner
