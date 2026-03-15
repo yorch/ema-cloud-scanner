@@ -480,6 +480,9 @@ class EMACloudScanner:
                                 strength=sig.strength.name,
                                 is_valid=sig.is_valid(),
                                 notes="",
+                                weighted_filter_score=sig.weighted_filter_score,
+                                stacking_score=sig.stacking_score,
+                                is_waterfall=sig.is_waterfall,
                             )
                         )
 
@@ -526,6 +529,8 @@ class EMACloudScanner:
                     adx=analysis.get("adx"),
                     volume_ratio=analysis.get("volume_ratio"),
                     mtf=mtf_data,
+                    stacking_score=trend.stacking.stacking_score,
+                    is_waterfall=trend.stacking.is_waterfall,
                 )
             )
 

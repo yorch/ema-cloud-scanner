@@ -101,6 +101,15 @@ class Signal(BaseModel):
     filters_passed: list[str] = Field(default_factory=list, description="List of passed filters")
     filters_failed: list[str] = Field(default_factory=list, description="List of failed filters")
 
+    # Tier 3 metrics
+    weighted_filter_score: float | None = Field(
+        default=None, description="Weighted filter score (0.0-1.0)"
+    )
+    stacking_score: float | None = Field(
+        default=None, description="Cloud stacking score (-1.0 to 1.0)"
+    )
+    is_waterfall: bool = Field(default=False, description="True if all clouds perfectly stacked")
+
     # Additional context
     sector: str | None = Field(default=None, description="Sector classification")
     etf_symbol: str | None = Field(default=None, description="Related ETF symbol")
@@ -767,6 +776,9 @@ class SignalGenerator:
         reward = abs(target - price)
         rr_ratio = reward / risk if risk > 0 else 0
 
+        # Compute stacking for signal metadata
+        stacking = self.cloud_indicator.analyze_stacking(clouds)
+
         return Signal(
             symbol=symbol,
             signal_type=signal_type,
@@ -790,6 +802,9 @@ class SignalGenerator:
             risk_reward_ratio=rr_ratio,
             filters_passed=passed_filters,
             filters_failed=failed_filters,
+            weighted_filter_score=wfs,
+            stacking_score=stacking.stacking_score,
+            is_waterfall=stacking.is_waterfall,
             sector=sector,
             etf_symbol=etf_symbol,
             notes=[raw_signal.message],

@@ -466,6 +466,14 @@ def main(
         list[str] | None,
         typer.Option("--email-to", help="Recipient email addresses (can specify multiple)"),
     ] = None,
+    # Filter weights
+    filter_weights: Annotated[
+        str | None,
+        typer.Option(
+            "--filter-weights",
+            help='Filter weights as JSON (e.g., \'{"volume":2.0,"adx":2.0}\')',
+        ),
+    ] = None,
     # Signal cooldown
     signal_cooldown: Annotated[
         int | None,
@@ -707,6 +715,19 @@ def main(
     if volume_multiplier:
         scanner_config.filters.volume_multiplier = volume_multiplier
 
+    # Apply filter weights
+    if filter_weights:
+        try:
+            weights = json.loads(filter_weights)
+            if not isinstance(weights, dict):
+                typer.echo("Error: --filter-weights must be a JSON object")
+                raise typer.Exit(1)
+            scanner_config.filters.filter_weights.update(weights)
+            typer.echo(f"Filter weights: {scanner_config.filters.filter_weights}")
+        except json.JSONDecodeError as e:
+            typer.echo(f"Error: Invalid JSON for --filter-weights: {e}")
+            raise typer.Exit(1) from None
+
     # Apply Telegram configuration
     if telegram_alerts:
         if not telegram_token or not telegram_chat_id:
@@ -805,6 +826,18 @@ def backtest(
         Path | None,
         typer.Option("--report", help="Save detailed report to JSON file"),
     ] = None,
+    walk_forward: Annotated[
+        bool,
+        typer.Option("--walk-forward", help="Enable walk-forward validation"),
+    ] = False,
+    wf_in_sample: Annotated[
+        int,
+        typer.Option("--wf-in-sample", help="Walk-forward in-sample window size (bars)"),
+    ] = 500,
+    wf_out_sample: Annotated[
+        int,
+        typer.Option("--wf-out-sample", help="Walk-forward out-of-sample window size (bars)"),
+    ] = 100,
     verbose: Annotated[
         int,
         typer.Option(
@@ -815,10 +848,14 @@ def backtest(
     """Run backtests on historical data."""
     setup_logging(verbose, use_dashboard=False)
 
-    console.print("\n[bold cyan]Running Backtest[/bold cyan]")
+    mode_label = "Walk-Forward Backtest" if walk_forward else "Backtest"
+    console.print(f"\n[bold cyan]Running {mode_label}[/bold cyan]")
     console.print(f"Period: {start_date} to {end_date}")
     console.print(f"Symbols: {', '.join(symbols)}")
-    console.print(f"Capital: ${initial_capital:,.2f}\n")
+    console.print(f"Capital: ${initial_capital:,.2f}")
+    if walk_forward:
+        console.print(f"Walk-forward: IS={wf_in_sample} bars, OOS={wf_out_sample} bars")
+    console.print()
 
     # Parse dates
     try:
@@ -827,14 +864,6 @@ def backtest(
     except ValueError as e:
         console.print(f"[red]Error parsing dates: {e}[/red]")
         raise typer.Exit(1) from None
-
-    # Create backtester
-    backtester = Backtester(
-        initial_capital=initial_capital,
-        position_size_pct=position_size,
-        commission=commission,
-        slippage_pct=slippage,
-    )
 
     # Create data manager for fetching historical data
     data_manager = DataProviderManager({"yahoo": {"enabled": True}})
@@ -856,15 +885,39 @@ def backtest(
                 console.print(f"[yellow]Insufficient data for {symbol}[/yellow]")
                 continue
 
-            # Run backtest
-            result = backtester.run(df, symbol)
-            results[symbol] = result
+            if walk_forward:
+                from ema_cloud_lib.backtesting.engine import WalkForwardBacktester
 
-            # Print summary
-            result.print_summary()
+                wf_backtester = WalkForwardBacktester(
+                    in_sample_size=wf_in_sample,
+                    out_of_sample_size=wf_out_sample,
+                    initial_capital=initial_capital,
+                    position_size_pct=position_size,
+                    commission=commission,
+                    slippage_pct=slippage,
+                )
+                wf_result = wf_backtester.run(df, symbol)
+                console.print(wf_result.format_summary())
+                results[symbol] = wf_result
+            else:
+                backtester = Backtester(
+                    initial_capital=initial_capital,
+                    position_size_pct=position_size,
+                    commission=commission,
+                    slippage_pct=slippage,
+                )
+                result = backtester.run(df, symbol)
+                results[symbol] = result
+                result.print_summary()
 
-        # Comparison table
-        if len(results) > 1:
+        # Comparison table (standard backtest only)
+        if not walk_forward and len(results) > 1:
+            backtester = Backtester(
+                initial_capital=initial_capital,
+                position_size_pct=position_size,
+                commission=commission,
+                slippage_pct=slippage,
+            )
             comparison_df = backtester.compare_results(results)
             console.print("\n[bold]Comparison Across Symbols:[/bold]")
 
@@ -879,7 +932,12 @@ def backtest(
 
         # Save report if requested
         if report:
-            report_data = {symbol: result.to_dict() for symbol, result in results.items()}
+            report_data = {}
+            for symbol, result in results.items():
+                if hasattr(result, "to_dict"):
+                    report_data[symbol] = result.to_dict()
+                else:
+                    report_data[symbol] = result.model_dump(mode="json")
             report.write_text(json.dumps(report_data, indent=2, default=str))
             console.print(f"\n[green]Report saved to {report}[/green]")
 
