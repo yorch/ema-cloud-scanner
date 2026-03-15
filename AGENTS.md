@@ -155,27 +155,24 @@ uv run mypy packages/
 
 ```bash
 # 1. Format code (fixes in place)
-uv run ruff format packages/ tests/
+just fmt
 
 # 2. Lint check (fix first, then verify)
-uv run ruff check --fix packages/ tests/
-uv run ruff check packages/ tests/
+just fix
+just lint
 
 # 3. Type check
-uv run mypy packages/
+just types
 
 # 4. Run tests
-uv run pytest tests/ -q
+just test -q
 
-# Or run all four in sequence:
-uv run ruff format packages/ tests/ \
-  && uv run ruff check packages/ tests/ \
-  && uv run mypy packages/ \
-  && uv run pytest tests/ -q
+# Or run all quality checks + tests in sequence:
+just qa && just test -q
 ```
 
 **Important notes:**
-- Always format and lint **both** `packages/` and `tests/` directories
+- `just fmt`, `just lint`, and `just fix` already cover both `packages/` and `tests/` directories
 - Fix any issues before committing; do not commit with known failures
 
 ## Docker / VPS Deployment
