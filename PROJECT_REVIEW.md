@@ -1,5 +1,7 @@
 # Project Review & Assessment
 
+> **Note:** This document has been superseded by [REVIEW.md](REVIEW.md) which contains updated metrics, corrected figures, and tracks all improvements made since this initial review.
+
 ## EMA Cloud Sector Scanner
 
 **Review Date:** 2026-03-13
