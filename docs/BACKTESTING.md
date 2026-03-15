@@ -599,81 +599,59 @@ Validate strategy robustness with out-of-sample testing:
 
 ### Implementation
 
+The `WalkForwardBacktester` class automates rolling in-sample/out-of-sample testing:
+
 ```python
 import pandas as pd
-from datetime import datetime, timedelta
-from ema_cloud_lib.backtesting.engine import Backtester
-from ema_cloud_lib.data_providers.base import DataProviderManager
+from ema_cloud_lib.backtesting.engine import WalkForwardBacktester
 
-def generate_signals(df, config):
-    # Replace with your own signal generator for the chosen config.
-    return pd.DataFrame()
+# Create walk-forward backtester
+wf = WalkForwardBacktester(
+    in_sample_size=500,       # Bars for in-sample optimization
+    out_of_sample_size=100,   # Bars for out-of-sample validation
+    step_size=None,           # Defaults to out_of_sample_size
+    initial_capital=100000.0,
+)
 
-async def walk_forward_test(
-    symbol: str,
-    start_date: datetime,
-    end_date: datetime,
-    in_sample_months: int = 6,
-    out_sample_months: int = 1
-):
-    """
-    Walk-forward testing with rolling optimization windows.
+# Run walk-forward analysis
+result = wf.run(df, symbol="XLK")
 
-    Args:
-        symbol: ETF symbol to test
-        start_date: Start of testing period
-        end_date: End of testing period
-        in_sample_months: Months for optimization
-        out_sample_months: Months for validation
-    """
-    results = []
-    current_date = start_date
-    data_manager = DataProviderManager({"yahoo": {"enabled": True}})
-    backtester = Backtester(initial_capital=100000.0)
+# Access aggregate out-of-sample metrics
+print(result.format_summary())
+# Walk-Forward Results (N windows):
+#   OOS Total Trades: ...
+#   OOS Win Rate: ...%
+#   OOS Total Return: ...%
+#   OOS Avg Return: ...%
+#   OOS Max Drawdown: ...%
+#   OOS Avg Sharpe: ...
+#   Robustness Ratio: ...
 
-    while current_date < end_date:
-        # Define in-sample period
-        in_sample_end = current_date + timedelta(days=30 * in_sample_months)
-
-        # Optimize on in-sample data
-        best_config = await optimize_on_period(
-            symbol, current_date, in_sample_end
-        )
-
-        # Test on out-of-sample data
-        out_sample_start = in_sample_end
-        out_sample_end = out_sample_start + timedelta(days=30 * out_sample_months)
-
-        df = await data_manager.get_historical_data(
-            symbol=symbol,
-            interval="1d",
-            start=out_sample_start,
-            end=out_sample_end,
-        )
-        signals_df = generate_signals(df, best_config)
-        result = backtester.run(df, symbol, signals_df=signals_df)
-
-        results.append({
-            "period": f"{out_sample_start:%Y-%m} to {out_sample_end:%Y-%m}",
-            "return": result.total_return_pct,
-            "win_rate": result.win_rate,
-            "config": best_config
-        })
-
-        # Move to next window
-        current_date = out_sample_end
-
-    # Aggregate results
-    total_periods = len(results)
-    positive_periods = sum(1 for r in results if r["return"] > 0)
-    avg_return = sum(r["return"] for r in results) / total_periods
-
-    print(f"Walk-Forward Results:")
-    print(f"  Positive periods: {positive_periods}/{total_periods}")
-    print(f"  Average return: {avg_return:.2f}%")
-
-    return results
+# Access individual window results
+for window in result.windows:
+    print(f"Window {window.window_index}: "
+          f"IS bars {window.in_sample_start}-{window.in_sample_end}, "
+          f"OOS bars {window.oos_start}-{window.oos_end}")
+    print(f"  IS return: {window.in_sample_result.total_return_pct:.2f}%")
+    print(f"  OOS return: {window.oos_result.total_return_pct:.2f}%")
 ```
+
+### Key Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `oos_total_trades` | Total trades across all OOS windows |
+| `oos_win_rate` | Average win rate across OOS windows |
+| `oos_total_return_pct` | Cumulative OOS return |
+| `oos_max_drawdown_pct` | Worst drawdown across OOS windows |
+| `oos_avg_sharpe` | Average Sharpe ratio across OOS windows |
+| `robustness_ratio` | OOS avg return / IS avg return (closer to 1.0 = more robust) |
+
+### Interpreting Results
+
+- **Robustness Ratio > 0.5**: Strategy generalizes well to unseen data
+- **Robustness Ratio < 0.3**: Likely overfitting to in-sample data
+- **Consistent OOS win rate**: Strategy is stable across market regimes
 
 ---
 

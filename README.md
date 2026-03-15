@@ -5,16 +5,18 @@ Real-time sector ETF scanner based on **Ripster's EMA Cloud methodology**. Monit
 ## Features
 
 - **Multiple EMA Clouds**: All 6 Ripster cloud configurations (5-12, 8-9, 20-21, 34-50, 72-89, 200-233)
-- **Real-time Signal Detection**: Cloud flips, price crosses, pullback entries, multi-cloud alignment
+- **Real-time Signal Detection**: Cloud flips, price crosses, pullback entries, multi-cloud alignment, waterfall patterns
 - **Signal Strength Ratings**: VERY_STRONG to VERY_WEAK with configurable filters
 - **Multiple Trading Styles**: Scalping, Intraday, Swing, Position, Long-term presets
-- **Confirmation Filters**: Volume, RSI, ADX, VWAP, ATR, MACD, time-of-day
+- **Confirmation Filters**: Volume, RSI, ADX, VWAP, ATR, MACD, time-of-day with configurable weighted scoring
 - **Market Hours Detection**: Automatic NYSE/NASDAQ holiday and early close detection using official trading calendar
 - **Alert System**: Console, desktop notifications, Telegram, Discord, Email
 - **Terminal Dashboard**: Textual-based real-time monitoring interface
 - **ETF Holdings**: Fetch and analyze top holdings for each sector
 - **Holdings Scanning**: Scan individual stocks within sector ETF holdings with sector trend filtering
-- **Backtesting**: Test strategies against historical data
+- **Backtesting**: Test strategies against historical data with walk-forward validation
+- **Data Quality Validation**: Automatic OHLCV data validation post-fetch (NaN, duplicates, anomalies)
+- **Config Schema Migration**: Versioned config files with automatic migration on load
 
 ## Package Structure
 
@@ -117,6 +119,7 @@ The scanner is based on Ripster's EMA Cloud methodology, using multiple EMAs to 
 2. **Price Cross**: Price crosses above/below a cloud
 3. **Pullback Entry**: Price pulls back to cloud acting as support/resistance
 4. **Multi-Cloud Alignment**: Multiple clouds align in same direction
+5. **Waterfall**: All 6 clouds perfectly stacked in order (strongest trend signal)
 
 ## Running on a VPS / Docker
 

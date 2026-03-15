@@ -320,14 +320,21 @@ Located in: `packages/ema_cloud_lib/src/ema_cloud_lib/config/settings.py`
 2. **Price Cross**: Price breaks above/below cloud boundary
 3. **Pullback Entry**: Price retraces to cloud support/resistance
 4. **Multi-Cloud Alignment**: All clouds aligned same direction
+5. **Waterfall**: All 6 clouds perfectly stacked in order (strongest trend signal)
+
+### Cloud Stacking & Waterfall
+
+Cloud stacking analysis (`EMACloudIndicator.analyze_stacking()`) compares midpoints of all 6 clouds in canonical order. A **waterfall** pattern occurs when all cloud midpoints are perfectly ordered from shortest-term to longest-term. Stacking score ranges from -1.0 (bearish) to 1.0 (bullish).
 
 ### Signal Strength Criteria
 
-- **VERY_STRONG**: All 6 clouds aligned, all filters pass, ADX > 30, volume > 2x
+- **VERY_STRONG**: All 6 clouds aligned, all filters pass, ADX > 30, volume > 2x, waterfall bonus
 - **STRONG**: 5+ clouds aligned, key filters pass, ADX > 25
 - **MODERATE**: 4 clouds aligned, most filters pass, ADX > 20
 - **WEAK**: 3 clouds aligned, some filters fail
 - **VERY_WEAK**: < 3 clouds aligned, multiple filter failures
+
+Signal strength is also influenced by **weighted filter scoring** (configurable per-filter weights in `FilterConfig.filter_weights`) and **cloud stacking bonus** (waterfall +5, partial stacking proportional).
 
 ## Market Hours & Timing
 

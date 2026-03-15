@@ -322,23 +322,64 @@ except ValidationError as e:
 
 ### Config File Migration
 
-When upgrading versions, config files are automatically migrated:
+Configuration files include a `schema_version` field and are automatically migrated when loaded:
 
 ```python
-# Old config format (v1.0)
-{
-  "style": "intraday",  # Old key
-  "symbols": ["XLK", "XLF"]
-}
+from ema_cloud_lib.config.settings import ScannerConfig, migrate_config
 
-# New config format (v1.1+)
-{
-  "trading_style": "intraday",  # New key
-  "active_sectors": ["technology", "financials"]
-}
+# migrate_config() is called automatically by ScannerConfig.load()
+# It detects the schema version and applies sequential migrations
 
-# Migration happens automatically on load
-# Old config files are backed up to config.json.bak
+# Manual migration example:
+old_config = {"trading_style": "swing", "filters": {"volume_enabled": True}}
+migrated = migrate_config(old_config)
+# Result: schema_version set to current, filter_weights added to filters
+```
+
+#### Schema Versions
+
+| Version | Changes |
+|---------|---------|
+| 1 (implicit) | Original schema, no `schema_version` field |
+| 2 (current) | Added `schema_version`, `filter_weights` in filters section |
+
+#### How Migration Works
+
+1. On `ScannerConfig.load()`, config JSON is parsed
+2. `migrate_config()` detects the current version (defaults to 1 if missing)
+3. Registered migration functions are applied sequentially (v1→v2, v2→v3, etc.)
+4. The migrated config is validated by Pydantic
+
+```python
+# Example config file (current schema v2)
+{
+  "schema_version": 2,
+  "trading_style": "swing",
+  "filters": {
+    "volume_enabled": true,
+    "rsi_enabled": true,
+    "filter_weights": {
+      "volume": 2.0,
+      "rsi": 1.0,
+      "adx": 2.0,
+      "vwap": 1.5,
+      "atr": 1.0,
+      "macd": 1.0,
+      "time": 0.5
+    }
+  }
+}
+```
+
+#### Adding New Migrations
+
+New migrations are registered with the `@_register_migration` decorator in `settings.py`:
+
+```python
+@_register_migration(2)  # Migrates from v2 → v3
+def _migrate_v2_to_v3(config: dict) -> dict:
+    # Apply changes for v3
+    return config
 ```
 
 ---

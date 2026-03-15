@@ -73,16 +73,19 @@ Complete guide to signal generation, deduplication, cooldown strategies, and sta
 | **PRICE_CROSS**     | Price breaks above/below cloud        | High           |
 | **PULLBACK_ENTRY**  | Price retraces to cloud support/resist| Low-Moderate   |
 | **ALIGNMENT**       | All clouds align in same direction    | Very Low       |
+| **WATERFALL**       | All 6 clouds perfectly stacked in order| Very Low      |
 
 ### Signal Strength Levels
 
 | Strength       | Criteria                                           | Alert Priority |
 |----------------|---------------------------------------------------|----------------|
-| VERY_STRONG    | 6/6 clouds aligned, all filters pass, ADX > 30   | 🔴 Critical    |
+| VERY_STRONG    | 6/6 clouds aligned, all filters pass, ADX > 30, waterfall bonus  | 🔴 Critical    |
 | STRONG         | 5+ clouds aligned, key filters pass, ADX > 25    | 🟠 High        |
 | MODERATE       | 4 clouds aligned, most filters pass, ADX > 20    | 🟡 Medium      |
 | WEAK           | 3 clouds aligned, some filters fail              | 🟢 Low         |
 | VERY_WEAK      | < 3 clouds aligned, multiple filter failures     | ⚪ Info        |
+
+> **Note**: Signal strength is also influenced by the **weighted filter score** and **cloud stacking bonus**. A waterfall pattern adds +5 to the strength score, while partial stacking adds a proportional bonus. See [Advanced Features](ADVANCED_FEATURES.md#cloud-stacking--waterfall-detection) for details.
 
 ---
 

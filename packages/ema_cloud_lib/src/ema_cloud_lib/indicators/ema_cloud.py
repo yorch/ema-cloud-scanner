@@ -452,12 +452,12 @@ class EMACloudIndicator:
 
     # Canonical ordering from shortest-term to longest-term cloud
     CLOUD_ORDER: list[str] = [
-        "trend_line",       # 5-12
-        "pullback",         # 8-9
-        "momentum",         # 20-21
+        "trend_line",  # 5-12
+        "pullback",  # 8-9
+        "momentum",  # 20-21
         "trend_confirmation",  # 34-50
-        "long_term",        # 72-89
-        "major_trend",      # 200-233
+        "long_term",  # 72-89
+        "major_trend",  # 200-233
     ]
 
     def analyze_stacking(self, clouds: dict[str, CloudData]) -> StackingOrder:

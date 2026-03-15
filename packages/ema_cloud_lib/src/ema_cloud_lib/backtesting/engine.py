@@ -588,15 +588,9 @@ class WalkForwardResult(BaseModel):
     # Aggregated out-of-sample metrics
     oos_total_trades: int = Field(default=0, description="Total out-of-sample trades")
     oos_win_rate: float = Field(default=0.0, description="Average OOS win rate %")
-    oos_total_return_pct: float = Field(
-        default=0.0, description="Cumulative OOS return %"
-    )
-    oos_avg_return_pct: float = Field(
-        default=0.0, description="Average per-window OOS return %"
-    )
-    oos_max_drawdown_pct: float = Field(
-        default=0.0, description="Worst OOS max drawdown %"
-    )
+    oos_total_return_pct: float = Field(default=0.0, description="Cumulative OOS return %")
+    oos_avg_return_pct: float = Field(default=0.0, description="Average per-window OOS return %")
+    oos_max_drawdown_pct: float = Field(default=0.0, description="Worst OOS max drawdown %")
     oos_avg_sharpe: float = Field(default=0.0, description="Average OOS Sharpe ratio")
     robustness_ratio: float = Field(
         default=0.0,
@@ -608,9 +602,7 @@ class WalkForwardResult(BaseModel):
         oos_results = [
             w.out_of_sample_result for w in self.windows if w.out_of_sample_result is not None
         ]
-        is_results = [
-            w.in_sample_result for w in self.windows if w.in_sample_result is not None
-        ]
+        is_results = [w.in_sample_result for w in self.windows if w.in_sample_result is not None]
 
         if not oos_results:
             return
@@ -758,12 +750,10 @@ class WalkForwardBacktester:
             oos_signals = None
             if signals_df is not None and not signals_df.empty:
                 is_signals = signals_df[
-                    (signals_df.index >= is_df.index[0])
-                    & (signals_df.index <= is_df.index[-1])
+                    (signals_df.index >= is_df.index[0]) & (signals_df.index <= is_df.index[-1])
                 ]
                 oos_signals = signals_df[
-                    (signals_df.index >= oos_df.index[0])
-                    & (signals_df.index <= oos_df.index[-1])
+                    (signals_df.index >= oos_df.index[0]) & (signals_df.index <= oos_df.index[-1])
                 ]
 
             backtester = Backtester(
@@ -775,14 +765,10 @@ class WalkForwardBacktester:
             )
 
             # In-sample run
-            is_result = backtester.run(
-                is_df, symbol, signals_df=is_signals, **backtest_kwargs
-            )
+            is_result = backtester.run(is_df, symbol, signals_df=is_signals, **backtest_kwargs)
 
             # Out-of-sample run
-            oos_result = backtester.run(
-                oos_df, symbol, signals_df=oos_signals, **backtest_kwargs
-            )
+            oos_result = backtester.run(oos_df, symbol, signals_df=oos_signals, **backtest_kwargs)
 
             window = WalkForwardWindow(
                 window_index=window_idx,

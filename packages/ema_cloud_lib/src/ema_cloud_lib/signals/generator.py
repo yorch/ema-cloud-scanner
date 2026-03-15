@@ -495,9 +495,7 @@ class SignalFilter:
             r.weight = weights.get(r.filter_name, 1.0)
         return results
 
-    def weighted_filter_score(
-        self, row: pd.Series, direction: str, timestamp: datetime
-    ) -> float:
+    def weighted_filter_score(self, row: pd.Series, direction: str, timestamp: datetime) -> float:
         """Return a weighted filter score in [0, 1].
 
         Each filter contributes its weight when passed (0 when failed).

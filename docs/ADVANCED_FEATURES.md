@@ -10,6 +10,8 @@ Guide to advanced trading features including multi-timeframe confirmation, secto
 - [Position Sizing](#position-sizing)
 - [Stop Loss Strategies](#stop-loss-strategies)
 - [Target Price Calculation](#target-price-calculation)
+- [Cloud Stacking & Waterfall Detection](#cloud-stacking--waterfall-detection)
+- [Weighted Filter Scoring](#weighted-filter-scoring)
 
 ---
 
@@ -728,6 +730,112 @@ for i, target in enumerate(targets, 1):
 # T2 (R:3): $245.50 (+4.25%)
 # T3 (R:4): $249.00 (+5.73%)
 ```
+
+---
+
+## Cloud Stacking & Waterfall Detection
+
+### Overview
+
+Cloud stacking analysis determines whether the 6 EMA clouds are ordered from shortest-term to longest-term (bullish stacking) or vice versa (bearish stacking). When all clouds are perfectly ordered, it creates a **waterfall** pattern — one of the strongest trend signals.
+
+### How It Works
+
+The `EMACloudIndicator.analyze_stacking()` method compares the midpoints of all 6 clouds in canonical order:
+
+```text
+Bullish Waterfall (all midpoints ordered high → low):
+  5-12 midpoint > 8-9 midpoint > 20-21 midpoint > 34-50 midpoint > 72-89 midpoint > 200-233 midpoint
+
+Bearish Waterfall (all midpoints ordered low → high):
+  5-12 midpoint < 8-9 midpoint < 20-21 midpoint < 34-50 midpoint < 72-89 midpoint < 200-233 midpoint
+```
+
+### Usage
+
+```python
+from ema_cloud_lib.indicators.ema_cloud import EMACloudIndicator, StackingOrder
+
+indicator = EMACloudIndicator()
+clouds = indicator.calculate_clouds(df)
+stacking: StackingOrder = indicator.analyze_stacking(clouds)
+
+print(f"Stacking score: {stacking.stacking_score:.2f}")  # -1.0 to 1.0
+print(f"Ordered pairs: {stacking.ordered_pairs}/{stacking.total_pairs}")
+print(f"Bullish stacked: {stacking.is_stacked_bullish}")
+print(f"Bearish stacked: {stacking.is_stacked_bearish}")
+print(f"Waterfall: {stacking.is_waterfall}")  # True if all pairs ordered
+```
+
+### Impact on Signals
+
+- **WATERFALL signal type**: Emitted when `stacking.is_waterfall` is True
+- **Strength bonus**: Waterfall adds +5 to signal strength score; partial stacking adds proportional bonus
+- Stacking analysis is included in `analyze_trend()` output via the `stacking` field of `TrendAnalysis`
+
+---
+
+## Weighted Filter Scoring
+
+### Overview
+
+Each confirmation filter (volume, RSI, ADX, VWAP, ATR, MACD, time) can be assigned a configurable weight that influences signal strength calculation. This allows prioritizing filters most relevant to your trading style.
+
+### Configuration
+
+Weights are configured in `FilterConfig.filter_weights`:
+
+```python
+from ema_cloud_lib.config.settings import ScannerConfig, FilterConfig
+
+config = ScannerConfig(
+    filters=FilterConfig(
+        volume_enabled=True,
+        rsi_enabled=True,
+        adx_enabled=True,
+        filter_weights={
+            "volume": 2.0,   # High importance
+            "rsi": 1.0,      # Normal importance
+            "adx": 2.0,      # High importance
+            "vwap": 1.5,     # Above average
+            "atr": 1.0,      # Normal importance
+            "macd": 1.0,     # Normal importance
+            "time": 0.5,     # Low importance
+        },
+    ),
+)
+```
+
+Or in JSON config files:
+
+```json
+{
+  "filters": {
+    "volume_enabled": true,
+    "rsi_enabled": true,
+    "filter_weights": {
+      "volume": 2.0,
+      "adx": 2.0,
+      "vwap": 1.5,
+      "time": 0.5
+    }
+  }
+}
+```
+
+### How Scoring Works
+
+The `SignalFilter.weighted_filter_score()` method calculates a weighted average:
+
+```text
+score = Σ(filter_passed × weight) / Σ(weight)
+```
+
+- Each passing filter contributes its weight to the numerator
+- The denominator is the sum of all enabled filter weights
+- Result is 0.0 to 1.0 (0% to 100% of weighted filters passing)
+
+This weighted score is then used in `_calculate_signal_strength()` to influence the final signal strength rating.
 
 ---
 

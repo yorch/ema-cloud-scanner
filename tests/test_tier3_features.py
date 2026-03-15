@@ -247,8 +247,15 @@ class TestWeightedFilterScoring:
             atr_enabled=False,
             macd_enabled=False,
             time_filter_enabled=False,
-            filter_weights={"volume": 10.0, "rsi": 1.0, "adx": 1.0,
-                            "vwap": 1.0, "atr": 1.0, "macd": 1.0, "time": 1.0},
+            filter_weights={
+                "volume": 10.0,
+                "rsi": 1.0,
+                "adx": 1.0,
+                "vwap": 1.0,
+                "atr": 1.0,
+                "macd": 1.0,
+                "time": 1.0,
+            },
         )
         sf = SignalFilter(config)
         row = pd.Series({"close": 100.0, "volume_ratio": 1.0})
@@ -262,8 +269,15 @@ class TestWeightedFilterScoring:
         """ScannerConfig can carry custom filter weights."""
         config = ScannerConfig(
             filters=FilterConfig(
-                filter_weights={"volume": 5.0, "rsi": 3.0, "adx": 3.0,
-                                "vwap": 2.0, "atr": 1.0, "macd": 1.0, "time": 0.5}
+                filter_weights={
+                    "volume": 5.0,
+                    "rsi": 3.0,
+                    "adx": 3.0,
+                    "vwap": 2.0,
+                    "atr": 1.0,
+                    "macd": 1.0,
+                    "time": 0.5,
+                }
             )
         )
         assert config.filters.filter_weights["volume"] == 5.0
@@ -455,13 +469,15 @@ class TestWalkForwardBacktesting:
         # Build simple signals
         signals = []
         for i in range(250, 750, 50):
-            signals.append({
-                "direction": "long",
-                "signal_type": "ema_cross",
-                "strength": 4,
-                "stop_loss": df.iloc[i]["close"] * 0.98,
-                "take_profit": df.iloc[i]["close"] * 1.04,
-            })
+            signals.append(
+                {
+                    "direction": "long",
+                    "signal_type": "ema_cross",
+                    "strength": 4,
+                    "stop_loss": df.iloc[i]["close"] * 0.98,
+                    "take_profit": df.iloc[i]["close"] * 1.04,
+                }
+            )
             signals[-1]["timestamp"] = df.index[i]
         signals_df = pd.DataFrame(signals).set_index("timestamp")
 
@@ -539,9 +555,7 @@ class TestConfigSchemaMigration:
             "trading_style": "swing",
             "filters": {"volume_enabled": False},
         }
-        with tempfile.NamedTemporaryFile(
-            suffix=".json", delete=False, mode="w"
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
             json.dump(v1_config, f)
             f.flush()
             loaded = ScannerConfig.load(f.name)

@@ -800,8 +800,7 @@ def migrate_config(config: dict) -> dict:
         migration_fn = _MIGRATIONS.get(version)
         if migration_fn is None:
             logger.warning(
-                f"No migration path from schema version {version} to {version + 1}; "
-                f"loading as-is"
+                f"No migration path from schema version {version} to {version + 1}; loading as-is"
             )
             break
         logger.info(f"Migrating config schema v{version} → v{version + 1}")
