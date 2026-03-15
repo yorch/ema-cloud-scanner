@@ -2,6 +2,7 @@
 
 import logging
 import re
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -151,7 +152,7 @@ class _CLITestBase:
     def setup_method(self) -> None:
         self.runner = CliRunner()
 
-    def invoke(self, args: list[str], **kwargs: object) -> _InvokeResult:
+    def invoke(self, args: list[str], **kwargs: Any) -> _InvokeResult:
         return _InvokeResult(self.runner.invoke(app, args, **kwargs))
 
 

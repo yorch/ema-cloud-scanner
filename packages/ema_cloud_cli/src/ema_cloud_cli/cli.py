@@ -566,6 +566,38 @@ def main(
         if env_provider:
             provider = env_provider
 
+    if _param_is_default(ctx, "scan_holdings"):
+        env_scan_holdings = os.getenv("EMA_SCANNER_SCAN_HOLDINGS")
+        if env_scan_holdings:
+            parsed = _parse_bool(env_scan_holdings)
+            if parsed is None:
+                logger.warning(
+                    "Invalid EMA_SCANNER_SCAN_HOLDINGS '%s', ignoring", env_scan_holdings
+                )
+            else:
+                scan_holdings = parsed
+
+    if _param_is_default(ctx, "holdings_count"):
+        env_holdings_count = os.getenv("EMA_SCANNER_HOLDINGS_COUNT")
+        if env_holdings_count:
+            try:
+                holdings_count = int(env_holdings_count)
+            except ValueError:
+                logger.warning(
+                    "Invalid EMA_SCANNER_HOLDINGS_COUNT '%s', ignoring", env_holdings_count
+                )
+
+    if _param_is_default(ctx, "holdings_concurrent"):
+        env_holdings_concurrent = os.getenv("EMA_SCANNER_HOLDINGS_CONCURRENT")
+        if env_holdings_concurrent:
+            try:
+                holdings_concurrent = int(env_holdings_concurrent)
+            except ValueError:
+                logger.warning(
+                    "Invalid EMA_SCANNER_HOLDINGS_CONCURRENT '%s', ignoring",
+                    env_holdings_concurrent,
+                )
+
     setup_logging(verbose, use_dashboard=not no_dashboard)
 
     # Inform user where logs are written when using dashboard

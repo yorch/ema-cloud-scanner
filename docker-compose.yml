@@ -21,6 +21,12 @@ services:
       EMA_SCANNER_SCAN_INTERVAL: "${EMA_SCANNER_SCAN_INTERVAL:-60}"
       # Respect market hours? true = market hours only, false = run 24/7
       EMA_SCANNER_MARKET_HOURS_ONLY: "${EMA_SCANNER_MARKET_HOURS_ONLY:-true}"
+      # Scan individual stocks within each ETF's top holdings? (true/false)
+      EMA_SCANNER_SCAN_HOLDINGS: "${EMA_SCANNER_SCAN_HOLDINGS:-false}"
+      # Number of top holdings to scan per ETF
+      EMA_SCANNER_HOLDINGS_COUNT: "${EMA_SCANNER_HOLDINGS_COUNT:-10}"
+      # Max concurrent stock scans per ETF
+      EMA_SCANNER_HOLDINGS_CONCURRENT: "${EMA_SCANNER_HOLDINGS_CONCURRENT:-5}"
 
       # ── Data provider ──────────────────────────────────────────────────────
       # yahoo (default, free) | alpaca | polygon

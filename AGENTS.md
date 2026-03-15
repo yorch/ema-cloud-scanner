@@ -180,6 +180,18 @@ just qa && just test -q
 - `just fmt`, `just lint`, and `just fix` already cover both `packages/` and `tests/` directories
 - Fix any issues before committing; do not commit with known failures
 
+### Commit Discipline
+
+**Commits must be atomic**: each commit should represent one logical, self-contained change (e.g. a single feature, bugfix, or refactor). Do not bundle unrelated changes into one commit.
+
+**All CI checks must pass before every commit.** Run the full check suite first:
+
+```bash
+just qa && just test -q
+```
+
+If any step fails, fix it before committing — never commit with known lint, type, or test failures.
+
 ## Docker / VPS Deployment
 
 The scanner ships with a full Docker setup for unattended server deployment.
