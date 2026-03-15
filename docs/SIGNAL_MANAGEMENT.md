@@ -113,7 +113,7 @@ The scanner uses **two-level deduplication**:
 
 ### Level 1: Bar-Level Deduplication
 
-**Location**: `signals/generator.py` (lines 407-409)
+**Location**: `signals/generator.py`
 
 ```python
 class SignalGenerator:
@@ -149,7 +149,7 @@ def _should_generate_signal(self, symbol: str, signal_type: str) -> bool:
 
 ### Level 2: Time-Based Cooldown
 
-**Location**: `scanner.py` (lines 120-123, 278-290)
+**Location**: `scanner.py`
 
 ```python
 class EMACloudScanner:

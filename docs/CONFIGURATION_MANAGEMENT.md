@@ -82,7 +82,7 @@ Configuration sources can partially override settings:
 # ~/.config/ema-cloud-scanner/config.json
 {
   "trading_style": "swing",
-  "active_sectors": ["XLK", "XLF", "XLV"],
+  "active_sectors": ["technology", "financials", "healthcare"],
   "filters": {
     "volume_enabled": true,
     "rsi_enabled": true,
@@ -207,24 +207,32 @@ User config files are stored as JSON with Pydantic v2 serialization:
   "filters": {
     "volume_enabled": true,
     "volume_multiplier": 1.5,
-    "volume_lookback_periods": 20,
+    "volume_lookback": 20,
     "rsi_enabled": true,
     "rsi_period": 14,
     "rsi_overbought": 70,
     "rsi_oversold": 30,
     "adx_enabled": true,
     "adx_period": 14,
-    "adx_min": 20,
-    "vwap_enabled": false,
-    "atr_enabled": false,
+    "adx_min_strength": 20,
+    "vwap_enabled": true,
+    "atr_enabled": true,
     "atr_period": 14,
-    "atr_min_percent": 0.5,
-    "atr_max_percent": 5.0,
+    "atr_min_threshold": 0.5,
+    "atr_max_threshold": 5.0,
     "macd_enabled": false,
     "time_filter_enabled": true,
-    "time_filter_start": "09:45",
-    "time_filter_end": "15:45",
-    "min_cloud_thickness_percent": 0.1
+    "trading_start_time": "09:30",
+    "trading_end_time": "16:00",
+    "filter_weights": {
+      "volume": 2.0,
+      "rsi": 1.0,
+      "adx": 2.0,
+      "vwap": 1.5,
+      "atr": 1.0,
+      "macd": 1.0,
+      "time": 0.5
+    }
   },
   "data_provider": {
     "primary": "yahoo",
@@ -245,7 +253,7 @@ User config files are stored as JSON with Pydantic v2 serialization:
     "discord_webhook_url": null
   },
   "scan_interval": 60,
-  "dashboard_refresh_rate": 2,
+  "dashboard_refresh_rate": 5,
   "show_all_etfs": true
 }
 ```

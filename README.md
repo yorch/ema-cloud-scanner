@@ -79,9 +79,10 @@ import asyncio
 from ema_cloud_lib import EMACloudScanner, ScannerConfig, TradingStyle
 
 # Create configuration
-config = ScannerConfig()
-config.trading_style = TradingStyle.SWING
-config.etf_symbols = ['XLK', 'XLF', 'XLV']
+config = ScannerConfig(
+    trading_style=TradingStyle.SWING,
+    active_sectors=["technology", "financials", "healthcare"],
+)
 
 # Create and run scanner
 scanner = EMACloudScanner(config)
@@ -257,18 +258,18 @@ uv run python run.py --style swing --etfs XLK XLF
 ### Code Quality
 
 ```bash
-# Using just
-just lint           # Lint all packages
+# Using just (recommended)
+just lint           # Lint all packages and tests
 just fix            # Auto-fix lint issues
 just fmt            # Format code
 just types          # Type check
-just qa             # Run all checks
+just qa             # Format + lint + type check
 
-# Or directly
-ruff check packages/
-ruff format packages/
-mypy packages/
-pytest
+# Or directly with uv
+uv run ruff check packages/ tests/
+uv run ruff format packages/ tests/
+uv run mypy packages/
+uv run pytest tests/
 ```
 
 **See**: [AGENTS.md](AGENTS.md) for comprehensive development guidelines and architecture patterns.
