@@ -391,8 +391,24 @@ class SimpleDashboard:
         self._print_signal(signal)
 
     def update_holdings_data(self, data: HoldingsETFDisplayData) -> None:
-        """No-op for simple dashboard."""
-        return None
+        """Print holdings with signals to console."""
+        signaled = [h for h in data.holdings if h.signal_type]
+        if not signaled:
+            return
+
+        trend_icon = (
+            "🟢"
+            if data.sector_trend == TrendDirection.BULLISH.value
+            else ("🔴" if data.sector_trend == TrendDirection.BEARISH.value else "⚪")
+        )
+        print(
+            f"\n{trend_icon} Holdings: {data.etf_symbol} ({data.sector or ''}) "
+            f"- {len(signaled)} signal(s) / {data.total_holdings or 0} holdings"
+        )
+        for h in signaled:
+            arrow = "↑" if h.direction == "long" else "↓"
+            price_str = f" @ ${h.price:.2f}" if h.price else ""
+            print(f"   {arrow} {h.symbol:6} {h.signal_type or ''} [{h.strength or ''}]{price_str}")
 
     def _print_signal(self, signal: SignalDisplayData) -> None:
         """Print a signal to console."""

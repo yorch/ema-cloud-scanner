@@ -7,10 +7,13 @@ structured JSON report files to a configurable directory.
 
 import json
 import logging
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 from ema_cloud_lib.constants import TrendDirection
+from ema_cloud_lib.data_providers.base import api_call_tracker
+from ema_cloud_lib.market_hours import MarketHours
 from ema_cloud_lib.types.display import (
     ETFDisplayData,
     HoldingsETFDisplayData,
@@ -27,6 +30,15 @@ class ReportDashboard:
 
     Collects ETF data, signals, and holdings during each scan cycle,
     then writes a timestamped JSON report when flush_report() is called.
+
+    Each report includes:
+    - ETF analysis data (price, trend, indicators, stacking, MTF)
+    - Signals with full metadata
+    - Holdings per ETF with individual stock signals
+    - Market hours status
+    - API/cache performance metrics
+    - Scan cycle metadata (duration, timestamp)
+    - Summary statistics (bullish/bearish/neutral counts)
     """
 
     def __init__(self, report_dir: Path, max_reports: int = 500):
@@ -37,9 +49,12 @@ class ReportDashboard:
         self._etf_data: dict[str, ETFDisplayData] = {}
         self._signals: list[SignalDisplayData] = []
         self._holdings_data: dict[str, HoldingsETFDisplayData] = {}
+        self._cycle_start: float | None = None
 
     def update_etf_data(self, data: ETFDisplayData) -> None:
         """Collect ETF display data for the current cycle."""
+        if self._cycle_start is None:
+            self._cycle_start = time.monotonic()
         self._etf_data[data.symbol] = data
 
     def add_signal(self, signal: SignalDisplayData) -> None:
@@ -67,13 +82,30 @@ class ReportDashboard:
         filename = f"scan_{timestamp.strftime('%Y%m%d_%H%M%S_%f')}.json"
         filepath = self._report_dir / filename
 
+        # Scan duration
+        cycle_duration = None
+        if self._cycle_start is not None:
+            cycle_duration = round(time.monotonic() - self._cycle_start, 2)
+
         # Build summary stats
         bullish = sum(1 for d in self._etf_data.values() if d.trend == TrendDirection.BULLISH.value)
         bearish = sum(1 for d in self._etf_data.values() if d.trend == TrendDirection.BEARISH.value)
         neutral = len(self._etf_data) - bullish - bearish
 
+        # Market hours status
+        market_status = MarketHours.get_market_status()
+
         report = {
             "scan_timestamp": timestamp.isoformat(),
+            "scan_metadata": {
+                "cycle_duration_seconds": cycle_duration,
+            },
+            "market_status": {
+                "status": market_status["status"],
+                "message": market_status["message"],
+                "time_info": market_status["time_info"],
+            },
+            "api_metrics": api_call_tracker.get_stats(),
             "etfs": {sym: data.model_dump(mode="json") for sym, data in self._etf_data.items()},
             "signals": [sig.model_dump(mode="json") for sig in self._signals],
             "holdings": {
@@ -98,8 +130,9 @@ class ReportDashboard:
         # Rotate old reports
         self._rotate_reports()
 
-        # Reset signals for next cycle (keep ETF/holdings as baseline)
+        # Reset for next cycle
         self._signals.clear()
+        self._cycle_start = None
 
         return filepath
 

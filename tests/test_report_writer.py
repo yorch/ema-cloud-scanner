@@ -109,6 +109,9 @@ class TestReportDashboard:
 
         # Top-level keys
         assert "scan_timestamp" in report
+        assert "scan_metadata" in report
+        assert "market_status" in report
+        assert "api_metrics" in report
         assert "etfs" in report
         assert "signals" in report
         assert "holdings" in report
@@ -139,6 +142,59 @@ class TestReportDashboard:
         assert summary["total_signals"] == 1
         assert summary["holdings_etfs_scanned"] == 1
         assert summary["total_holdings"] == 10
+
+    def test_report_includes_market_status(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        rd.update_etf_data(_make_etf_data())
+
+        filepath = rd.flush_report()
+        report = json.loads(filepath.read_text())
+
+        ms = report["market_status"]
+        assert "status" in ms
+        assert "message" in ms
+        assert "time_info" in ms
+        assert ms["status"] in ("OPEN", "CLOSED", "PRE_MARKET", "AFTER_HOURS", "HOLIDAY")
+
+    def test_report_includes_api_metrics(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        rd.update_etf_data(_make_etf_data())
+
+        filepath = rd.flush_report()
+        report = json.loads(filepath.read_text())
+
+        metrics = report["api_metrics"]
+        assert "total_calls" in metrics
+        assert "calls_per_minute" in metrics
+        assert "cache_hit_rate" in metrics
+        assert "success_rate" in metrics
+
+    def test_report_includes_scan_metadata(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        rd.update_etf_data(_make_etf_data())
+
+        filepath = rd.flush_report()
+        report = json.loads(filepath.read_text())
+
+        meta = report["scan_metadata"]
+        assert "cycle_duration_seconds" in meta
+        # Duration should be a small positive number (update_etf_data starts the timer)
+        assert meta["cycle_duration_seconds"] is not None
+        assert meta["cycle_duration_seconds"] >= 0
+
+    def test_cycle_start_resets_between_flushes(self, tmp_path: Path):
+        rd = ReportDashboard(tmp_path)
+        rd.update_etf_data(_make_etf_data())
+        rd.flush_report()
+
+        # After flush, cycle_start should be reset
+        assert rd._cycle_start is None
+
+        # Next cycle
+        rd.update_etf_data(_make_etf_data())
+        filepath = rd.flush_report()
+        report = json.loads(filepath.read_text())
+        assert report["scan_metadata"]["cycle_duration_seconds"] is not None
 
     def test_flush_clears_signals(self, tmp_path: Path):
         rd = ReportDashboard(tmp_path)
