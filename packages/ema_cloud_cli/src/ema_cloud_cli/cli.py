@@ -433,9 +433,7 @@ def main(
     ] = False,
     discord_webhook: Annotated[
         str | None,
-        typer.Option(
-            "--discord-webhook", help="Discord webhook URL", envvar="DISCORD_WEBHOOK_URL"
-        ),
+        typer.Option("--discord-webhook", help="Discord webhook URL", envvar="DISCORD_WEBHOOK_URL"),
     ] = None,
     # Email notifications
     email_alerts: Annotated[
