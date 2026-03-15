@@ -40,7 +40,11 @@ jobs:
           python-version: "3.13"
       - run: uv sync --extra dev
       - name: Mypy type check
-        run: uv run mypy packages/ema_cloud_lib/src/ema_cloud_lib/ --ignore-missing-imports
+        run: >
+          uv run mypy
+          packages/ema_cloud_lib/src/ema_cloud_lib/
+          packages/ema_cloud_cli/src/ema_cloud_cli/
+          --ignore-missing-imports
 
   test:
     runs-on: ubuntu-latest
