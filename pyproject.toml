@@ -136,3 +136,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "integration: marks tests that call external APIs or require network access (deselect with '-m not integration')",
+    "slow: marks tests that are intentionally slow (deselect with '-m not slow')",
+]

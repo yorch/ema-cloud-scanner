@@ -59,11 +59,12 @@ jobs:
       - name: Run tests with coverage
         run: >
           just test tests/ -v --tb=short
+          -m "not integration and not slow"
           --cov=ema_cloud_lib
           --cov-report=term-missing
           --cov-fail-under=50
       - name: Run CLI tests
-        run: just test packages/ema_cloud_cli/tests/ -v --tb=short
+        run: just test packages/ema_cloud_cli/tests/ -v --tb=short -m "not integration and not slow"
 
   build:
     runs-on: ubuntu-latest
@@ -75,6 +76,19 @@ jobs:
         run: |
           cd packages/ema_cloud_lib && uv build
           cd ../ema_cloud_cli && uv build
+
+  integration-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - uses: extractions/setup-just@v2
+      - run: uv sync --extra dev
+      - name: Run integration and slow tests
+        run: just test tests/ -v --tb=short -m "integration or slow"
 
   docker:
     runs-on: ubuntu-latest
