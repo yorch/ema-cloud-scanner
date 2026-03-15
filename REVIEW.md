@@ -1,6 +1,6 @@
 # EMA Cloud Sector Scanner — Comprehensive Project Review
 
-**Review Date:** 2026-03-14
+**Review Date:** 2026-03-15
 **Project Version:** 0.1.0 (Alpha)
 **Reviewer:** Claude (Automated Code Review)
 
@@ -18,17 +18,17 @@ The EMA Cloud Sector Scanner is a real-time trading scanner monitoring sector ET
 
 | Metric | Value |
 |--------|-------|
-| Total Python Files | 44 |
-| Library Code (ema_cloud_lib) | ~7,600 lines |
-| Dashboard Code (ema_cloud_cli) | ~3,900 lines |
-| Test Code | ~7,600 lines |
-| Tests Passing | 668 |
+| Total Python Files | 55 |
+| Library Code (ema_cloud_lib) | ~8,400 lines |
+| Dashboard Code (ema_cloud_cli) | ~4,000 lines |
+| Test Code | ~8,400 lines |
+| Tests Passing | 679 |
 | Mypy Errors | 0 |
-| Documentation | ~6,800 lines (13 files) |
+| Documentation | ~6,800 lines (18 files) |
 | Python Version | >=3.11 (tested on 3.11, 3.12, 3.13) |
 | License | MIT |
 | Last Updated | 2026-03-15 |
-| Test Coverage | 80% (enforced 50% floor in CI) |
+| Test Coverage | 82% (enforced 50% floor in CI) |
 
 ### PRD Feature Completeness
 
@@ -36,7 +36,7 @@ The EMA Cloud Sector Scanner is a real-time trading scanner monitoring sector ET
 |-------------|--------|-------|
 | Multi-ETF Scanning | Done | All 11 sector SPDRs |
 | EMA Cloud Detection | Done | 6 clouds implemented |
-| Signal Generation | Done | 4 signal types |
+| Signal Generation | Done | 5 signal types (8 enum variants) |
 | Confirmation Filters | Done | 7 filters |
 | Signal Strength Rating | Done | 5 levels |
 | Real-time Alerts (Console + Desktop) | Done | |
@@ -174,16 +174,16 @@ When a short signal was received, the code fell through from the `if signal.dire
 
 ### 1. Test Coverage (Grade: B+) — IMPROVED
 
-~~Estimated ~25% coverage.~~ Now at **80% measured coverage** with 639 passing tests and a 50% enforcement floor in CI. Previously untested modules now have dedicated test suites:
+~~Estimated ~25% coverage.~~ Now at **82% measured coverage** with 679 passing tests and a 50% enforcement floor in CI. Previously untested modules now have dedicated test suites:
 
 | Component | Lines | Tests | Coverage |
 |-----------|-------|-------|----------|
-| EMACloudScanner | 670 | 37 tests | 59% |
-| DataProviders | 864 | 46 tests | 66% |
-| Alert System | 958 | 70 tests | 50-96% per handler |
-| Dashboard | 3,900 | None | 0% (UI layer) |
+| EMACloudScanner | 328 stmts | 37 tests | 59% |
+| DataProviders | 515 stmts | 46 tests | 70% |
+| Alert System | ~400 stmts | 70 tests | 50-94% per handler |
+| Dashboard | ~4,000 lines | None | 0% (UI layer) |
 
-Well-tested modules: signals/generator (~1,600 lines, 97%), MTF analyzer (~740 lines, 98%), market hours (89%), settings (80%), backtester (99%), indicators (95%), correctness fixes (38 regression tests). CI enforces `--cov-fail-under=50`.
+Well-tested modules: signals/generator (391 stmts, 98%), MTF analyzer (144 stmts, 98%), market hours (89%), settings (91%), backtester (99%), indicators (96%), correctness fixes (38 regression tests). CI enforces `--cov-fail-under=50`.
 
 ### 2. Error Handling (Grade: B+) — IMPROVED
 
@@ -253,4 +253,4 @@ Remaining:
 
 ## Conclusion
 
-This is a **well-architected, domain-faithful trading scanner** with strong fundamentals. The dual-package design, signal pipeline, and configuration system are genuinely well done. Recent improvements — 6 correctness bug fixes with 38 regression tests, multi-timeframe analysis, structured `RawSignal` refactoring, and a clean mypy pass (0 errors) — have meaningfully advanced the project. **All three tiers are now complete**: correctness bugs fixed, 668 tests passing at 80%+ coverage (50% CI floor enforced), exception handling hardened, backtesting accounting fixed, and all Tier 3 feature enhancements delivered — cloud stacking/waterfall detection, weighted filter scoring, post-fetch data quality validation, walk-forward backtesting, and config schema migration. The main remaining gap is in the **UI layer** (dashboard has no tests). The architecture supports growth — the remaining gaps are in UI polish, not in design, reliability, features, or test coverage.
+This is a **well-architected, domain-faithful trading scanner** with strong fundamentals. The dual-package design, signal pipeline, and configuration system are genuinely well done. Recent improvements — 6 correctness bug fixes with 38 regression tests, multi-timeframe analysis, structured `RawSignal` refactoring, and a clean mypy pass (0 errors) — have meaningfully advanced the project. **All three tiers are now complete**: correctness bugs fixed, 679 tests passing at 82% coverage (50% CI floor enforced), exception handling hardened, backtesting accounting fixed, and all Tier 3 feature enhancements delivered — cloud stacking/waterfall detection, weighted filter scoring, post-fetch data quality validation, walk-forward backtesting, and config schema migration. The main remaining gap is in the **UI layer** (dashboard has no tests). The architecture supports growth — the remaining gaps are in UI polish, not in design, reliability, features, or test coverage.
