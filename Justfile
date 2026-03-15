@@ -47,6 +47,14 @@ test-v *args:
 test-file file *args:
     uv run --extra dev pytest {{ file }} -v {{ args }}
 
+# Run only unit tests (excludes integration and slow markers) — used by CI
+test-unit *args:
+    uv run --extra dev pytest -m "not integration and not slow" {{ args }}
+
+# Run only integration tests
+test-integration *args:
+    uv run --extra dev pytest -m "integration" {{ args }}
+
 # Test alert handlers
 test-alerts:
     uv run python scripts/test_alerts.py

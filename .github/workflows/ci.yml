@@ -58,13 +58,12 @@ jobs:
       - run: uv sync --extra dev
       - name: Run tests with coverage
         run: >
-          just test tests/ -v --tb=short
-          -m "not integration and not slow"
+          just test-unit tests/ -v --tb=short
           --cov=ema_cloud_lib
           --cov-report=term-missing
           --cov-fail-under=50
       - name: Run CLI tests
-        run: just test packages/ema_cloud_cli/tests/ -v --tb=short -m "not integration and not slow"
+        run: just test-unit packages/ema_cloud_cli/tests/ -v --tb=short
 
   build:
     runs-on: ubuntu-latest
@@ -88,7 +87,7 @@ jobs:
       - uses: extractions/setup-just@v2
       - run: uv sync --extra dev
       - name: Run integration and slow tests
-        run: just test tests/ -v --tb=short -m "integration or slow"
+        run: just test-integration tests/ -v --tb=short
 
   docker:
     runs-on: ubuntu-latest
