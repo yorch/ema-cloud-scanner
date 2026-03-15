@@ -970,7 +970,7 @@ def backtest(
                 )
                 result = backtester.run(df, symbol)
                 results[symbol] = result
-                result.print_summary()
+                result.log_summary()
 
         # Comparison table (standard backtest only)
         if not walk_forward and len(results) > 1:

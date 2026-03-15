@@ -189,8 +189,8 @@ class BacktestResult(BaseModel):
         )
         return "\n".join(lines)
 
-    def print_summary(self):
-        """Log a formatted summary of results."""
+    def log_summary(self):
+        """Log a formatted summary of results via the logging system."""
         logger.info(self.format_summary())
 
 
@@ -809,7 +809,7 @@ def run_quick_backtest(
     df: pd.DataFrame,
     symbol: str,
     initial_capital: float = 100000.0,
-    print_results: bool = True,
+    log_results: bool = True,
     timeframe: str = "1d",
 ) -> BacktestResult:
     """
@@ -818,7 +818,7 @@ def run_quick_backtest(
     backtester = Backtester(initial_capital=initial_capital, timeframe=timeframe)
     result = backtester.run(df, symbol)
 
-    if print_results:
-        result.print_summary()
+    if log_results:
+        result.log_summary()
 
     return result

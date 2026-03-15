@@ -900,11 +900,11 @@ class TestFormatSummary:
         assert "Max Drawdown" in summary
         assert "5.00%" in summary
 
-    def test_print_summary_does_not_raise(self, caplog):
-        """print_summary() sends the summary through the logger."""
+    def test_log_summary_does_not_raise(self, caplog):
+        """log_summary() sends the summary through the logger."""
         r = self._make_result()
         with caplog.at_level(logging.INFO):
-            r.print_summary()
+            r.log_summary()
         # At minimum, ensure it does not raise.
 
 
@@ -980,36 +980,36 @@ class TestRunQuickBacktest:
 
     def test_returns_backtest_result(self):
         df = _make_ohlcv(n=300, trend=0.1, seed=300)
-        result = run_quick_backtest(df, "QUICK", print_results=False)
+        result = run_quick_backtest(df, "QUICK", log_results=False)
         assert isinstance(result, BacktestResult)
         assert result.symbol == "QUICK"
 
     def test_default_capital_is_100k(self):
         df = _make_ohlcv(n=300, trend=0.1, seed=301)
-        result = run_quick_backtest(df, "CAP", print_results=False)
+        result = run_quick_backtest(df, "CAP", log_results=False)
         assert result.initial_capital == 100_000
 
     def test_custom_capital(self):
         df = _make_ohlcv(n=300, trend=0.1, seed=302)
-        result = run_quick_backtest(df, "CC", initial_capital=50_000, print_results=False)
+        result = run_quick_backtest(df, "CC", initial_capital=50_000, log_results=False)
         assert result.initial_capital == 50_000
 
     def test_custom_timeframe(self):
         df = _make_ohlcv(n=300, trend=0.1, seed=303)
-        r1 = run_quick_backtest(df, "T1", timeframe="1d", print_results=False)
-        r2 = run_quick_backtest(df, "T2", timeframe="1wk", print_results=False)
+        r1 = run_quick_backtest(df, "T1", timeframe="1d", log_results=False)
+        r2 = run_quick_backtest(df, "T2", timeframe="1wk", log_results=False)
         assert isinstance(r1, BacktestResult)
         assert isinstance(r2, BacktestResult)
 
-    def test_print_results_true_does_not_raise(self, caplog):
+    def test_log_results_true_does_not_raise(self, caplog):
         with caplog.at_level(logging.INFO):
             df = _make_ohlcv(n=300, trend=0.1, seed=304)
-            result = run_quick_backtest(df, "PRINT", print_results=True)
+            result = run_quick_backtest(df, "PRINT", log_results=True)
         assert isinstance(result, BacktestResult)
 
     def test_insufficient_data(self):
         df = _make_ohlcv(n=20, seed=305)
-        result = run_quick_backtest(df, "TINY", print_results=False)
+        result = run_quick_backtest(df, "TINY", log_results=False)
         assert result.total_trades == 0
         assert result.final_capital == result.initial_capital
 
