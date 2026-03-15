@@ -715,23 +715,27 @@ class AlpacaProvider(BaseDataProvider):
             raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
 
     async def get_quote(self, symbol: str) -> Quote:
-        """Get real-time quote from Alpaca"""
+        """Get real-time quote from Alpaca.
+
+        Fetches the latest bar alongside the quote to obtain accurate volume —
+        the quote endpoint only carries bid/ask prices, not volume.
+        """
         await self._rate_limit()
 
         try:
-            from alpaca.data.requests import StockLatestQuoteRequest
+            from alpaca.data.requests import StockLatestBarRequest, StockLatestQuoteRequest
 
             client = self._get_client()
-            request = StockLatestQuoteRequest(symbol_or_symbols=symbol)
-            quotes = client.get_stock_latest_quote(request)
+            quote_data = client.get_stock_latest_quote(StockLatestQuoteRequest(symbol_or_symbols=symbol))[symbol]
+            bars = client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbol))
+            volume = bars[symbol].volume if symbol in bars else 0
 
-            quote_data = quotes[symbol]
             return Quote(
                 symbol=symbol,
                 bid=quote_data.bid_price,
                 ask=quote_data.ask_price,
                 last=(quote_data.bid_price + quote_data.ask_price) / 2,
-                volume=0,  # Alpaca quote doesn't include volume
+                volume=volume,
                 timestamp=quote_data.timestamp,
             )
         except DataProviderError:
@@ -741,24 +745,28 @@ class AlpacaProvider(BaseDataProvider):
             raise DataProviderError(f"Failed to get quote for {symbol}: {e}") from e
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
-        """Get quotes for multiple symbols from Alpaca"""
+        """Get quotes for multiple symbols from Alpaca.
+
+        Batches both the quote and bar requests so volume is accurate.
+        """
         await self._rate_limit()
 
         try:
-            from alpaca.data.requests import StockLatestQuoteRequest
+            from alpaca.data.requests import StockLatestBarRequest, StockLatestQuoteRequest
 
             client = self._get_client()
-            request = StockLatestQuoteRequest(symbol_or_symbols=symbols)
-            quotes_data = client.get_stock_latest_quote(request)
+            quotes_data = client.get_stock_latest_quote(StockLatestQuoteRequest(symbol_or_symbols=symbols))
+            bars_data = client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbols))
 
             quotes = {}
-            for symbol, quote_data in quotes_data.items():
-                quotes[symbol] = Quote(
-                    symbol=symbol,
+            for sym, quote_data in quotes_data.items():
+                volume = bars_data[sym].volume if sym in bars_data else 0
+                quotes[sym] = Quote(
+                    symbol=sym,
                     bid=quote_data.bid_price,
                     ask=quote_data.ask_price,
                     last=(quote_data.bid_price + quote_data.ask_price) / 2,
-                    volume=0,
+                    volume=volume,
                     timestamp=quote_data.timestamp,
                 )
             return quotes
@@ -880,19 +888,32 @@ class PolygonProvider(BaseDataProvider):
             raise DataProviderError(f"Failed to fetch data for {symbol}: {e}") from e
 
     async def get_quote(self, symbol: str) -> Quote:
-        """Get real-time quote from Polygon"""
+        """Get real-time quote from Polygon.
+
+        Combines the last quote (bid/ask) with the ticker snapshot (day volume)
+        because the quote endpoint does not carry volume data.
+        """
         await self._rate_limit()
 
         try:
             client = self._get_client()
             quote = client.get_last_quote(symbol)
 
+            # Fetch day volume from the snapshot; fall back to 0 if unavailable
+            volume = 0
+            try:
+                snapshot = client.get_snapshot_ticker("stocks", symbol)
+                if snapshot and hasattr(snapshot, "day") and snapshot.day:
+                    volume = getattr(snapshot.day, "volume", 0) or 0
+            except Exception:
+                pass  # Snapshot is best-effort; quote still valid without volume
+
             return Quote(
                 symbol=symbol,
                 bid=quote.bid_price if hasattr(quote, "bid_price") else 0,
                 ask=quote.ask_price if hasattr(quote, "ask_price") else 0,
                 last=quote.last_price if hasattr(quote, "last_price") else 0,
-                volume=0,
+                volume=volume,
                 timestamp=datetime.now(UTC),
             )
         except DataProviderError:
