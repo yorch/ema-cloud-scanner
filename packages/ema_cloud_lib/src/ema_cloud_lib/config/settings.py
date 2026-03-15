@@ -5,11 +5,17 @@ Based on Ripster's EMA Cloud Strategy
 All settings are configurable and support presets for different trading styles.
 """
 
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field, SecretStr, ValidationInfo, field_validator
+
+logger = logging.getLogger(__name__)
+
+# Current config schema version — bump when the schema changes
+CONFIG_SCHEMA_VERSION = 2
 
 
 class TradingStyle(Enum):
@@ -321,6 +327,20 @@ class FilterConfig(BaseModel):
     trading_start_time: str = Field(default="09:30", description="Trading start time (HH:MM)")
     trading_end_time: str = Field(default="16:00", description="Trading end time (HH:MM)")
 
+    # Filter weights for weighted scoring (higher = more important)
+    filter_weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "volume": 2.0,
+            "rsi": 1.0,
+            "adx": 2.0,
+            "vwap": 1.5,
+            "atr": 1.0,
+            "macd": 1.0,
+            "time": 0.5,
+        },
+        description="Weights for each filter in signal strength scoring (higher = more influence)",
+    )
+
     @field_validator("rsi_overbought", "rsi_oversold")
     @classmethod
     def validate_rsi_range(cls, v: float) -> float:
@@ -542,6 +562,12 @@ class MTFConfig(BaseModel):
 class ScannerConfig(BaseModel):
     """Main scanner configuration"""
 
+    # Schema version for migration support
+    schema_version: int = Field(
+        default=CONFIG_SCHEMA_VERSION,
+        description="Config schema version — used for automatic migration",
+    )
+
     # Trading style preset
     trading_style: TradingStyle = Field(
         default=TradingStyle.INTRADAY, description="Trading style preset"
@@ -698,6 +724,7 @@ class ScannerConfig(BaseModel):
     def save(self, filepath: str):
         """Save configuration to JSON file, excluding credential fields."""
         config_dict = self.model_dump(mode="json", exclude_none=False)
+        config_dict["schema_version"] = CONFIG_SCHEMA_VERSION
 
         # Strip secret fields from nested config sections
         for section in ("alerts", "data_provider"):
@@ -712,9 +739,76 @@ class ScannerConfig(BaseModel):
 
     @classmethod
     def load(cls, filepath: str) -> "ScannerConfig":
-        """Load configuration from JSON file using Pydantic deserialization"""
+        """Load configuration from JSON file, applying migrations if needed."""
+        import json
+
         config_json = Path(filepath).read_text()
-        return cls.model_validate_json(config_json)
+        raw = json.loads(config_json)
+
+        # Run migrations
+        raw = migrate_config(raw)
+
+        return cls.model_validate(raw)
+
+
+# ---------------------------------------------------------------------------
+# Config schema migration support
+# ---------------------------------------------------------------------------
+
+# Each migration function takes a config dict and returns the updated dict.
+# Keyed by the version they migrate FROM → the next version.
+_MIGRATIONS: dict[int, Any] = {}
+
+
+def _register_migration(from_version: int):
+    """Decorator to register a config migration function."""
+
+    def decorator(fn):
+        _MIGRATIONS[from_version] = fn
+        return fn
+
+    return decorator
+
+
+@_register_migration(1)
+def _migrate_v1_to_v2(config: dict) -> dict:
+    """v1 → v2: Add filter_weights to filters section."""
+    filters = config.get("filters", {})
+    if "filter_weights" not in filters:
+        filters["filter_weights"] = {
+            "volume": 2.0,
+            "rsi": 1.0,
+            "adx": 2.0,
+            "vwap": 1.5,
+            "atr": 1.0,
+            "macd": 1.0,
+            "time": 0.5,
+        }
+        config["filters"] = filters
+    config["schema_version"] = 2
+    return config
+
+
+def migrate_config(config: dict) -> dict:
+    """Apply all necessary migrations to bring config to the current schema version.
+
+    Configs without a ``schema_version`` key are assumed to be version 1.
+    """
+    version = config.get("schema_version", 1)
+
+    while version < CONFIG_SCHEMA_VERSION:
+        migration_fn = _MIGRATIONS.get(version)
+        if migration_fn is None:
+            logger.warning(
+                f"No migration path from schema version {version} to {version + 1}; "
+                f"loading as-is"
+            )
+            break
+        logger.info(f"Migrating config schema v{version} → v{version + 1}")
+        config = migration_fn(config)
+        version = config.get("schema_version", version + 1)
+
+    return config
 
 
 # Default configuration instance

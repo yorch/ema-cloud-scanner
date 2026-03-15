@@ -555,6 +555,270 @@ class Backtester:
         return df
 
 
+class WalkForwardWindow(BaseModel):
+    """Result from a single walk-forward window."""
+
+    window_index: int = Field(..., description="Window number (0-based)")
+    in_sample_start: datetime = Field(..., description="In-sample period start")
+    in_sample_end: datetime = Field(..., description="In-sample period end")
+    out_of_sample_start: datetime = Field(..., description="Out-of-sample period start")
+    out_of_sample_end: datetime = Field(..., description="Out-of-sample period end")
+    in_sample_bars: int = Field(default=0, description="Number of in-sample bars")
+    out_of_sample_bars: int = Field(default=0, description="Number of out-of-sample bars")
+    in_sample_result: BacktestResult | None = Field(
+        default=None, description="In-sample backtest result"
+    )
+    out_of_sample_result: BacktestResult | None = Field(
+        default=None, description="Out-of-sample backtest result"
+    )
+
+
+class WalkForwardResult(BaseModel):
+    """Aggregated walk-forward backtest results."""
+
+    symbol: str = Field(..., description="Symbol tested")
+    windows: list[WalkForwardWindow] = Field(
+        default_factory=list, description="Individual window results"
+    )
+    total_windows: int = Field(default=0, description="Number of walk-forward windows")
+    in_sample_size: int = Field(..., description="In-sample window size (bars)")
+    out_of_sample_size: int = Field(..., description="Out-of-sample window size (bars)")
+    step_size: int = Field(..., description="Step size between windows (bars)")
+
+    # Aggregated out-of-sample metrics
+    oos_total_trades: int = Field(default=0, description="Total out-of-sample trades")
+    oos_win_rate: float = Field(default=0.0, description="Average OOS win rate %")
+    oos_total_return_pct: float = Field(
+        default=0.0, description="Cumulative OOS return %"
+    )
+    oos_avg_return_pct: float = Field(
+        default=0.0, description="Average per-window OOS return %"
+    )
+    oos_max_drawdown_pct: float = Field(
+        default=0.0, description="Worst OOS max drawdown %"
+    )
+    oos_avg_sharpe: float = Field(default=0.0, description="Average OOS Sharpe ratio")
+    robustness_ratio: float = Field(
+        default=0.0,
+        description="OOS / IS return ratio — values near 1.0 suggest the strategy is robust",
+    )
+
+    def calculate_aggregate_metrics(self) -> None:
+        """Calculate aggregate metrics from individual windows."""
+        oos_results = [
+            w.out_of_sample_result for w in self.windows if w.out_of_sample_result is not None
+        ]
+        is_results = [
+            w.in_sample_result for w in self.windows if w.in_sample_result is not None
+        ]
+
+        if not oos_results:
+            return
+
+        self.total_windows = len(self.windows)
+        self.oos_total_trades = sum(r.total_trades for r in oos_results)
+
+        win_rates = [r.win_rate for r in oos_results if r.total_trades > 0]
+        self.oos_win_rate = np.mean(win_rates) if win_rates else 0.0
+
+        returns = [r.total_return_pct for r in oos_results]
+        self.oos_avg_return_pct = float(np.mean(returns)) if returns else 0.0
+
+        # Compound OOS returns
+        cumulative = 1.0
+        for r in returns:
+            cumulative *= 1 + r / 100
+        self.oos_total_return_pct = (cumulative - 1) * 100
+
+        drawdowns = [r.max_drawdown_pct for r in oos_results]
+        self.oos_max_drawdown_pct = max(drawdowns) if drawdowns else 0.0
+
+        sharpes = [r.sharpe_ratio for r in oos_results if r.total_trades > 0]
+        self.oos_avg_sharpe = float(np.mean(sharpes)) if sharpes else 0.0
+
+        # Robustness ratio: avg OOS return / avg IS return
+        if is_results:
+            is_returns = [r.total_return_pct for r in is_results]
+            avg_is = float(np.mean(is_returns)) if is_returns else 0.0
+            if avg_is != 0:
+                self.robustness_ratio = self.oos_avg_return_pct / avg_is
+            else:
+                self.robustness_ratio = 0.0
+
+    def format_summary(self) -> str:
+        """Format a summary of walk-forward results."""
+        lines = [
+            f"\n{'=' * 60}",
+            f"WALK-FORWARD RESULTS: {self.symbol}",
+            f"{'=' * 60}",
+            f"Windows: {self.total_windows} "
+            f"(IS={self.in_sample_size} bars, OOS={self.out_of_sample_size} bars, "
+            f"step={self.step_size} bars)",
+            f"\n{'-' * 60}",
+            "OUT-OF-SAMPLE PERFORMANCE",
+            f"{'-' * 60}",
+            f"Total OOS Trades: {self.oos_total_trades}",
+            f"Average Win Rate: {self.oos_win_rate:.1f}%",
+            f"Cumulative Return: {self.oos_total_return_pct:+.2f}%",
+            f"Average Return/Window: {self.oos_avg_return_pct:+.2f}%",
+            f"Worst Max Drawdown: {self.oos_max_drawdown_pct:.2f}%",
+            f"Average Sharpe: {self.oos_avg_sharpe:.2f}",
+            f"Robustness Ratio: {self.robustness_ratio:.2f} (IS→OOS consistency)",
+            f"{'=' * 60}\n",
+        ]
+        return "\n".join(lines)
+
+
+class WalkForwardBacktester:
+    """Walk-forward backtesting engine.
+
+    Divides data into rolling in-sample (training) and out-of-sample (testing)
+    windows to evaluate strategy robustness without look-ahead bias.
+    """
+
+    def __init__(
+        self,
+        in_sample_size: int = 500,
+        out_of_sample_size: int = 100,
+        step_size: int | None = None,
+        initial_capital: float = 100000.0,
+        position_size_pct: float = 10.0,
+        commission: float = 0.0,
+        slippage_pct: float = 0.05,
+        timeframe: str = "1d",
+    ):
+        """
+        Args:
+            in_sample_size: Bars in each in-sample window
+            out_of_sample_size: Bars in each out-of-sample window
+            step_size: Bars to advance between windows (defaults to out_of_sample_size)
+            initial_capital: Starting capital for each OOS window
+            position_size_pct: Position size as % of capital
+            commission: Commission per trade
+            slippage_pct: Slippage as % of price
+            timeframe: Timeframe for Sharpe annualization
+        """
+        self.in_sample_size = in_sample_size
+        self.out_of_sample_size = out_of_sample_size
+        self.step_size = step_size or out_of_sample_size
+        self.initial_capital = initial_capital
+        self.position_size_pct = position_size_pct
+        self.commission = commission
+        self.slippage_pct = slippage_pct
+        self.timeframe = timeframe
+
+    def run(
+        self,
+        df: pd.DataFrame,
+        symbol: str,
+        signals_df: pd.DataFrame | None = None,
+        **backtest_kwargs,
+    ) -> WalkForwardResult:
+        """Run walk-forward backtest.
+
+        Args:
+            df: Full OHLCV DataFrame
+            symbol: Symbol being tested
+            signals_df: Optional pre-computed signals (will be sliced per window)
+            **backtest_kwargs: Additional kwargs passed to Backtester.run()
+
+        Returns:
+            WalkForwardResult with per-window and aggregate metrics
+        """
+        total_bars = len(df)
+        window_size = self.in_sample_size + self.out_of_sample_size
+
+        if total_bars < window_size:
+            logger.warning(
+                f"Insufficient data for walk-forward: {total_bars} bars "
+                f"(need {window_size} for first window)"
+            )
+            return WalkForwardResult(
+                symbol=symbol,
+                in_sample_size=self.in_sample_size,
+                out_of_sample_size=self.out_of_sample_size,
+                step_size=self.step_size,
+            )
+
+        windows: list[WalkForwardWindow] = []
+        start = 0
+        window_idx = 0
+
+        while start + window_size <= total_bars:
+            is_start = start
+            is_end = start + self.in_sample_size
+            oos_start = is_end
+            oos_end = min(is_end + self.out_of_sample_size, total_bars)
+
+            is_df = df.iloc[is_start:is_end]
+            oos_df = df.iloc[oos_start:oos_end]
+
+            # Slice signals if provided
+            is_signals = None
+            oos_signals = None
+            if signals_df is not None and not signals_df.empty:
+                is_signals = signals_df[
+                    (signals_df.index >= is_df.index[0])
+                    & (signals_df.index <= is_df.index[-1])
+                ]
+                oos_signals = signals_df[
+                    (signals_df.index >= oos_df.index[0])
+                    & (signals_df.index <= oos_df.index[-1])
+                ]
+
+            backtester = Backtester(
+                initial_capital=self.initial_capital,
+                position_size_pct=self.position_size_pct,
+                commission=self.commission,
+                slippage_pct=self.slippage_pct,
+                timeframe=self.timeframe,
+            )
+
+            # In-sample run
+            is_result = backtester.run(
+                is_df, symbol, signals_df=is_signals, **backtest_kwargs
+            )
+
+            # Out-of-sample run
+            oos_result = backtester.run(
+                oos_df, symbol, signals_df=oos_signals, **backtest_kwargs
+            )
+
+            window = WalkForwardWindow(
+                window_index=window_idx,
+                in_sample_start=is_df.index[0]
+                if hasattr(is_df.index[0], "isoformat")
+                else datetime.now(UTC),
+                in_sample_end=is_df.index[-1]
+                if hasattr(is_df.index[-1], "isoformat")
+                else datetime.now(UTC),
+                out_of_sample_start=oos_df.index[0]
+                if hasattr(oos_df.index[0], "isoformat")
+                else datetime.now(UTC),
+                out_of_sample_end=oos_df.index[-1]
+                if hasattr(oos_df.index[-1], "isoformat")
+                else datetime.now(UTC),
+                in_sample_bars=len(is_df),
+                out_of_sample_bars=len(oos_df),
+                in_sample_result=is_result,
+                out_of_sample_result=oos_result,
+            )
+            windows.append(window)
+
+            start += self.step_size
+            window_idx += 1
+
+        result = WalkForwardResult(
+            symbol=symbol,
+            windows=windows,
+            in_sample_size=self.in_sample_size,
+            out_of_sample_size=self.out_of_sample_size,
+            step_size=self.step_size,
+        )
+        result.calculate_aggregate_metrics()
+        return result
+
+
 def run_quick_backtest(
     df: pd.DataFrame,
     symbol: str,

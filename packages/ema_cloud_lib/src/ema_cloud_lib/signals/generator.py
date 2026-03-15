@@ -41,6 +41,7 @@ class FilterResult(BaseModel):
     passed: bool = Field(..., description="Whether filter passed")
     reason: str = Field(..., description="Reason for pass/fail")
     filter_name: str = Field(default="", description="Name of the filter")
+    weight: float = Field(default=1.0, description="Weight of this filter for scoring")
 
     def __bool__(self) -> bool:
         return self.passed
@@ -465,15 +466,7 @@ class SignalFilter:
         passed = []
         failed = []
 
-        results = [
-            self.filter_volume(row),
-            self.filter_rsi(row, direction),
-            self.filter_adx(row),
-            self.filter_vwap(row, direction),
-            self.filter_atr(row),
-            self.filter_macd(row, direction),
-            self.filter_time_of_day(timestamp),
-        ]
+        results = self._run_all_filters(row, direction, timestamp)
 
         for result in results:
             formatted = f"{result.filter_name}: {result.reason}"
@@ -483,6 +476,39 @@ class SignalFilter:
                 failed.append(formatted)
 
         return passed, failed
+
+    def _run_all_filters(
+        self, row: pd.Series, direction: str, timestamp: datetime
+    ) -> list[FilterResult]:
+        """Run all filters and attach configured weights."""
+        weights = self.config.filter_weights
+        results = [
+            self.filter_volume(row),
+            self.filter_rsi(row, direction),
+            self.filter_adx(row),
+            self.filter_vwap(row, direction),
+            self.filter_atr(row),
+            self.filter_macd(row, direction),
+            self.filter_time_of_day(timestamp),
+        ]
+        for r in results:
+            r.weight = weights.get(r.filter_name, 1.0)
+        return results
+
+    def weighted_filter_score(
+        self, row: pd.Series, direction: str, timestamp: datetime
+    ) -> float:
+        """Return a weighted filter score in [0, 1].
+
+        Each filter contributes its weight when passed (0 when failed).
+        The result is the sum of passed weights divided by the total weight.
+        """
+        results = self._run_all_filters(row, direction, timestamp)
+        total_weight = sum(r.weight for r in results)
+        if total_weight == 0:
+            return 0.5
+        passed_weight = sum(r.weight for r in results if r.passed)
+        return passed_weight / total_weight
 
 
 class SignalGenerator:
@@ -575,6 +601,9 @@ class SignalGenerator:
 
         trend_strength = max(0, min(100, trend_strength))
 
+        # Stacking / waterfall analysis
+        stacking = self.cloud_indicator.analyze_stacking(clouds)
+
         return TrendAnalysis(
             symbol=symbol,
             timestamp=timestamp,
@@ -586,6 +615,7 @@ class SignalGenerator:
             if overall_trend == "bullish"
             else total_clouds - bullish_clouds,
             signals=signals,
+            stacking=stacking,
             rsi=indicators.get("rsi"),
             adx=indicators.get("adx"),
             atr=indicators.get("atr"),
@@ -673,6 +703,8 @@ class SignalGenerator:
         ("PULLBACK_ENTRY", "bearish"): SignalType.PULLBACK_ENTRY,
         ("STRONG_ALIGNMENT", "bullish"): SignalType.TREND_CONFIRMATION,
         ("STRONG_ALIGNMENT", "bearish"): SignalType.TREND_CONFIRMATION,
+        ("WATERFALL", "bullish"): SignalType.TREND_CONFIRMATION,
+        ("WATERFALL", "bearish"): SignalType.TREND_CONFIRMATION,
     }
 
     def _process_raw_signal(
@@ -708,9 +740,16 @@ class SignalGenerator:
             row, direction, timestamp
         )
 
+        # Calculate weighted filter score for strength rating
+        wfs = self.signal_filter.weighted_filter_score(row, direction, timestamp)
+
         # Calculate signal strength
         strength = self._calculate_signal_strength(
-            clouds=clouds, row=row, passed_filters=passed_filters, failed_filters=failed_filters
+            clouds=clouds,
+            row=row,
+            passed_filters=passed_filters,
+            failed_filters=failed_filters,
+            weighted_filter_score=wfs,
         )
 
         # Calculate risk management levels
@@ -764,6 +803,7 @@ class SignalGenerator:
         row: pd.Series,
         passed_filters: list[str],
         failed_filters: list[str],
+        weighted_filter_score: float | None = None,
     ) -> SignalStrength:
         """Calculate signal strength based on multiple factors"""
 
@@ -777,12 +817,15 @@ class SignalGenerator:
             alignment_ratio = 1 - alignment_ratio
         score += (alignment_ratio - 0.5) * 40
 
-        # Filter results (+/- 20)
-        filter_ratio = (
-            len(passed_filters) / (len(passed_filters) + len(failed_filters))
-            if (passed_filters or failed_filters)
-            else 0.5
-        )
+        # Filter results (+/- 20) — use weighted score when available
+        if weighted_filter_score is not None:
+            filter_ratio = weighted_filter_score
+        else:
+            filter_ratio = (
+                len(passed_filters) / (len(passed_filters) + len(failed_filters))
+                if (passed_filters or failed_filters)
+                else 0.5
+            )
         score += (filter_ratio - 0.5) * 40
 
         # ADX bonus (up to +10)
@@ -807,6 +850,13 @@ class SignalGenerator:
         primary_cloud = clouds.get("trend_confirmation")
         if primary_cloud and primary_cloud.is_expanding:
             score += 5
+
+        # Cloud stacking / waterfall bonus (up to +5)
+        stacking = self.cloud_indicator.analyze_stacking(clouds)
+        if stacking.is_waterfall:
+            score += 5
+        elif stacking.total_pairs > 0:
+            score += stacking.ordered_pairs / stacking.total_pairs * 3
 
         # Map score to strength
         if score >= 85:

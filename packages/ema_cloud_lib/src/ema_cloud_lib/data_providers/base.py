@@ -219,6 +219,134 @@ class InvalidSymbolError(DataProviderError):
     pass
 
 
+class DataQualityResult(BaseModel):
+    """Result of data quality validation."""
+
+    is_valid: bool = Field(default=True, description="Whether data passes quality checks")
+    warnings: list[str] = Field(default_factory=list, description="Non-fatal quality warnings")
+    errors: list[str] = Field(default_factory=list, description="Fatal quality errors")
+    rows_before: int = Field(default=0, description="Row count before cleaning")
+    rows_after: int = Field(default=0, description="Row count after cleaning")
+    nan_rows_dropped: int = Field(default=0, description="Rows dropped due to NaN values")
+    duplicate_rows_dropped: int = Field(default=0, description="Duplicate timestamps dropped")
+
+
+def validate_ohlcv(df: pd.DataFrame, symbol: str = "") -> tuple[pd.DataFrame, DataQualityResult]:
+    """Validate and clean an OHLCV DataFrame after fetching.
+
+    Checks for:
+    - Missing required columns
+    - NaN / inf values in price columns
+    - Non-positive prices
+    - high < low violations
+    - Negative volume
+    - Duplicate timestamps
+    - Non-monotonic index
+
+    Returns the cleaned DataFrame and a DataQualityResult.
+    """
+    result = DataQualityResult(rows_before=len(df))
+    prefix = f"[{symbol}] " if symbol else ""
+
+    if df.empty:
+        result.is_valid = False
+        result.errors.append(f"{prefix}DataFrame is empty")
+        result.rows_after = 0
+        return df, result
+
+    # Normalize column names to lowercase
+    df = df.copy()
+    df.columns = [c.lower() for c in df.columns]
+
+    # Check required columns
+    required = {"open", "high", "low", "close"}
+    missing = required - set(df.columns)
+    if missing:
+        result.is_valid = False
+        result.errors.append(f"{prefix}Missing required columns: {missing}")
+        result.rows_after = len(df)
+        return df, result
+
+    cleaned = df.copy()
+
+    # Drop rows with NaN in OHLC columns
+    ohlc_cols = ["open", "high", "low", "close"]
+    nan_mask = cleaned[ohlc_cols].isna().any(axis=1)
+    nan_count = nan_mask.sum()
+    if nan_count > 0:
+        cleaned = cleaned[~nan_mask]
+        result.nan_rows_dropped = int(nan_count)
+        result.warnings.append(f"{prefix}Dropped {nan_count} rows with NaN prices")
+
+    # Replace inf values with NaN and drop
+    import math
+
+    inf_mask = cleaned[ohlc_cols].apply(lambda s: s.map(lambda x: not math.isfinite(x))).any(axis=1)
+    inf_count = inf_mask.sum()
+    if inf_count > 0:
+        cleaned = cleaned[~inf_mask]
+        result.nan_rows_dropped += int(inf_count)
+        result.warnings.append(f"{prefix}Dropped {inf_count} rows with infinite values")
+
+    if cleaned.empty:
+        result.is_valid = False
+        result.errors.append(f"{prefix}No valid rows after NaN/inf removal")
+        result.rows_after = 0
+        return cleaned, result
+
+    # Non-positive prices
+    non_pos = (cleaned[ohlc_cols] <= 0).any(axis=1)
+    non_pos_count = non_pos.sum()
+    if non_pos_count > 0:
+        cleaned = cleaned[~non_pos]
+        result.warnings.append(f"{prefix}Dropped {non_pos_count} rows with non-positive prices")
+
+    # high < low violations — fix by swapping
+    bad_hl = cleaned["high"] < cleaned["low"]
+    bad_hl_count = bad_hl.sum()
+    if bad_hl_count > 0:
+        cleaned.loc[bad_hl, ["high", "low"]] = cleaned.loc[bad_hl, ["low", "high"]].values
+        result.warnings.append(f"{prefix}Fixed {bad_hl_count} rows where high < low")
+
+    # Negative volume — set to 0
+    if "volume" in cleaned.columns:
+        neg_vol = cleaned["volume"] < 0
+        neg_vol_count = neg_vol.sum()
+        if neg_vol_count > 0:
+            cleaned.loc[neg_vol, "volume"] = 0
+            result.warnings.append(f"{prefix}Zeroed {neg_vol_count} negative volume values")
+
+    # Duplicate timestamps
+    if isinstance(cleaned.index, pd.DatetimeIndex):
+        dup_mask = cleaned.index.duplicated(keep="last")
+        dup_count = dup_mask.sum()
+        if dup_count > 0:
+            cleaned = cleaned[~dup_mask]
+            result.duplicate_rows_dropped = int(dup_count)
+            result.warnings.append(f"{prefix}Dropped {dup_count} duplicate timestamps")
+
+        # Non-monotonic index — sort
+        if not cleaned.index.is_monotonic_increasing:
+            cleaned = cleaned.sort_index()
+            result.warnings.append(f"{prefix}Sorted non-monotonic index")
+
+    result.rows_after = len(cleaned)
+
+    # Warn if too many rows were dropped
+    if result.rows_before > 0:
+        drop_pct = (result.rows_before - result.rows_after) / result.rows_before * 100
+        if drop_pct > 20:
+            result.warnings.append(
+                f"{prefix}{drop_pct:.1f}% of rows dropped — data quality may be poor"
+            )
+        if result.rows_after < 50:
+            result.warnings.append(
+                f"{prefix}Only {result.rows_after} rows remaining — insufficient for analysis"
+            )
+
+    return cleaned, result
+
+
 class BaseDataProvider(ABC):
     """
     Abstract base class for data providers.
@@ -866,7 +994,19 @@ class DataProviderManager:
         for prov in providers_to_try:
             for attempt in range(self.max_retries):
                 try:
-                    return await prov.get_historical_data(symbol, interval, start, end, bars)
+                    df = await prov.get_historical_data(symbol, interval, start, end, bars)
+
+                    # Post-fetch data quality validation
+                    df, quality = validate_ohlcv(df, symbol)
+                    for w in quality.warnings:
+                        logger.warning(w)
+                    if not quality.is_valid:
+                        raise DataProviderError(
+                            f"Data quality validation failed for {symbol}: "
+                            + "; ".join(quality.errors)
+                        )
+
+                    return df
                 except DataProviderError as e:
                     last_error = e
                     if attempt < self.max_retries - 1:

@@ -4,6 +4,9 @@ from .engine import (
     Backtester,
     BacktestResult,
     Trade,
+    WalkForwardBacktester,
+    WalkForwardResult,
+    WalkForwardWindow,
     run_quick_backtest,
 )
 
@@ -12,4 +15,7 @@ __all__ = [
     "Backtester",
     "run_quick_backtest",
     "Trade",
+    "WalkForwardBacktester",
+    "WalkForwardResult",
+    "WalkForwardWindow",
 ]
