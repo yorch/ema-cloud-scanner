@@ -1,6 +1,7 @@
 """Tests for ema_cloud_cli.cli utility functions and CLI argument handling."""
 
 import logging
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,9 +15,11 @@ from ema_cloud_cli.cli import (
     app,
 )
 
-# Suppress ANSI color codes so string assertions work consistently across
-# Python versions and operating systems (CI Linux vs local macOS).
-_NO_COLOR = {"NO_COLOR": "1"}
+# Strip ANSI escape sequences from CLI output so string assertions work
+# consistently across Python versions and operating systems.
+# On Linux CI, typer/click emits colour codes even in non-TTY test mode
+# regardless of the NO_COLOR env var (behaviour varies by Click version).
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 # ── Pure utility functions ────────────────────────────────────────────────────
 
@@ -124,21 +127,32 @@ class TestDetermineLogLevel:
 # ── CLI invocation via typer.testing.CliRunner ────────────────────────────────
 
 
+class _InvokeResult:
+    """Thin wrapper around Click's Result with ANSI codes stripped from output."""
+
+    def __init__(self, result: object) -> None:
+        self._result = result
+        self.output: str = _ANSI_RE.sub("", result.output)  # type: ignore[attr-defined]
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._result, name)
+
+
 class _CLITestBase:
-    """Mixin that routes all invoke calls through NO_COLOR=1.
+    """Mixin that strips ANSI escape sequences from invoke() output.
 
     Typer/Click emits ANSI escape sequences on Linux (CI) even through the
-    test runner, which splits flag names like ``--style`` into
-    ``\x1b[1;36m-\x1b[0m\x1b[1;36m-style\x1b[0m``.  Setting NO_COLOR=1
-    suppresses all colour output so plain-string assertions work uniformly.
+    test runner regardless of NO_COLOR, which splits flag names like
+    ``--style`` into ``\\x1b[1;36m-\\x1b[0m\\x1b[1;36m-style\\x1b[0m``.
+    We wrap the result so plain-string assertions work uniformly across all
+    Python versions and operating systems.
     """
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.runner = CliRunner()
 
-    def invoke(self, args, **kwargs):
-        env = {**_NO_COLOR, **kwargs.pop("env", {})}
-        return self.runner.invoke(app, args, env=env, **kwargs)
+    def invoke(self, args: list[str], **kwargs: object) -> _InvokeResult:
+        return _InvokeResult(self.runner.invoke(app, args, **kwargs))
 
 
 class TestCLIHelp(_CLITestBase):
