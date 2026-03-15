@@ -413,6 +413,30 @@ def main(
         float | None,
         typer.Option("--volume-multiplier", help="Volume multiplier threshold (e.g., 1.5)"),
     ] = None,
+    # Telegram notifications
+    telegram_alerts: Annotated[
+        bool,
+        typer.Option("--telegram-alerts", help="Enable Telegram notifications"),
+    ] = False,
+    telegram_token: Annotated[
+        str | None,
+        typer.Option("--telegram-token", help="Telegram bot token", envvar="TELEGRAM_BOT_TOKEN"),
+    ] = None,
+    telegram_chat_id: Annotated[
+        str | None,
+        typer.Option("--telegram-chat-id", help="Telegram chat ID", envvar="TELEGRAM_CHAT_ID"),
+    ] = None,
+    # Discord notifications
+    discord_alerts: Annotated[
+        bool,
+        typer.Option("--discord-alerts", help="Enable Discord notifications"),
+    ] = False,
+    discord_webhook: Annotated[
+        str | None,
+        typer.Option(
+            "--discord-webhook", help="Discord webhook URL", envvar="DISCORD_WEBHOOK_URL"
+        ),
+    ] = None,
     # Email notifications
     email_alerts: Annotated[
         bool,
@@ -684,6 +708,36 @@ def main(
         scanner_config.filters.adx_period = adx_period
     if volume_multiplier:
         scanner_config.filters.volume_multiplier = volume_multiplier
+
+    # Apply Telegram configuration
+    if telegram_alerts:
+        if not telegram_token or not telegram_chat_id:
+            typer.echo("Error: Telegram alerts require --telegram-token and --telegram-chat-id")
+            raise typer.Exit(1)
+        scanner_config.alerts.telegram_enabled = True
+        scanner_config.alerts.telegram_bot_token = SecretStr(telegram_token)
+        scanner_config.alerts.telegram_chat_id = telegram_chat_id
+        typer.echo(f"Telegram alerts enabled: chat {telegram_chat_id}")
+    elif telegram_token and telegram_chat_id:
+        # Auto-enable if both credentials provided via env vars
+        scanner_config.alerts.telegram_enabled = True
+        scanner_config.alerts.telegram_bot_token = SecretStr(telegram_token)
+        scanner_config.alerts.telegram_chat_id = telegram_chat_id
+        typer.echo(f"Telegram alerts enabled: chat {telegram_chat_id}")
+
+    # Apply Discord configuration
+    if discord_alerts:
+        if not discord_webhook:
+            typer.echo("Error: Discord alerts require --discord-webhook")
+            raise typer.Exit(1)
+        scanner_config.alerts.discord_enabled = True
+        scanner_config.alerts.discord_webhook_url = SecretStr(discord_webhook)
+        typer.echo("Discord alerts enabled")
+    elif discord_webhook:
+        # Auto-enable if webhook provided via env var
+        scanner_config.alerts.discord_enabled = True
+        scanner_config.alerts.discord_webhook_url = SecretStr(discord_webhook)
+        typer.echo("Discord alerts enabled")
 
     # Apply email configuration
     if email_alerts:

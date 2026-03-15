@@ -118,6 +118,43 @@ The scanner is based on Ripster's EMA Cloud methodology, using multiple EMAs to 
 3. **Pullback Entry**: Price pulls back to cloud acting as support/resistance
 4. **Multi-Cloud Alignment**: Multiple clouds align in same direction
 
+## Running on a VPS / Docker
+
+The scanner can run unattended in a Docker container with Telegram, Discord, or Email alerts.
+
+### Quick Start
+
+```bash
+# 1. Copy and fill in your credentials
+cp .env.example .env
+# edit .env — set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID, or DISCORD_WEBHOOK_URL
+
+# 2. Build and start (detached)
+just docker-build
+just docker-up
+
+# 3. Watch logs
+just docker-logs
+```
+
+### Environment Variables
+
+| Variable                                          | Description                    | Default    |
+| ------------------------------------------------- | ------------------------------ | ---------- |
+| `EMA_SCANNER_TRADING_STYLE`                       | Trading style preset           | `intraday` |
+| `EMA_SCANNER_SCAN_INTERVAL`                       | Scan interval (seconds)        | `60`       |
+| `EMA_SCANNER_MARKET_HOURS_ONLY`                   | Respect market hours           | `true`     |
+| `EMA_DATA_PROVIDER`                               | `yahoo` / `alpaca` / `polygon` | `yahoo`    |
+| `ALPACA_API_KEY` / `ALPACA_SECRET_KEY`            | Alpaca credentials             | —          |
+| `POLYGON_API_KEY`                                 | Polygon.io API key             | —          |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`         | Telegram alert bot             | —          |
+| `DISCORD_WEBHOOK_URL`                             | Discord webhook                | —          |
+| `SMTP_SERVER` / `SMTP_USERNAME` / `SMTP_PASSWORD` | Email (SMTP)                   | —          |
+
+Telegram and Discord alerts are **auto-enabled** when their credentials are set — no extra flags needed.
+
+See `.env.example` for a fully annotated template.
+
 ## Advanced Features
 
 ### Multi-Timeframe Analysis

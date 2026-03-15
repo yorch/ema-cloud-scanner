@@ -1,0 +1,15 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.env
+.env.*
+!.env.example
+holdings_cache/
+tests/
+docs/
+*.md
+Justfile
+scripts/

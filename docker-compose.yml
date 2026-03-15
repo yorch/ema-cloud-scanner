@@ -1,0 +1,62 @@
+services:
+  scanner:
+    build: .
+    image: ema-cloud-scanner
+    restart: unless-stopped
+
+    # Scanner flags — override here or via .env
+    command:
+      - "--no-dashboard"
+      - "--style"
+      - "${EMA_SCANNER_TRADING_STYLE:-intraday}"
+
+    environment:
+      # ── Scanner behaviour ──────────────────────────────────────────────────
+      # Override trading style: scalping | intraday | swing | position | long_term
+      EMA_SCANNER_TRADING_STYLE: "${EMA_SCANNER_TRADING_STYLE:-intraday}"
+      # Scan interval in seconds
+      EMA_SCANNER_SCAN_INTERVAL: "${EMA_SCANNER_SCAN_INTERVAL:-60}"
+      # Respect market hours? true = market hours only, false = run 24/7
+      EMA_SCANNER_MARKET_HOURS_ONLY: "${EMA_SCANNER_MARKET_HOURS_ONLY:-true}"
+
+      # ── Data provider ──────────────────────────────────────────────────────
+      # yahoo (default, free) | alpaca | polygon
+      EMA_DATA_PROVIDER: "${EMA_DATA_PROVIDER:-yahoo}"
+
+      # Alpaca (required when EMA_DATA_PROVIDER=alpaca)
+      ALPACA_API_KEY: "${ALPACA_API_KEY:-}"
+      ALPACA_SECRET_KEY: "${ALPACA_SECRET_KEY:-}"
+
+      # Polygon.io (required when EMA_DATA_PROVIDER=polygon)
+      POLYGON_API_KEY: "${POLYGON_API_KEY:-}"
+
+      # ── Alerts — Telegram ──────────────────────────────────────────────────
+      # Both vars must be set to enable Telegram alerts automatically
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+
+      # ── Alerts — Discord ───────────────────────────────────────────────────
+      # Set to enable Discord alerts automatically
+      DISCORD_WEBHOOK_URL: "${DISCORD_WEBHOOK_URL:-}"
+
+      # ── Alerts — Email (SMTP) ──────────────────────────────────────────────
+      SMTP_SERVER: "${SMTP_SERVER:-}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+
+    volumes:
+      # Persist holdings cache across restarts
+      - scanner-cache:/home/scanner/.cache/ema-scanner
+      # Optional: mount a config JSON for non-secret scanner settings
+      # - ./scanner-config.json:/app/config.json:ro
+
+    # Resource limits — Yahoo Finance is lightweight; raise for Alpaca/Polygon
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+volumes:
+  scanner-cache:

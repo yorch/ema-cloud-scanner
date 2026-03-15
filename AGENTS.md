@@ -31,6 +31,10 @@ ema_cloud_sector_scanner/
 │           ├── config_store.py      # User preferences persistence
 │           └── dashboard/           # Textual-based terminal UI
 │
+├── Dockerfile             # Production container (all providers + headless)
+├── docker-compose.yml     # VPS deployment with env var config
+├── .env.example           # Credentials template (copy to .env)
+├── .dockerignore          # Build context exclusions
 ├── Justfile               # Developer task runner (run `just` to list)
 ├── pyproject.toml         # Workspace config
 └── run.py                 # Development runner (no install needed)
@@ -133,6 +137,54 @@ ruff format packages/
 # Type check
 mypy packages/
 ```
+
+## Docker / VPS Deployment
+
+The scanner ships with a full Docker setup for unattended server deployment.
+
+### Files
+
+| File                 | Purpose                                                                 |
+| -------------------- | ----------------------------------------------------------------------- |
+| `Dockerfile`         | Multi-stage build; installs all extras (alpaca, polygon, notifications) |
+| `docker-compose.yml` | Orchestrates the container with env vars, restart policy, cache volume  |
+| `.env.example`       | Annotated template — copy to `.env` and fill in credentials             |
+| `.dockerignore`      | Excludes `.env`, tests, docs, cache from the build context              |
+
+### Key design decisions
+
+- **`--no-dashboard`** is always set in Docker — no TTY means no Textual TUI
+- **Secrets come in via env vars only** — `ScannerConfig.save()` strips all secret fields, so credentials cannot be committed in config JSON files
+- **Telegram and Discord auto-enable** when their env vars are set — no `--telegram-alerts` flag needed in `docker-compose.yml`
+- **Named volume** `scanner-cache` persists the holdings cache across restarts
+
+### Quick reference
+
+```bash
+just docker-build    # Build image
+just docker-up       # Start detached
+just docker-logs     # Tail logs
+just docker-down     # Stop
+just docker-once     # One-shot scan (smoke test)
+just docker-shell    # Debug shell inside image
+just docker-clean    # Full reset (removes volumes)
+```
+
+### Supported alert env vars
+
+| Alert    | Env vars                                        |
+| -------- | ----------------------------------------------- |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`        |
+| Discord  | `DISCORD_WEBHOOK_URL`                           |
+| Email    | `SMTP_SERVER`, `SMTP_USERNAME`, `SMTP_PASSWORD` |
+
+### Supported data provider env vars
+
+| Provider        | Env vars                              |
+| --------------- | ------------------------------------- |
+| Yahoo (default) | _(none needed)_                       |
+| Alpaca          | `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` |
+| Polygon         | `POLYGON_API_KEY`                     |
 
 ## Architecture Patterns
 

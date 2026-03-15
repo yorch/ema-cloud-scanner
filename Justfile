@@ -96,6 +96,40 @@ install-dev:
 hooks:
     uv run pre-commit install
 
+# ── Docker ────────────────────────────────────────────────────────────────────
+
+# Build Docker image
+docker-build:
+    docker compose build
+
+# Start scanner container (detached)
+docker-up:
+    docker compose up -d
+
+# Stop scanner container
+docker-down:
+    docker compose down
+
+# Restart scanner container
+docker-restart:
+    docker compose restart scanner
+
+# Tail live container logs
+docker-logs:
+    docker compose logs -f scanner
+
+# Run scanner once inside Docker (for testing)
+docker-once:
+    docker compose run --rm scanner --no-dashboard --once
+
+# Open a shell inside the scanner image
+docker-shell:
+    docker compose run --rm --entrypoint /bin/bash scanner
+
+# Remove container, image, and named volumes (full reset)
+docker-clean:
+    docker compose down -v --rmi local
+
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
 # Show scanner help
