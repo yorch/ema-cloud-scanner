@@ -120,33 +120,36 @@ uv pip install -e "packages/ema_cloud_lib[dev]"
 ### Testing
 
 ```bash
-# Run tests
-uv run pytest tests/
+# Run all tests
+just test
 
 # Run tests verbosely
-uv run pytest tests/ -v
+just test-v
 
 # Run specific test file
-uv run pytest tests/test_scanner.py
+just test-file tests/test_scanner.py
 
 # Run specific test
-uv run pytest tests/test_scanner.py::test_signal_generation -v
+just test tests/test_scanner.py::test_signal_generation -v
 ```
 
 ### Code Quality
 
 ```bash
 # Lint all packages and tests
-uv run ruff check packages/ tests/
+just lint
 
-# Auto-fix issues
-uv run ruff check --fix packages/ tests/
+# Auto-fix lint issues
+just fix
 
 # Format code
-uv run ruff format packages/ tests/
+just fmt
 
 # Type check
-uv run mypy packages/
+just types
+
+# All quality checks (format + lint + types)
+just qa
 ```
 
 ### Pre-Commit Validation Checklist
